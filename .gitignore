@@ -1,0 +1,11 @@
+_log
+_build
+*.native
+*.byte
+*.d.native
+*.p.byte
+*.pyo
+*.pyc
+*.bc
+*.pkl
+Pyro_NS_URI

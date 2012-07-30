@@ -1,0 +1,17 @@
+<src/lib/misc>: include
+<src/lib/misc/libparser.ml>: pkg_str
+
+<src/lib/llvm>: include
+<src/lib/llvm/mllvm.ml>: g++, use_llvm, use_llvm_analysis, use_llvm_executionengine, use_llvm_target, use_llvm_scalar_opts, use_bindings
+<src/lib/llvm/state.ml>: g++, use_llvm, use_llvm_analysis, use_llvm_executionengine, use_llvm_target, use_llvm_scalar_opts, use_bindings
+
+<src/lib/python>: include
+<src/lib/python/lang_intf.{ml,byte,native}>: pkg_pycaml
+<src/lib/python/pylang.{ml,byte,native}>: pkg_pycaml
+
+<src/core/kernel>: include
+
+<src/core/comp>: include
+
+<src/core/primitives>: include
+
