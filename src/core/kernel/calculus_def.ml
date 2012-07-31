@@ -65,29 +65,28 @@ type position = NoPosition
 		| Position of ((int * int) * (int * int)) * name list
 
 type term = Universe of uType * uLevel * position 
+
+            (* constante *)
 	    | Cste of path * name * position
 
-	    (* Bounded Variable, Free Variable, Pattern Variable *)
-	    | BVar of index * position | FVar of index * position | PVar of name * typeannotation * position
+	    (* constructor *)
+	    | Cstor of term * int * typeannotation * position
+
+	    (* Free Var (index < 0) and Bounded Var (index > 0) *)
+	    | Var of index * typeannotation * position 
 		
 	    (* these constructors are only valide after parsing, and removed by typechecking *)
 	    | AVar of position (* _ *)
 	    | TName of name * typeannotation * position
 
 	    (* quantifiers *)
-
 	    | Quantifier of quantifier * term * typeannotation 
 
 	    (* application *)
-
 	    | App of term * (term * nature) list * typeannotation * position
 
 	    (* destruction *)
-	    | Match of term * equation list * typeannotation * position
-
-and pattern = term
-
-and equation = pattern * term
+	    | Match of term * (name list * term) list * typeannotation * position
 
 and conversion = (term * term)
 
@@ -95,40 +94,33 @@ and typeannotation = NoAnnotation
 		     | Annotation of term
 		     | Typed of term
 
-and quantifier = Lambda of pattern * conversion * nature * position
-		 | Forall of pattern * conversion * nature * position
-		 | LetIn of pattern * term * position
+and quantifier = Lambda of name * term * nature * position
+		 | Forall of name * term * nature * position
+		 | LetIn of name * term * term * position
 
-
-(* context of a term *)
-type pattern_frame = {
-  pattern: term;
-  vars: var_frame list
-}
 
 and var_frame = {
+
   name: name;
   ty: term;
   nature: nature;
   pos: position;
   
-  fvs: (index * term * typeannotation * position) list;
-    
+  fvs: (index * term * position) list;
+
   termstack: term list;
   naturestack: nature list;
-  patternstack: term list;
-
   conversions: conversion list
+
 }
 
 (* context *)
-and context = pattern_frame list
+and context = var_frame list
 
 (* values contains in module *)
-type value = Inductive of name list
+type value = Inductive of (name * term) list
 	    | Axiom
-	    | Constructor
-	    | Equation of equation list
+	    | Definition of term
 	    | Primitive of (term, context, module_) tObj
 	    | Import of module_
 
@@ -150,9 +142,9 @@ type doudou_error = NegativeIndexBVar of index
 		    | UnknownUnification of context * term * term
 		    | NoUnification of context * term * term
 
-		    | NoMatchingPattern of context * pattern * term
+		    | NoMatchingPattern of context * term * term
 
-		    | PoppingNonEmptyFrame of pattern_frame
+		    | PoppingNonEmptyFrame of var_frame
 
 		    | CannotInfer of context * term * doudou_error
 		    | CannotTypeCheck of context * term * term * term * doudou_error
