@@ -1,5 +1,3 @@
-open Def
-
 (******************)
 (*      misc      *)
 (******************)
@@ -7,7 +5,7 @@ open Def
 (* the last element of the list *)
 let rec last (l: 'a list) : 'a =
   match l with 
-    | [] -> raise (DoudouException (FreeError "last: empty list"))
+    | [] -> raise (Failure "last: empty list")
     | hd::[] -> hd
     | hd :: tl -> last tl
 
@@ -15,7 +13,7 @@ let rec last (l: 'a list) : 'a =
 let rec take (n: int) (l: 'a list) :'a list =
   match n with
     | 0 -> []
-    | i when i < 0 -> raise (DoudouException (FreeError "take"))
+    | i when i < 0 -> raise (Failure "take")
     | _ -> 
       match l with
 	| [] -> []
@@ -24,7 +22,7 @@ let rec take (n: int) (l: 'a list) :'a list =
 let rec drop (n: int) (l: 'a list) :'a list =
   match n with
     | 0 -> l
-    | i when i < 0 -> raise (DoudouException (FreeError "drop"))
+    | i when i < 0 -> raise (Failure "drop")
     | _ -> 
       match l with
 	| [] -> []
@@ -33,7 +31,7 @@ let rec drop (n: int) (l: 'a list) :'a list =
 (* build a list of the same element of size n *)
 let rec replicate (e: 'a) (n: int) : 'a list =
   match n with
-    | _ when n < 0 -> raise (DoudouException (FreeError "replicate"))
+    | _ when n < 0 -> raise (Failure "replicate")
     | 0 -> []
     | _ -> e :: replicate e (n-1)
 

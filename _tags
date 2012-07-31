@@ -15,3 +15,7 @@
 
 <src/core/primitives>: include
 
+
+
+
+<tests/testregression.native>: pkg_str

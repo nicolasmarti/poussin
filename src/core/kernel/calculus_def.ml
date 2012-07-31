@@ -1,4 +1,5 @@
 open Libpprinter
+open Libparser
 
 (*********************************)
 (* Definitions of data structure *)
@@ -67,7 +68,7 @@ type position = NoPosition
 type term = Universe of uType * uLevel * position 
 
             (* constante *)
-	    | Cste of path * name * position
+	    | Cste of path * name  * typeannotation * position
 
 	    (* constructor *)
 	    | Cstor of term * int * typeannotation * position
@@ -76,19 +77,25 @@ type term = Universe of uType * uLevel * position
 	    | Var of index * typeannotation * position 
 		
 	    (* these constructors are only valide after parsing, and removed by typechecking *)
-	    | AVar of position (* _ *)
+	    | AVar of typeannotation * position (* _ *)
 	    | TName of name * typeannotation * position
 
 	    (* quantifiers *)
-	    | Quantifier of quantifier * term * typeannotation 
+	    | Quantifier of quantifier * term * typeannotation * position
 
 	    (* application *)
 	    | App of term * (term * nature) list * typeannotation * position
 
 	    (* destruction *)
-	    | Match of term * (name list * term) list * typeannotation * position
+	    | Match of term * ((pattern list) list * term) list * typeannotation * position
+
+and pattern = PAvar | PName of string
+	      | PCstor of term * int * (pattern * nature) list
 
 and conversion = (term * term)
+
+(* DNF *)
+and conversion_dnf = (conversion * bool) list list
 
 and typeannotation = NoAnnotation
 		     | Annotation of term
@@ -96,7 +103,7 @@ and typeannotation = NoAnnotation
 
 and quantifier = Lambda of name * term * nature * position
 		 | Forall of name * term * nature * position
-		 | LetIn of name * term * term * position
+		 | LetIn of name * term * position
 
 
 and var_frame = {
@@ -110,12 +117,19 @@ and var_frame = {
 
   termstack: term list;
   naturestack: nature list;
-  conversions: conversion list
+  conversions: conversion_dnf
 
 }
 
 (* context *)
 and context = var_frame list
+
+(* for notation *)
+type op = Nofix
+	  | Prefix of int
+	  | Infix of int * associativity
+	  | Postfix of int
+
 
 (* values contains in module *)
 type value = Inductive of (name * term) list
@@ -127,7 +141,7 @@ type value = Inductive of (name * term) list
 and module_ = {
   name: name;
   path: path;
-  defs: (name, (term * value)) Hashtbl.t;
+  defs: (name, (term * value * (string * op) option (* parsing *) * (string * op) option (* pprinting *))) Hashtbl.t;
   univ_eqs: unit;
   exports: unit
 }
