@@ -28,4 +28,15 @@ and leveled_shift_term (te: term) (level: int) (delta: int) : term =
 (* shift substitution *)
 let rec shift_substitution (s: substitution) (delta: int) : substitution =
   raise (Failure "shift_substitution: NYI")
+
+(* substitution *)
+let rec term_substitution (s: substitution) (te: term) : term =
+  raise (Failure "term_substitution: NYI")
+
+(* apply a substitution in a context *)
+let context_substitution (s: substitution) (ctxt: context) : context =
+  raise (Failure "context_substitution: NYI")
+
+
+
     

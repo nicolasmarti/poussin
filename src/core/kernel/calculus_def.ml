@@ -70,9 +70,6 @@ type term = Universe of uType * uLevel * position
             (* constante *)
 	    | Cste of path * name  * typeannotation * position
 
-	    (* constructor *)
-	    | Cstor of term * int * typeannotation * position
-
 	    (* Free Var (index < 0) and Bounded Var (index > 0) *)
 	    | Var of index * typeannotation * position 
 		
@@ -81,7 +78,9 @@ type term = Universe of uType * uLevel * position
 	    | TName of name * typeannotation * position
 
 	    (* quantifiers *)
-	    | Quantifier of quantifier * term * typeannotation * position
+	    | Lambda of (name * term * nature * position) * term * typeannotation * position
+	    | Forall of (name * term * nature * position) * term * typeannotation * position
+	    | Let of (name * term * position) * term * typeannotation * position
 
 	    (* application *)
 	    | App of term * (term * nature) list * typeannotation * position
@@ -100,11 +99,6 @@ and conversion_dnf = (conversion * bool) list list
 and typeannotation = NoAnnotation
 		     | Annotation of term
 		     | Typed of term
-
-and quantifier = Lambda of name * term * nature * position
-		 | Forall of name * term * nature * position
-		 | LetIn of name * term * position
-
 
 and var_frame = {
 
@@ -135,6 +129,7 @@ type op = Nofix
 type value = Inductive of (name * term) list
 	    | Axiom
 	    | Definition of term
+	    | Constructor of name
 	    | Primitive of (term, context, module_) tObj
 	    | Import of module_
 

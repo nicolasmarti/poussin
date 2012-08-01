@@ -26,7 +26,21 @@ let name_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) 
   TName(name, annot, pos)
 
 let lambda_ ?(annot: typeannotation = NoAnnotation) ?(posq: position = NoPosition) ?(posl: position = NoPosition) (name: name) ?(nature: nature = Explicit) ?(ty: term = avar_ ()) (body: term) =
-  Quantifier(Lambda(name, ty, nature, posl), body, annot, posl)
+  Lambda ((name, ty, nature, posl), body, annot, posl)
+
+(* function for deconstructing/constructing contiguous lambdas *)
+let rec destruct_lambda (te: term) : ((name * term * nature * position) * typeannotation * position) list * term =
+  match te with
+    | Lambda (q, body, annot, pos) ->
+      let l, te = destruct_lambda body in
+      ((q, annot, pos) :: l, te)
+    | _ -> ([], te)
+
+let rec construct_lambda (qs: ((name * term * nature * position) * typeannotation * position) list) (body: term) : term =
+  match qs with
+    | [] -> body
+    | (hd, annot, pos) :: tl -> Lambda (hd, construct_lambda tl body, annot, pos)
+
 
 
 (* function to get term position *)
@@ -43,6 +57,10 @@ let set_term_annotation (te: term) (ty: term) : term =
 (* the set of free variable in a term *)
 let rec fv_term (te: term) : IndexSet.t =
   raise (Failure "fv_term: NYI")
+
+(* the set of bounded variable in a term *)
+let rec bv_term (te: term) : IndexSet.t =
+  raise (Failure "bv_term: NYI")
 
 (* function that map symbol into string *)
 let notation2string (name: string) (op: op) =
@@ -68,6 +86,13 @@ let rec fresh_name ?(basename: string = "H") (s: NameSet.t) : string =
     fresh_name ~basename:(add_string_index basename 1) s
   else
     basename
+
+let rec fresh_name_list ?(basename: string = "H") (l: name list) : string =
+  if List.mem basename l then
+    fresh_name_list ~basename:(add_string_index basename 1) l
+  else
+    basename
+
 
 (* this is the strict equality modulo position/app/... *)
 let rec eq_term (te1: term) (te2: term) : bool =
