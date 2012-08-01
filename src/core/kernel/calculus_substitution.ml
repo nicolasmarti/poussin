@@ -10,13 +10,6 @@ open Calculus_misc
 (* substitution: from free variables to term *) 
 type substitution = term IndexMap.t;;
 
-(* shift a set of variable *)
-let shift_vars (vars: IndexSet.t) (delta: int) : IndexSet.t =
-  IndexSet.fold (fun e acc ->
-    if (e >= 0 && e + delta < 0) || e < 0 then acc
-    else IndexSet.add (e + delta) acc      
-  ) vars IndexSet.empty
-
 (* shifting of terms *)
 let rec shift_term (te: term) (delta: int) : term =
   leveled_shift_term te 0 delta

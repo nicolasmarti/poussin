@@ -13,20 +13,23 @@ let set_ ?(pos: position = NoPosition) (level: uLevel) : term =
 let prop_ ?(pos: position = NoPosition) (level: uLevel) : term =
   Universe(Prop, level, pos)
 
-let cste_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) ?(path: path = []) (name: name) =
+let cste_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) ?(path: path = []) (name: name) : term =
   Cste(path, name, annot, pos)
 
-let var_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (idx: index) =
+let var_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (idx: index) : term =
   Var(idx, annot, pos)
 
-let avar_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) () =
+let avar_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) () : term =
   AVar(annot, pos)
 
-let name_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (name: name) =
+let name_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (name: name) : term =
   TName(name, annot, pos)
 
-let lambda_ ?(annot: typeannotation = NoAnnotation) ?(posq: position = NoPosition) ?(posl: position = NoPosition) (name: name) ?(nature: nature = Explicit) ?(ty: term = avar_ ()) (body: term) =
+let lambda_ ?(annot: typeannotation = NoAnnotation) ?(posq: position = NoPosition) ?(posl: position = NoPosition) (name: name) ?(nature: nature = Explicit) ?(ty: term = avar_ ()) (body: term) : term =
   Lambda ((name, ty, nature, posl), body, annot, posl)
+
+let forall_ ?(annot: typeannotation = NoAnnotation) ?(posq: position = NoPosition) ?(posl: position = NoPosition) (name: name) ?(nature: nature = Explicit) ?(ty: term = avar_ ()) (body: term) : term =
+  Forall ((name, ty, nature, posl), body, annot, posl)
 
 (* function for deconstructing/constructing contiguous lambdas *)
 let rec destruct_lambda (te: term) : ((name * term * nature * position) * typeannotation * position) list * term =
@@ -58,9 +61,46 @@ let set_term_annotation (te: term) (ty: term) : term =
 let rec fv_term (te: term) : IndexSet.t =
   raise (Failure "fv_term: NYI")
 
-(* the set of bounded variable in a term *)
+(* shift a set of variable *)
+let shift_vars (vars: IndexSet.t) (delta: int) : IndexSet.t =
+  IndexSet.fold (fun e acc ->
+    if (e >= 0 && e + delta < 0) || e < 0 then acc
+    else IndexSet.add (e + delta) acc      
+  ) vars IndexSet.empty
+
+(* size in PName of a pattern *)
+let rec pattern_size (p: pattern) : int =
+  match p with
+    | PAvar -> 0
+    | PName s -> 1
+    | PCstor (_, _, args) ->
+      List.fold_left (fun acc arg -> acc + pattern_size (fst arg)) 0 args
+
+let rec patterns_size (ps: pattern list) : int =
+  List.fold_left (fun acc p -> 
+    if pattern_size p != acc then raise (Failure "patterns_size: all patterns does not have the same number of names");
+    acc
+  ) (pattern_size (List.hd ps)) (List.tl ps)
+
+(* the set of bounded variable in a term NB: does not take into account vars in type annotation *)
 let rec bv_term (te: term) : IndexSet.t =
-  raise (Failure "bv_term: NYI")
+  match te with
+    | Universe _ | Cste _ | AVar _ | TName _ -> IndexSet.empty
+    | Var (i, _, _) when i < 0 -> IndexSet.empty
+    | Var (i, _, _) when i >= 0 -> IndexSet.singleton i
+    | Lambda ((_, ty, _, _), te, _, _) ->
+      IndexSet.union (bv_term ty) (shift_vars (bv_term te) (-1))
+    | Forall ((_, ty, _, _), te, _, _) ->
+      IndexSet.union (bv_term ty) (shift_vars (bv_term te) (-1))
+    | Let ((_, te1, _), te2, _, _) ->
+      IndexSet.union (bv_term te1) (shift_vars (bv_term te2) (-1))
+    | App (te, args, _, _) -> List.fold_left (fun acc (te, _) -> IndexSet.union acc (bv_term te)) (bv_term te) args
+    | Match (te, des, _, _) ->
+      List.fold_left (fun acc eq -> IndexSet.union acc (des_equation eq)) (bv_term te) des
+
+and des_equation (des: (pattern list * term)) : IndexSet.t =
+    (shift_vars (bv_term (snd des)) (patterns_size (fst des)))
+
 
 (* function that map symbol into string *)
 let notation2string (name: string) (op: op) =
@@ -133,4 +173,3 @@ let pop_nature (ctxt: context ref) : nature =
     let (hd::tl) = !ctxt in  
     ctxt := ({hd with naturestack = List.tl hd.naturestack})::tl;
     List.hd hd.naturestack
-

@@ -1,8 +1,7 @@
 (* calculus_misc should populate himself during the process *)
 0) pprinter / parser
    + pprinter
-     + lambda -> bv_term
-       TODO: change arguments place in extlist (function too big to see last one)
+     + Let, App, Match
 
 1) calculus_substitution
 2) reduction

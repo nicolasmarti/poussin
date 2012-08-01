@@ -68,7 +68,7 @@ type position = NoPosition
 type term = Universe of uType * uLevel * position 
 
             (* constante *)
-	    | Cste of path * name  * typeannotation * position
+	    | Cste of path * name * typeannotation * position
 
 	    (* Free Var (index < 0) and Bounded Var (index > 0) *)
 	    | Var of index * typeannotation * position 
@@ -86,10 +86,10 @@ type term = Universe of uType * uLevel * position
 	    | App of term * (term * nature) list * typeannotation * position
 
 	    (* destruction *)
-	    | Match of term * ((pattern list) list * term) list * typeannotation * position
+	    | Match of term * (pattern list * term) list * typeannotation * position
 
 and pattern = PAvar | PName of string
-	      | PCstor of term * int * (pattern * nature) list
+	      | PCstor of (path * name) * int * (pattern * nature) list
 
 and conversion = (term * term)
 
