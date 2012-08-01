@@ -73,7 +73,7 @@ let rec pattern_size (p: pattern) : int =
   match p with
     | PAvar -> 0
     | PName s -> 1
-    | PCstor (_, _, args) ->
+    | PCstor (_, args) ->
       List.fold_left (fun acc arg -> acc + pattern_size (fst arg)) 0 args
 
 let rec patterns_size (ps: pattern list) : int =
@@ -81,6 +81,20 @@ let rec patterns_size (ps: pattern list) : int =
     if pattern_size p != acc then raise (Failure "patterns_size: all patterns does not have the same number of names");
     acc
   ) (pattern_size (List.hd ps)) (List.tl ps)
+
+(* list of names in a pattern *)
+let rec pattern_vars (p: pattern) : name list =
+  match p with
+    | PAvar -> []
+    | PName s -> [s]
+    | PCstor (_, args) ->
+      List.fold_left (fun acc arg -> acc @ pattern_vars (fst arg)) [] args
+
+let rec patterns_vars (ps: pattern list) : name list =
+  List.fold_left (fun acc p -> 
+    if pattern_vars p != acc then raise (Failure "patterns_vars: all patterns does not have the same list of names");
+    acc
+  ) (pattern_vars (List.hd ps)) (List.tl ps)
 
 (* the set of bounded variable in a term NB: does not take into account vars in type annotation *)
 let rec bv_term (te: term) : IndexSet.t =
@@ -173,3 +187,7 @@ let pop_nature (ctxt: context ref) : nature =
     let (hd::tl) = !ctxt in  
     ctxt := ({hd with naturestack = List.tl hd.naturestack})::tl;
     List.hd hd.naturestack
+
+(* returns only the elements that are explicit *)
+let filter_explicit (l: ('a * nature) list) : 'a list =
+  List.map fst (List.filter (fun (_, n) -> n = Explicit) l)

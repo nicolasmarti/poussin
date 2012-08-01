@@ -89,12 +89,12 @@ type term = Universe of uType * uLevel * position
 	    | Match of term * (pattern list * term) list * typeannotation * position
 
 and pattern = PAvar | PName of string
-	      | PCstor of (path * name) * int * (pattern * nature) list
+	      | PCstor of (path * name) * (pattern * nature) list
 
-and conversion = (term * term)
-
-(* DNF *)
-and conversion_dnf = (conversion * bool) list list
+and conversion_formula = 
+  Conv_Lit of bool * term * term
+  | Conv_And of conversion_formula list
+  | Conv_Or of conversion_formula list
 
 and typeannotation = NoAnnotation
 		     | Annotation of term
@@ -111,7 +111,7 @@ and var_frame = {
 
   termstack: term list;
   naturestack: nature list;
-  conversions: conversion_dnf
+  conversions_hyp: conversion_formula
 
 }
 

@@ -119,8 +119,89 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	  Box [lhs; Space 1; Verbatim "->"; Space 1; rhs]
 	)
 
+    | Let ((s, te1, _), te2, _, _) ->
+      (* we embed in parenthesis if 
+	 - embed as some arg 
+	 - ??
+      *)
+      (
+	match p with
+	  | InArg Explicit -> withParen
+	  | _ -> fun x -> x
+      )
+	(
+	  (* the lhs of the ->*)
+	  let s, lhs = 
+	    (* here we select a fresh name *)
+	    let s = (fresh_name_list ~basename:s vars) in
+	    s , (Box [Verbatim s; Space 1; Verbatim ":= "; Space 1; term2token vars te1 Alone; Space 1; Verbatim "in"])
+	  in 
+	  (* for computing the r.h.s, we need to push a new frame *)
+	  let rhs = term2token (s::vars) te2 Alone in
+	  Box [lhs; Space 1; rhs]
+	)
+
+    | App (te, args, _, _) ->
+      (* we only embed in parenthesis if
+	 - we are an argument of an application
+      *)
+      (match p with
+	| InArg Explicit -> withParen
+	| _ -> fun x -> x
+      ) (
+	(* simply compute the list of token for the args *)
+	let args = List.map (fun te -> term2token vars te (InArg Explicit)) (if !pp_option.show_implicit then List.map fst args else filter_explicit args) in
+	(* the token for the function *)
+	let te = term2token vars te InApp in
+	(* put it all together *)
+	Box (intercalate (Space 1) (te::args))
+       )
+
+    | Match (te, eqs, _, _) ->
+      (match p with
+	| InArg Explicit -> withParen
+	| InApp -> withParen
+	| InNotation _ -> withParen
+	| _ -> fun x -> x
+      ) (
+	
+	Box [
+	  (* tthe tokens for the math ... with *)
+	  Verbatim "match"; Space 1; term2token vars te Alone; Space 1; Verbatim "with"; Newline;
+	  (* the tokens for the cases *)
+	  Box (intercalate Newline (List.map (fun (ps, te) ->
+	    Box ([Verbatim "|"; Space 1; patterns2token vars ps Alone; Space 1; Verbatim ":="; Space 1; term2token (List.rev (patterns_vars ps) @ vars) te Alone ])
+	  ) eqs
+	  )
+	  )	  
+	]
+       )
+
 
     | _ -> raise (Failure "term2token: NYI")
+
+and patterns2token (vars: name list) (patterns: pattern list) (p: place) : token =
+  Box (intercalates [Space 1; Verbatim "|"; Space 1] (List.map (fun p ->
+    pattern2token vars p Alone
+  ) patterns ))
+
+and pattern2token (vars: name list) (pattern: pattern) (p: place) : token =
+  match pattern with
+    | PAvar _ -> Verbatim "_"
+    | PName s -> Verbatim s
+    | PCstor ((path, n), args) ->
+      (match p with
+	| InArg Explicit -> withParen
+	| _ -> fun x -> x
+      ) (
+	(* simply compute the list of token for the args *)
+	let args = List.map (fun te -> pattern2token vars te (InArg Explicit)) (List.map fst (if !pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args)) in
+	(* the token for the function *)
+	let te = term2token vars (Cste (path, n, NoAnnotation, NoPosition)) InApp in
+	(* put it all together *)
+	Box (intercalate (Space 1) (te::args))
+       )
+	    
 
 
 

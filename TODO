@@ -1,7 +1,6 @@
 (* calculus_misc should populate himself during the process *)
 0) pprinter / parser
-   + pprinter
-     + Let, App, Match
+   - parser
 
 1) calculus_substitution
 2) reduction
