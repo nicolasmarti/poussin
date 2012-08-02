@@ -222,6 +222,10 @@ let build_impl (symbols: (name * pos) list) (ty: term) (nature: nature) (body: t
     )
   ) symbols body
 
+(* build a Forall: no shifting in types !!! (used by the parser) *)
+let build_impls (qs: ((name * pos) list * term * nature) list) (body: term) : term =
+  List.fold_right (fun (s, ty, n) acc -> build_impl s ty n acc) qs body
+
 (* build a Lambda: no shifting in types !!! *)
 let build_lambda (symbols: (name * pos) list) (ty: term) (nature: nature) (body: term) : term =
   List.fold_right (fun (s, pos) acc -> 

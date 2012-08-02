@@ -32,7 +32,7 @@ let with_pos (p: 'a parsingrule) : ('a * pos) parsingrule =
     let endp = cur_pos pb in
     (res, (startp, endp))
 
-let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "Definition"; "Inductive"]
+let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "Definition"; "Inductive"; "Constructor"; "Definition"]
 
 let parse_reserved : unit parsingrule =
   foldp (List.map (fun x -> keyword x ()) keywords)
@@ -95,7 +95,7 @@ and parse_impl_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : ((n
       n, (startpos, endpos)
     ) pb in
     let () = whitespaces pb in
-    let () = at_start_pos leftmost (word "::") pb in
+    let () = at_start_pos leftmost (word ":") pb in
     let () = whitespaces pb in
     let ty = parse_term defs leftmost pb in
     (List.map (fun (n, p) -> n, p) names, ty, Explicit)
@@ -112,7 +112,7 @@ and parse_impl_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : ((n
     n, (startpos, endpos)
     ) pb in
     let () = whitespaces pb in
-    let () = at_start_pos leftmost (word "::") pb in
+    let () = at_start_pos leftmost (word ":") pb in
     let () = whitespaces pb in
     let ty = parse_term defs leftmost pb in
     (List.map (fun (n, p) -> n, p) names, ty, Implicit)
@@ -149,7 +149,7 @@ and parse_lambda_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : (
       n, (startpos, endpos)
     ) pb in
     let () = whitespaces pb in
-    let () = at_start_pos leftmost (word "::") pb in
+    let () = at_start_pos leftmost (word ":") pb in
     let () = whitespaces pb in
     let ty = parse_term defs leftmost pb in
     (List.map (fun (n, p) -> n, p) names, ty, Explicit)
@@ -167,7 +167,7 @@ and parse_lambda_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : (
     ) pb in
     let ty = match (mayberule (fun pb ->
       let () = whitespaces pb in
-      let () = at_start_pos leftmost (word "::") pb in
+      let () = at_start_pos leftmost (word ":") pb in
       let () = whitespaces pb in
       let ty = parse_term defs leftmost pb in
       ty
@@ -355,3 +355,93 @@ and parse_pattern_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) :
     at_start_pos leftmost (paren (parse_pattern defs leftmost)) pb    
   )
 end pb
+
+type definition = DefSignature of name * term
+		  | DefDefinition of name * term
+		  | DefInductive of name * term
+		  | DefConstructor of name * term
+
+
+let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsingrule =
+  (* an inductive *)
+  tryrule (fun pb ->
+    let () = whitespaces pb in
+    let _ = at_start_pos leftmost (word "Inductive") pb in
+    let () = whitespaces pb in
+    let s = at_start_pos leftmost name_parser pb in
+    let () = whitespaces pb in
+    let qs = many (parse_lambda_lhs defs leftmost) pb in
+    let () = whitespaces pb in
+    let () = at_start_pos leftmost (word ":") pb in
+    let startpos = cur_pos pb in
+    let () = whitespaces pb in
+    let ty = parse_term defs startpos pb in
+    let endpos = cur_pos pb in
+    DefInductive (s, set_term_pos (build_impls qs ty) (startpos, endpos))
+  )
+  (* a constructor *)
+  <|> tryrule (fun pb ->
+    let () = whitespaces pb in
+    let _ = at_start_pos leftmost (word "Constructor") pb in
+    let () = whitespaces pb in
+    let s = at_start_pos leftmost name_parser pb in
+    let () = whitespaces pb in
+    let qs = many (parse_lambda_lhs defs leftmost) pb in
+    let () = whitespaces pb in
+    let () = at_start_pos leftmost (word ":") pb in
+    let startpos = cur_pos pb in
+    let () = whitespaces pb in
+    let ty = parse_term defs startpos pb in
+    let endpos = cur_pos pb in
+    DefConstructor (s, set_term_pos (build_impls qs ty) (startpos, endpos))
+  )
+  (* a signature *)
+  <|> tryrule (fun pb ->
+    let () = whitespaces pb in
+    let _ = at_start_pos leftmost (word "Signature") pb in
+    let () = whitespaces pb in
+    let s = at_start_pos leftmost name_parser pb in
+    let () = whitespaces pb in
+    let qs = many (parse_lambda_lhs defs leftmost) pb in
+    let () = whitespaces pb in
+    let () = at_start_pos leftmost (word ":") pb in
+    let startpos = cur_pos pb in
+    let () = whitespaces pb in
+    let ty = parse_term defs startpos pb in
+    let endpos = cur_pos pb in
+    DefSignature (s, set_term_pos (build_impls qs ty) (startpos, endpos))
+  )
+  (* a definition *)
+  <|> tryrule (fun pb ->
+    let () = whitespaces pb in
+    let _ = at_start_pos leftmost (word "Definition") pb in
+    let () = whitespaces pb in
+    let s = at_start_pos leftmost name_parser pb in
+    let () = whitespaces pb in
+    let qs = many (parse_lambda_lhs defs leftmost) pb in
+    let () = whitespaces pb in
+    let () = at_start_pos leftmost (word ":") pb in
+    let startpos = cur_pos pb in
+    let () = whitespaces pb in
+    let ty = parse_term defs startpos pb in
+    let endpos = cur_pos pb in
+    let () = whitespaces pb in
+    let () = at_start_pos leftmost (word ":=") pb in
+    let startpos2 = cur_pos pb in
+    let () = whitespaces pb in
+    let te = parse_term defs startpos pb in
+    let endpos2 = cur_pos pb in
+    DefDefinition (s, 
+		  (set_term_annotation 
+		     (set_term_pos 
+			(build_lambdas qs te) 
+			(startpos2, endpos2)
+		     )
+		     (set_term_pos 
+			(build_impls qs ty) 
+			(startpos, endpos)
+		     )
+		  )
+    )
+  )
+      
