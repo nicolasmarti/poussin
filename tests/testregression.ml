@@ -7,6 +7,7 @@ open Calculus_substitution
 open Calculus_substitution
 open Calculus_engine
 open Calculus_pprinter
+open Calculus_parser
 
 let () = printf "calculus regression tests\n";;
 

@@ -1,5 +1,6 @@
 open Calculus_def
 open Extlist
+open Libparser
 
 (* Some general constante *)
 
@@ -191,3 +192,48 @@ let pop_nature (ctxt: context ref) : nature =
 (* returns only the elements that are explicit *)
 let filter_explicit (l: ('a * nature) list) : 'a list =
   List.map fst (List.filter (fun (_, n) -> n = Explicit) l)
+
+(* *)
+let pos_from_position (p: position) : pos =
+  match p with
+    | NoPosition -> nopos
+    | Position (p, _) -> p
+
+(* *)
+let pos_to_position (p: pos) : position =
+  Position (p, [])
+
+(* get/set the outermost term position *)
+let get_term_pos (te: term) : pos =
+  raise (Failure "get_term_pos: NYI")
+
+let set_term_pos (te: term) (p: pos) : term =
+  raise (Failure "set_term_pos: NYI")
+
+  
+(* build an implication: no shifting in types !!! (used by the parser) *)
+let build_impl (symbols: (name * pos) list) (ty: term) (nature: nature) (body: term) : term =
+  List.fold_right (fun (s, pos) acc -> 
+    Forall (
+      (s, ty, nature, Position (pos, [])), 
+      acc, 
+      NoAnnotation,
+      Position ((fst pos, snd (get_term_pos acc)), [])
+    )
+  ) symbols body
+
+(* build a Lambda: no shifting in types !!! *)
+let build_lambda (symbols: (name * pos) list) (ty: term) (nature: nature) (body: term) : term =
+  List.fold_right (fun (s, pos) acc -> 
+    Lambda (
+      (s, ty, nature, Position (pos, [])), 
+      acc, 
+      NoAnnotation,
+      Position ((fst pos, snd (get_term_pos acc)), [])
+    )
+  )symbols body
+
+
+(* build a Lambda: no shifting in types !!! (used by the parser) *)
+let build_lambdas (qs: ((name * pos) list * term * nature) list) (body: term) : term =
+  List.fold_right (fun (s, ty, n) acc -> build_lambda s ty n acc) qs body

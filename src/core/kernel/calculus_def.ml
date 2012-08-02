@@ -133,10 +133,12 @@ type value = Inductive of (name * term) list
 	    | Primitive of (term, context, module_) tObj
 	    | Import of module_
 
+and defs = (name, (term * value * (string * op) option (* parsing *) * (string * op) option (* pprinting *))) Hashtbl.t
+
 and module_ = {
   name: name;
   path: path;
-  defs: (name, (term * value * (string * op) option (* parsing *) * (string * op) option (* pprinting *))) Hashtbl.t;
+  defs: defs;
   univ_eqs: unit;
   exports: unit
 }

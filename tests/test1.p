@@ -6,23 +6,15 @@ Inductive False : Prop := .
 Inductive Not (P: Prop) : Prop :=
 | Contradiction {P}: (P -> False) -> Not P.
 
-Notation [~), noassoc, 100 := Contradiction.
-
 Inductive And (A B: Prop) : Prop :=
 | conj {A} {B}: A -> B -> And A B.
-
-Notation (/\\), noassoc, 90 := And.
 
 Inductive Or (A B: Prop) : Prop :=
 | left {A} {B}: A -> Or A B
 | right {A} {B}: B -> Or A B.
 
-Notation (\\/), noassoc, 80 := Or.
-
 Inductive eq {A: Set} (a: A): A -> Prop :=
 | eq_refl: eq a a.
-
-Notation (=), noassoc, 110 := eq.
 
 Definition Relation (A: Set) : Type := A -> A -> Prop.
 
