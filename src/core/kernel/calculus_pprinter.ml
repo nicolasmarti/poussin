@@ -1,5 +1,7 @@
 open Calculus_def
 open Calculus_misc
+open Calculus_parser
+
 open Libpprinter
 open Extlist
 
@@ -39,7 +41,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
     | Universe (Set, _, _) -> Verbatim "Set"
     | Universe (Prop, _, _) -> Verbatim "Prop"
 
-    | Cste (_, name, _, _) -> Verbatim "Name"
+    | Cste (_, name, _, _) -> Verbatim name
 
     | Var (i, _, _) when i >= 0 -> Verbatim (List.nth vars i)
     | Var (i, _, _) when i < 0 -> verbatims ["?"; string_of_int (-i)]
@@ -210,3 +212,21 @@ let term2string (vars: name list) (te: term) : string =
   let token = term2token vars te Alone in
   let box = token2box token 80 2 in
   box2string box
+
+let rec definition2token (def: definition): token =
+  match def with
+    | DefSignature (n, ty) ->
+      Box [Verbatim "Signature"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token [] ty Alone]
+    | DefDefinition (n, te) ->
+      Box [Verbatim "Definition"; Space 1; Verbatim n; Space 1; Verbatim ":="; Space 1; term2token [] te Alone]
+    | DefInductive (n, ty) ->
+      Box [Verbatim "Inductive"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token [] ty Alone]
+    | DefConstructor (n, ty) ->
+      Box [Verbatim "Constructor"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token [] ty Alone]
+
+let definition2string (def: definition) : string =
+  let token = definition2token def in
+  let box = token2box token 80 2 in
+  box2string box
+
+

@@ -143,6 +143,7 @@ and module_ = {
   exports: unit
 }
 
+(*
 type doudou_error = NegativeIndexBVar of index
 		    | Unshiftable_term of term * int * int
 
@@ -163,6 +164,7 @@ type doudou_error = NegativeIndexBVar of index
 		    | FreeError of string
 
 exception DoudouException of doudou_error
+*)
 
 let oracles_list : ((module_ * context * term) -> term option) list ref = ref []
 

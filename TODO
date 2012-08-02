@@ -1,6 +1,7 @@
 (* calculus_misc should populate himself during the process *)
 0) pprinter / parser
-   - DEBUGGING + enhance
+   + test1.p passed line by line in regression
+   - Enhanced
 1) calculus_substitution
 2) reduction
 3) unification

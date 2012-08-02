@@ -53,10 +53,40 @@ let get_term_position (te: term) : position =
 
 (* functions to get/set term annotation *)
 let get_term_annotation (te: term) : typeannotation =
-  raise (Failure "get_term_annotation: NYI")
+  match te with
+    | Universe (ty, lvl, pos) -> NoAnnotation
+    | Cste (p, n, ty, pos) -> ty
+    | Var (i, ty, pos) -> ty
+    | AVar (ty, pos) -> ty
+    | TName (n, ty, pos) -> ty
+    | Lambda (q, te, ty, pos) -> ty
+    | Forall (q, te, ty, pos) -> ty
+    | Let (q, te, ty, pos) -> ty
+    | App (f, args, ty, pos) -> ty
+    | Match (te, des, ty, pos) -> ty
 
 let set_term_annotation (te: term) (ty: term) : term =
-  raise (Failure "set_term_annotation: NYI")
+  match te with
+    | Universe (ty, lvl, pos) -> 
+      Universe (ty, lvl, pos)
+    | Cste (p, n, _, pos) ->
+      Cste (p, n, Annotation ty, pos)
+    | Var (i, _, pos) ->
+      Var (i, Annotation ty, pos)
+    | AVar (_, pos) ->
+      AVar (Annotation ty, pos)
+    | TName (n, _, pos) ->
+      TName (n, Annotation ty, pos)
+    | Lambda (q, te, _, pos) ->
+      Lambda (q, te, Annotation ty, pos)
+    | Forall (q, te, _, pos) ->
+      Forall (q, te, Annotation ty, pos)
+    | Let (q, te, _, pos) ->
+      Let (q, te, Annotation ty, pos)
+    | App (f, args, _, pos) ->
+      App (f, args, Annotation ty, pos)
+    | Match (te, des, _, pos) ->
+      Match (te, des, Annotation ty, pos)
 
 (* the set of free variable in a term *)
 let rec fv_term (te: term) : IndexSet.t =
@@ -204,11 +234,41 @@ let pos_to_position (p: pos) : position =
   Position (p, [])
 
 (* get/set the outermost term position *)
-let get_term_pos (te: term) : pos =
-  raise (Failure "get_term_pos: NYI")
+let get_term_pos (te: term) : position =
+  match te with
+    | Universe (ty, lvl, pos) -> pos
+    | Cste (p, n, ty, pos) -> pos
+    | Var (i, ty, pos) -> pos
+    | AVar (ty, pos) -> pos
+    | TName (n, ty, pos) -> pos
+    | Lambda (q, te, ty, pos) -> pos
+    | Forall (q, te, ty, pos) -> pos
+    | Let (q, te, ty, pos) -> pos
+    | App (f, args, ty, pos) -> pos
+    | Match (te, des, ty, pos) -> pos
 
-let set_term_pos (te: term) (p: pos) : term =
-  raise (Failure "set_term_pos: NYI")
+let set_term_pos (te: term) (pos: position) : term =
+  match te with
+    | Universe (ty, lvl, _) ->
+      Universe (ty, lvl, pos)
+    | Cste (p, n, ty, _) ->
+      Cste (p, n, ty, pos)
+    | Var (i, ty, _) ->
+      Var (i, ty, pos)
+    | AVar (ty, _) ->
+      AVar (ty, pos)
+    | TName (n, ty, _) ->
+      TName (n, ty, pos)
+    | Lambda (q, te, ty, _) ->
+      Lambda (q, te, ty, pos)
+    | Forall (q, te, ty, _) ->
+      Forall (q, te, ty, pos)
+    | Let (q, te, ty, _) ->
+      Let (q, te, ty, pos)
+    | App (f, args, ty, _) ->
+      App (f, args, ty, pos)
+    | Match (te, des, ty, _) ->
+      Match (te, des, ty, pos)
 
   
 (* build an implication: no shifting in types !!! (used by the parser) *)
@@ -218,7 +278,7 @@ let build_impl (symbols: (name * pos) list) (ty: term) (nature: nature) (body: t
       (s, ty, nature, Position (pos, [])), 
       acc, 
       NoAnnotation,
-      Position ((fst pos, snd (get_term_pos acc)), [])
+      Position ((fst pos, snd (pos_from_position (get_term_pos acc))), [])
     )
   ) symbols body
 
@@ -233,7 +293,7 @@ let build_lambda (symbols: (name * pos) list) (ty: term) (nature: nature) (body:
       (s, ty, nature, Position (pos, [])), 
       acc, 
       NoAnnotation,
-      Position ((fst pos, snd (get_term_pos acc)), [])
+      Position ((fst pos, snd (pos_from_position (get_term_pos acc))), [])
     )
   )symbols body
 

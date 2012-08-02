@@ -1,15 +1,15 @@
-Inductive True : Prop :=
-| I: True.
+Inductive True : Prop
+Constructor I: True
 
 Inductive False : Prop
 
-Inductive Not (P: Prop) : Prop.
+Inductive Not (P: Prop) : Prop
 Constructor Contradiction  {P}: (P -> False) -> Not P
 
-Inductive And (A B: Prop) : Prop.
+Inductive And (A B: Prop) : Prop
 Constructor conj {A} {B}: A -> B -> And A B
 
-Inductive Or (A B: Prop) : Prop.
+Inductive Or (A B: Prop) : Prop
 Constructor left {A} {B}: A -> Or A B
 Constructor right {A} {B}: B -> Or A B
 
@@ -18,7 +18,7 @@ Constructor eq_refl {A} a: eq a a
 
 Definition Relation (A: Set) : Type := A -> A -> Prop
 
-Inductive ReflexiveRel : Set :=
+Inductive ReflexiveRel : Set
 Constructor build_ReflexiveRel: (A: Set) -> (rel: Relation A) -> (refl: (x: A) -> rel x x) -> ReflexiveRel
 
 Definition ReflexiveRel_t {rel: ReflexiveRel} : Set :=
