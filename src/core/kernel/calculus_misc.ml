@@ -178,47 +178,6 @@ let rec fresh_name_list ?(basename: string = "H") (l: name list) : string =
   else
     basename
 
-
-(* this is the strict equality modulo position/app/... *)
-let rec eq_term (te1: term) (te2: term) : bool =
-  raise (Failure "eq_term: NYI")
-
-(* retrieve the debruijn index of a bound var through its name *)
-let var_name_index (ctxt: context) (name: name) : index =
-  raise (Failure "var_name_index")
-
-(* grab the type of a bound var *)
-let bvar_type (ctxt: context) (i: index) : term =
-  raise (Failure "bvar_type")
-
-(* grab the value of a free var *)
-let fvar_value (ctxt: context) (i: index) : term =
-  raise (Failure "fvar_lookup")
-
-(* pushing and poping terms in the term stack 
-   N.B.: with side effect
-*)
-let push_terms (ctxt: context ref) (tes: term list) : unit =
-  let (hd::tl) = !ctxt in
-  ctxt := ({hd with termstack = tes @ hd.termstack})::tl
-
-let pop_terms (ctxt: context ref) (sz: int) : term list =
-  let (hd::tl) = !ctxt in  
-  ctxt := ({hd with termstack = drop sz hd.termstack})::tl;
-  take sz hd.termstack
-
-(* pushing and poping natures in the nature stack 
-   N.B.: with side effect
-*)
-let push_nature (ctxt: context ref) (n: nature) : unit =
-  let (hd::tl) = !ctxt in
-  ctxt := ({hd with naturestack = n :: hd.naturestack})::tl
-
-let pop_nature (ctxt: context ref) : nature =
-    let (hd::tl) = !ctxt in  
-    ctxt := ({hd with naturestack = List.tl hd.naturestack})::tl;
-    List.hd hd.naturestack
-
 (* returns only the elements that are explicit *)
 let filter_explicit (l: ('a * nature) list) : 'a list =
   List.map fst (List.filter (fun (_, n) -> n = Explicit) l)

@@ -3,6 +3,10 @@
    + test1.p passed line by line in regression
    - Enhanced
 1) calculus_substitution
+   + shifting of terms
+   + shift substitution
+   + term_substitution
+
 2) reduction
 3) unification
 4) termcheck

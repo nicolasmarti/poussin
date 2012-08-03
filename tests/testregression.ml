@@ -6,7 +6,8 @@ open Calculus_def
 open Calculus_misc
 open Calculus_substitution
 open Calculus_substitution
-open Calculus_engine
+open Calculus_reduction
+
 open Calculus_pprinter
 open Calculus_parser
 

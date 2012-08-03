@@ -100,19 +100,22 @@ and typeannotation = NoAnnotation
 		     | Annotation of term
 		     | Typed of term
 
+
 and var_frame = {
 
   name: name;
   ty: term;
   nature: nature;
   pos: position;
-  
+    
+  (*
   fvs: (index * term * position) list;
 
   termstack: term list;
   naturestack: nature list;
   conversions_hyp: conversion_formula
-
+  *)
+    
 }
 
 (* context *)
@@ -143,28 +146,30 @@ and module_ = {
   exports: unit
 }
 
-(*
-type doudou_error = NegativeIndexBVar of index
+type doudou_error = FreeError of string
 		    | Unshiftable_term of term * int * int
 
-		    | UnknownCste of path * name
-		    | UnknownBVar of index * context
-		    | UnknownFVar of index * context
+(*
+  | NegativeIndexBVar of index
 
-		    | UnknownUnification of context * term * term
-		    | NoUnification of context * term * term
-
-		    | NoMatchingPattern of context * term * term
-
-		    | PoppingNonEmptyFrame of var_frame
-
-		    | CannotInfer of context * term * doudou_error
-		    | CannotTypeCheck of context * term * term * term * doudou_error
-
-		    | FreeError of string
+      
+  | UnknownCste of path * name
+  | UnknownBVar of index * context
+  | UnknownFVar of index * context
+      
+  | UnknownUnification of context * term * term
+  | NoUnification of context * term * term
+      
+  | NoMatchingPattern of context * term * term
+      
+  | PoppingNonEmptyFrame of var_frame
+      
+  | CannotInfer of context * term * doudou_error
+  | CannotTypeCheck of context * term * term * term * doudou_error
+*)
 
 exception DoudouException of doudou_error
-*)
+
 
 let oracles_list : ((module_ * context * term) -> term option) list ref = ref []
 
