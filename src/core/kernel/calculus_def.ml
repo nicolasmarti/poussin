@@ -44,15 +44,13 @@ type uType = Type | Set | Prop
 
 type uLevel = UName of name | USucc of uLevel | UMax of uLevel list
 
-type path = name list
-
 type position = NoPosition
 		| Position of ((int * int) * (int * int)) * name list
 
 type term = Universe of uType * uLevel * position 
 
             (* constante *)
-	    | Cste of path * name * typeannotation * position
+	    | Cste of name * typeannotation * position
 
 	    (* Free Var (index < 0) and Bounded Var (index > 0) *)
 	    | Var of index * typeannotation * position 
@@ -73,7 +71,7 @@ type term = Universe of uType * uLevel * position
 	    | Match of term * (pattern list * term) list * typeannotation * position
 
 and pattern = PAvar | PName of string
-	      | PCstor of (path * name) * (pattern * nature) list
+	      | PCstor of name * (pattern * nature) list
 
 and conversion_formula = 
   Conv_Lit of bool * term * term

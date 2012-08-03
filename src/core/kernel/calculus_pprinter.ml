@@ -41,7 +41,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
     | Universe (Set, _, _) -> Verbatim "Set"
     | Universe (Prop, _, _) -> Verbatim "Prop"
 
-    | Cste (_, name, _, _) -> Verbatim name
+    | Cste (name, _, _) -> Verbatim name
 
     | Var (i, _, _) when i >= 0 -> Verbatim (List.nth vars i)
     | Var (i, _, _) when i < 0 -> verbatims ["?"; string_of_int (-i)]
@@ -191,7 +191,7 @@ and pattern2token (vars: name list) (pattern: pattern) (p: place) : token =
   match pattern with
     | PAvar _ -> Verbatim "_"
     | PName s -> Verbatim s
-    | PCstor ((path, n), args) ->
+    | PCstor (n, args) ->
       (match p with
 	| InArg Explicit -> withParen
 	| _ -> fun x -> x
@@ -199,7 +199,7 @@ and pattern2token (vars: name list) (pattern: pattern) (p: place) : token =
 	(* simply compute the list of token for the args *)
 	let args = List.map (fun te -> pattern2token vars te (InArg Explicit)) (List.map fst (if !pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args)) in
 	(* the token for the function *)
-	let te = term2token vars (Cste (path, n, NoAnnotation, NoPosition)) InApp in
+	let te = term2token vars (Cste (n, NoAnnotation, NoPosition)) InApp in
 	(* put it all together *)
 	Box (intercalate (Space 1) (te::args))
        )

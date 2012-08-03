@@ -26,4 +26,7 @@ type reduction_strategy = {
 
 (* reduction *)
 let rec reduction (defs: defs) (context: context) (strat: reduction_strategy) (te: term) : term = 
-  raise (Failure "reduction: NYI")
+  match te with
+    | Universe _ -> te
+
+    |_ -> raise (Failure "reduction: NYI")

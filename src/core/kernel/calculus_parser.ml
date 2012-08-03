@@ -295,7 +295,7 @@ and parse_pattern (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : patt
 	fun pb ->
 	  parse_pattern_arguments defs leftmost pb
       ) pb) in
-    PCstor (([], s), args)	  
+    PCstor (s, args)	  
   )
   <|> tryrule (parse_pattern_lvl1 defs leftmost)
 end pb

@@ -18,7 +18,7 @@ let rec shift_term (te: term) (delta: int) : term =
 and leveled_shift_term (te: term) (level: int) (delta: int) : term =
   match te with
     | Universe _ -> te
-    | Cste (p, n, ty, pos) -> Cste (p, n, leveled_shift_typeannotation ty level delta, pos)
+    | Cste (n, ty, pos) -> Cste (n, leveled_shift_typeannotation ty level delta, pos)
     | AVar (ty, pos) -> AVar (leveled_shift_typeannotation ty level delta, pos)
     | TName (n, ty, pos) -> TName (n, leveled_shift_typeannotation ty level delta, pos)
       
@@ -90,7 +90,7 @@ let rec shift_substitution (s: substitution) (delta: int) : substitution =
 let rec term_substitution (s: substitution) (te: term) : term =
   match te with
     | Universe _ -> te
-    | Cste (p, n, ty, pos) -> Cste (p, n, typeannotation_substitution s ty, pos)
+    | Cste (n, ty, pos) -> Cste (n, typeannotation_substitution s ty, pos)
     | Var (i, ty, pos) -> 
       (
 	try 

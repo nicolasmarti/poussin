@@ -14,8 +14,8 @@ let set_ ?(pos: position = NoPosition) (level: uLevel) : term =
 let prop_ ?(pos: position = NoPosition) (level: uLevel) : term =
   Universe(Prop, level, pos)
 
-let cste_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) ?(path: path = []) (name: name) : term =
-  Cste(path, name, annot, pos)
+let cste_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (name: name) : term =
+  Cste(name, annot, pos)
 
 let var_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (idx: index) : term =
   Var(idx, annot, pos)
@@ -49,7 +49,7 @@ let rec construct_lambda (qs: ((name * term * nature * position) * typeannotatio
 let get_term_annotation (te: term) : typeannotation =
   match te with
     | Universe (ty, lvl, pos) -> NoAnnotation
-    | Cste (p, n, ty, pos) -> ty
+    | Cste (n, ty, pos) -> ty
     | Var (i, ty, pos) -> ty
     | AVar (ty, pos) -> ty
     | TName (n, ty, pos) -> ty
@@ -63,8 +63,8 @@ let set_term_annotation (te: term) (ty: term) : term =
   match te with
     | Universe (ty, lvl, pos) -> 
       Universe (ty, lvl, pos)
-    | Cste (p, n, _, pos) ->
-      Cste (p, n, Annotation ty, pos)
+    | Cste (n, _, pos) ->
+      Cste (n, Annotation ty, pos)
     | Var (i, _, pos) ->
       Var (i, Annotation ty, pos)
     | AVar (_, pos) ->
@@ -190,7 +190,7 @@ let pos_to_position (p: pos) : position =
 let get_term_pos (te: term) : position =
   match te with
     | Universe (ty, lvl, pos) -> pos
-    | Cste (p, n, ty, pos) -> pos
+    | Cste (n, ty, pos) -> pos
     | Var (i, ty, pos) -> pos
     | AVar (ty, pos) -> pos
     | TName (n, ty, pos) -> pos
@@ -204,8 +204,8 @@ let set_term_pos (te: term) (pos: position) : term =
   match te with
     | Universe (ty, lvl, _) ->
       Universe (ty, lvl, pos)
-    | Cste (p, n, ty, _) ->
-      Cste (p, n, ty, pos)
+    | Cste (n, ty, _) ->
+      Cste (n, ty, pos)
     | Var (i, ty, _) ->
       Var (i, ty, pos)
     | AVar (ty, _) ->
