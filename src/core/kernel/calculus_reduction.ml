@@ -24,9 +24,41 @@ type reduction_strategy = {
   eta: bool; (* not sure I will implement this one ... *)
 }
 
+(* is clean term *)
+let rec is_clean_term (te: term) : bool =
+    raise (Failure "is_clean_term: NYI")
+
 (* reduction *)
-let rec reduction (defs: defs) (context: context) (strat: reduction_strategy) (te: term) : term = 
+(* NB: in order to enhanced reduction, it might be proper have a marker on terms 
+   stating the term is reduced
+*)
+
+let rec reduction_term (defs: defs) (context: context) (strat: reduction_strategy) (te: term) : term = 
   match te with
-    | Universe _ -> te
+    | Universe _ | Var _ | AVar _ | TName _ -> te
+
+    | Cste (n, ty, position) -> (
+      match strat.delta with
+	(* no unfolding *)
+	| None -> te
+
+	| Some delta -> (
+	  try 
+	    match Hashtbl.find defs n with
+	      (* delta strong -> we return it 
+		 delta_weak -> we make sure the resulting term is 'clean'
+	      *)
+	      | Definition te ->
+		let te' = reduction_term defs context strat te in
+		match delta with
+		  | DeltaStrong -> te'
+		  | DeltaWeak when is_clean_term te' -> te'
+		  | _ -> te
+	  with
+	    | Not_found -> raise (DoudouException (UnknownCste n))
+	      
+	)
+	  
+    )
 
     |_ -> raise (Failure "reduction: NYI")

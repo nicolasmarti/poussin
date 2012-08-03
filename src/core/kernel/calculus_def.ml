@@ -112,5 +112,6 @@ and defs = (name, value) Hashtbl.t;;
 
 type doudou_error = FreeError of string
 		    | Unshiftable_term of term * int * int
+		    | UnknownCste of name
 
 exception DoudouException of doudou_error
