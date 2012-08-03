@@ -40,22 +40,6 @@ module IndexMap = Map.Make(
 type nature = Explicit
 	      | Implicit
 
-(* but in our case we only use 
-   'a = term
-   'b = context
-   'c = defs
-*)
-class virtual ['a, 'b, 'c] tObj =
-object 
-  method uuid: int = 0
-  method virtual get_name: string
-  method virtual get_type: 'a
-  method virtual get_trigger: int
-  method virtual pprint: unit -> token
-  method virtual equal: ('a, 'b, 'c) tObj -> bool
-  method virtual apply: 'c -> 'b -> ('a * nature) list -> 'a
-end
-
 type uType = Type | Set | Prop 
 
 type uLevel = UName of name | USucc of uLevel | UMax of uLevel list
@@ -133,59 +117,10 @@ type value = Inductive of (name * term) list
 	    | Axiom
 	    | Definition of term
 	    | Constructor of name
-	    | Primitive of (term, context, module_) tObj
-	    | Import of module_
 
-and defs = (name, (term * value * (string * op) option (* parsing *) * (string * op) option (* pprinting *))) Hashtbl.t
-
-and module_ = {
-  name: name;
-  path: path;
-  defs: defs;
-  univ_eqs: unit;
-  exports: unit
-}
+and defs = (name, value) Hashtbl.t;;
 
 type doudou_error = FreeError of string
 		    | Unshiftable_term of term * int * int
 
-(*
-  | NegativeIndexBVar of index
-
-      
-  | UnknownCste of path * name
-  | UnknownBVar of index * context
-  | UnknownFVar of index * context
-      
-  | UnknownUnification of context * term * term
-  | NoUnification of context * term * term
-      
-  | NoMatchingPattern of context * term * term
-      
-  | PoppingNonEmptyFrame of var_frame
-      
-  | CannotInfer of context * term * doudou_error
-  | CannotTypeCheck of context * term * term * term * doudou_error
-*)
-
 exception DoudouException of doudou_error
-
-
-let oracles_list : ((module_ * context * term) -> term option) list ref = ref []
-
-type debug_flags = {
-  (* pretty printer flags *)
-  mutable show_universe: bool;
-  mutable show_implicit: bool;
-  mutable show_varindices: bool;
-  mutable show_position: bool;
-  mutable show_proofs: bool;
-}
-
-let flags : debug_flags = {
-  show_universe = true;
-  show_implicit = true;
-  show_varindices = true;
-  show_position = true;
-  show_proofs = true;
-}
