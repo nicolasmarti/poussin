@@ -45,12 +45,6 @@ let rec construct_lambda (qs: ((name * term * nature * position) * typeannotatio
     | [] -> body
     | (hd, annot, pos) :: tl -> Lambda (hd, construct_lambda tl body, annot, pos)
 
-
-
-(* function to get term position *)
-let get_term_position (te: term) : position =
-  raise (Failure "get_term_position: NYI")
-
 (* functions to get/set term annotation *)
 let get_term_annotation (te: term) : typeannotation =
   match te with

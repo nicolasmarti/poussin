@@ -92,14 +92,6 @@ and var_frame = {
   nature: nature;
   pos: position;
     
-  (*
-  fvs: (index * term * position) list;
-
-  termstack: term list;
-  naturestack: nature list;
-  conversions_hyp: conversion_formula
-  *)
-    
 }
 
 (* context *)
