@@ -204,7 +204,7 @@ and parse_term_lvl0 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
     match args with
       | [] -> head
       | _ -> 
-	App (head, args, NoAnnotation, Position ((startpos, endpos), []))
+	App (head, args, NoAnnotation, Position ((startpos, endpos), []), false)
 end pb
 
 (* arguments: term_lvl2 with possibly brackets *)
@@ -270,7 +270,7 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
     let () =  whitespaces pb in
     let () = at_start_pos leftmost (word "end") pb in
     let endpos = cur_pos pb in    
-    Match (te, eqs, NoAnnotation, pos_to_position (startpos, endpos))
+    Match (te, eqs, NoAnnotation, pos_to_position (startpos, endpos), false)
   )
   <|> tryrule (fun pb ->
     let () = whitespaces pb in

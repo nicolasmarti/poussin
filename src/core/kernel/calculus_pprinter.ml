@@ -41,7 +41,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
     | Universe (Set, _, _) -> Verbatim "Set"
     | Universe (Prop, _, _) -> Verbatim "Prop"
 
-    | Cste (name, _, _) -> Verbatim name
+    | Cste (name, _, _, _) -> Verbatim name
 
     | Var (i, _, _) when i >= 0 -> Verbatim (List.nth vars i)
     | Var (i, _, _) when i < 0 -> verbatims ["?"; string_of_int (-i)]
@@ -90,7 +90,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	  Box ([Verbatim "\\"] @ lhs @ [ Space 1; Verbatim "->"; Space 1; rhs])
 	)
 
-    | Forall ((s, ty, nature, _), te, _, _) ->
+    | Forall ((s, ty, nature, _), te, _, _, _) ->
       (* we embed in parenthesis if 
 	 - embed as some arg 
 	 - ??
@@ -121,7 +121,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	  Box [lhs; Space 1; Verbatim "->"; Space 1; rhs]
 	)
 
-    | Let ((s, te1, _), te2, _, _) ->
+    | Let ((s, te1, _), te2, _, _, _) ->
       (* we embed in parenthesis if 
 	 - embed as some arg 
 	 - ??
@@ -143,7 +143,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	  Box [lhs; Space 1; rhs]
 	)
 
-    | App (te, args, _, _) ->
+    | App (te, args, _, _, _) ->
       (* we only embed in parenthesis if
 	 - we are an argument of an application
       *)
@@ -159,7 +159,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	Box (intercalate (Space 1) (te::args))
        )
 
-    | Match (te, eqs, _, _) ->
+    | Match (te, eqs, _, _, _) ->
       (match p with
 	| InArg Explicit -> withParen
 	| InApp -> withParen
@@ -199,7 +199,7 @@ and pattern2token (vars: name list) (pattern: pattern) (p: place) : token =
 	(* simply compute the list of token for the args *)
 	let args = List.map (fun te -> pattern2token vars te (InArg Explicit)) (List.map fst (if !pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args)) in
 	(* the token for the function *)
-	let te = term2token vars (Cste (n, NoAnnotation, NoPosition)) InApp in
+	let te = term2token vars (Cste (n, NoAnnotation, NoPosition, true)) InApp in
 	(* put it all together *)
 	Box (intercalate (Space 1) (te::args))
        )

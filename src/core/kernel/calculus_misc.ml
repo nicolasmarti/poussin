@@ -15,7 +15,7 @@ let prop_ ?(pos: position = NoPosition) (level: uLevel) : term =
   Universe(Prop, level, pos)
 
 let cste_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (name: name) : term =
-  Cste(name, annot, pos)
+  Cste(name, annot, pos, false)
 
 let var_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (idx: index) : term =
   Var(idx, annot, pos)
@@ -27,15 +27,15 @@ let name_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) 
   TName(name, annot, pos)
 
 let lambda_ ?(annot: typeannotation = NoAnnotation) ?(posq: position = NoPosition) ?(posl: position = NoPosition) (name: name) ?(nature: nature = Explicit) ?(ty: term = avar_ ()) (body: term) : term =
-  Lambda ((name, ty, nature, posl), body, annot, posl)
+  Lambda ((name, ty, nature, posl), body, annot, posl, false)
 
 let forall_ ?(annot: typeannotation = NoAnnotation) ?(posq: position = NoPosition) ?(posl: position = NoPosition) (name: name) ?(nature: nature = Explicit) ?(ty: term = avar_ ()) (body: term) : term =
-  Forall ((name, ty, nature, posl), body, annot, posl)
+  Forall ((name, ty, nature, posl), body, annot, posl, false)
 
 (* function for deconstructing/constructing contiguous lambdas *)
 let rec destruct_lambda (te: term) : ((name * term * nature * position) * typeannotation * position) list * term =
   match te with
-    | Lambda (q, body, annot, pos) ->
+    | Lambda (q, body, annot, pos, reduced) ->
       let l, te = destruct_lambda body in
       ((q, annot, pos) :: l, te)
     | _ -> ([], te)
@@ -43,44 +43,44 @@ let rec destruct_lambda (te: term) : ((name * term * nature * position) * typean
 let rec construct_lambda (qs: ((name * term * nature * position) * typeannotation * position) list) (body: term) : term =
   match qs with
     | [] -> body
-    | (hd, annot, pos) :: tl -> Lambda (hd, construct_lambda tl body, annot, pos)
+    | (hd, annot, pos) :: tl -> Lambda (hd, construct_lambda tl body, annot, pos, false)
 
 (* functions to get/set term annotation *)
 let get_term_annotation (te: term) : typeannotation =
   match te with
     | Universe (ty, lvl, pos) -> NoAnnotation
-    | Cste (n, ty, pos) -> ty
+    | Cste (n, ty, pos, reduced) -> ty
     | Var (i, ty, pos) -> ty
     | AVar (ty, pos) -> ty
     | TName (n, ty, pos) -> ty
-    | Lambda (q, te, ty, pos) -> ty
-    | Forall (q, te, ty, pos) -> ty
-    | Let (q, te, ty, pos) -> ty
-    | App (f, args, ty, pos) -> ty
-    | Match (te, des, ty, pos) -> ty
+    | Lambda (q, te, ty, pos, reduced) -> ty
+    | Forall (q, te, ty, pos, reduced) -> ty
+    | Let (q, te, ty, pos, reduced) -> ty
+    | App (f, args, ty, pos, reduced) -> ty
+    | Match (te, des, ty, pos, reduced) -> ty
 
 let set_term_annotation (te: term) (ty: term) : term =
   match te with
     | Universe (ty, lvl, pos) -> 
       Universe (ty, lvl, pos)
-    | Cste (n, _, pos) ->
-      Cste (n, Annotation ty, pos)
+    | Cste (n, _, pos, reduced) ->
+      Cste (n, Annotation ty, pos, reduced)
     | Var (i, _, pos) ->
       Var (i, Annotation ty, pos)
     | AVar (_, pos) ->
       AVar (Annotation ty, pos)
     | TName (n, _, pos) ->
       TName (n, Annotation ty, pos)
-    | Lambda (q, te, _, pos) ->
-      Lambda (q, te, Annotation ty, pos)
-    | Forall (q, te, _, pos) ->
-      Forall (q, te, Annotation ty, pos)
-    | Let (q, te, _, pos) ->
-      Let (q, te, Annotation ty, pos)
-    | App (f, args, _, pos) ->
-      App (f, args, Annotation ty, pos)
-    | Match (te, des, _, pos) ->
-      Match (te, des, Annotation ty, pos)
+    | Lambda (q, te, _, pos, reduced) ->
+      Lambda (q, te, Annotation ty, pos, reduced)
+    | Forall (q, te, _, pos, reduced) ->
+      Forall (q, te, Annotation ty, pos, reduced)
+    | Let (q, te, _, pos, reduced) ->
+      Let (q, te, Annotation ty, pos, reduced)
+    | App (f, args, _, pos, reduced) ->
+      App (f, args, Annotation ty, pos, reduced)
+    | Match (te, des, _, pos, reduced) ->
+      Match (te, des, Annotation ty, pos, reduced)
 
 (* the set of free variable in a term *)
 let rec fv_term (te: term) : IndexSet.t =
@@ -127,14 +127,14 @@ let rec bv_term (te: term) : IndexSet.t =
     | Universe _ | Cste _ | AVar _ | TName _ -> IndexSet.empty
     | Var (i, _, _) when i < 0 -> IndexSet.empty
     | Var (i, _, _) when i >= 0 -> IndexSet.singleton i
-    | Lambda ((_, ty, _, _), te, _, _) ->
+    | Lambda ((_, ty, _, _), te, _, _, _) ->
       IndexSet.union (bv_term ty) (shift_vars (bv_term te) (-1))
-    | Forall ((_, ty, _, _), te, _, _) ->
+    | Forall ((_, ty, _, _), te, _, _, _) ->
       IndexSet.union (bv_term ty) (shift_vars (bv_term te) (-1))
-    | Let ((_, te1, _), te2, _, _) ->
+    | Let ((_, te1, _), te2, _, _, _) ->
       IndexSet.union (bv_term te1) (shift_vars (bv_term te2) (-1))
-    | App (te, args, _, _) -> List.fold_left (fun acc (te, _) -> IndexSet.union acc (bv_term te)) (bv_term te) args
-    | Match (te, des, _, _) ->
+    | App (te, args, _, _, _) -> List.fold_left (fun acc (te, _) -> IndexSet.union acc (bv_term te)) (bv_term te) args
+    | Match (te, des, _, _, _) ->
       List.fold_left (fun acc eq -> IndexSet.union acc (des_equation eq)) (bv_term te) des
 
 and des_equation (des: (pattern list * term)) : IndexSet.t =
@@ -190,38 +190,38 @@ let pos_to_position (p: pos) : position =
 let get_term_pos (te: term) : position =
   match te with
     | Universe (ty, lvl, pos) -> pos
-    | Cste (n, ty, pos) -> pos
+    | Cste (n, ty, pos, reduced) -> pos
     | Var (i, ty, pos) -> pos
     | AVar (ty, pos) -> pos
     | TName (n, ty, pos) -> pos
-    | Lambda (q, te, ty, pos) -> pos
-    | Forall (q, te, ty, pos) -> pos
-    | Let (q, te, ty, pos) -> pos
-    | App (f, args, ty, pos) -> pos
-    | Match (te, des, ty, pos) -> pos
+    | Lambda (q, te, ty, pos, reduced) -> pos
+    | Forall (q, te, ty, pos, reduced) -> pos
+    | Let (q, te, ty, pos, reduced) -> pos
+    | App (f, args, ty, pos, reduced) -> pos
+    | Match (te, des, ty, pos, reduced) -> pos
 
 let set_term_pos (te: term) (pos: position) : term =
   match te with
     | Universe (ty, lvl, _) ->
       Universe (ty, lvl, pos)
-    | Cste (n, ty, _) ->
-      Cste (n, ty, pos)
+    | Cste (n, ty, _, reduced) ->
+      Cste (n, ty, pos, reduced)
     | Var (i, ty, _) ->
       Var (i, ty, pos)
     | AVar (ty, _) ->
       AVar (ty, pos)
     | TName (n, ty, _) ->
       TName (n, ty, pos)
-    | Lambda (q, te, ty, _) ->
-      Lambda (q, te, ty, pos)
-    | Forall (q, te, ty, _) ->
-      Forall (q, te, ty, pos)
-    | Let (q, te, ty, _) ->
-      Let (q, te, ty, pos)
-    | App (f, args, ty, _) ->
-      App (f, args, ty, pos)
-    | Match (te, des, ty, _) ->
-      Match (te, des, ty, pos)
+    | Lambda (q, te, ty, _, reduced) ->
+      Lambda (q, te, ty, pos, reduced)
+    | Forall (q, te, ty, _, reduced) ->
+      Forall (q, te, ty, pos, reduced)
+    | Let (q, te, ty, _, reduced) ->
+      Let (q, te, ty, pos, reduced)
+    | App (f, args, ty, _, reduced) ->
+      App (f, args, ty, pos, reduced)
+    | Match (te, des, ty, _, reduced) ->
+      Match (te, des, ty, pos, reduced)
 
   
 (* build an implication: no shifting in types !!! (used by the parser) *)
@@ -231,7 +231,8 @@ let build_impl (symbols: (name * pos) list) (ty: term) (nature: nature) (body: t
       (s, ty, nature, Position (pos, [])), 
       acc, 
       NoAnnotation,
-      Position ((fst pos, snd (pos_from_position (get_term_pos acc))), [])
+      Position ((fst pos, snd (pos_from_position (get_term_pos acc))), []),
+      false
     )
   ) symbols body
 
@@ -246,7 +247,8 @@ let build_lambda (symbols: (name * pos) list) (ty: term) (nature: nature) (body:
       (s, ty, nature, Position (pos, [])), 
       acc, 
       NoAnnotation,
-      Position ((fst pos, snd (pos_from_position (get_term_pos acc))), [])
+      Position ((fst pos, snd (pos_from_position (get_term_pos acc))), []),
+      false
     )
   )symbols body
 
@@ -254,3 +256,30 @@ let build_lambda (symbols: (name * pos) list) (ty: term) (nature: nature) (body:
 (* build a Lambda: no shifting in types !!! (used by the parser) *)
 let build_lambdas (qs: ((name * pos) list * term * nature) list) (body: term) : term =
   List.fold_right (fun (s, ty, n) acc -> build_lambda s ty n acc) qs body
+
+(* returns if a term is reduced *)
+let is_reduced (te: term) : reduced =
+  match te with
+    | Universe (ty, lvl, pos) -> true
+    | Cste (n, ty, pos, reduced) -> reduced
+    | Var (i, ty, pos) -> true
+    | AVar (ty, pos) -> true
+    | TName (n, ty, pos) -> true
+    | Lambda (q, te, ty, pos, reduced) -> reduced
+    | Forall (q, te, ty, pos, reduced) -> reduced
+    | Let (q, te, ty, pos, reduced) -> reduced
+    | App (f, args, ty, pos, reduced) -> reduced
+    | Match (te, des, ty, pos, reduced) -> reduced
+
+(* set a term as reduced *)
+let set_reduced (te: term) : term =
+  match te with
+    | _ when is_reduced te -> te
+
+    | Universe _ | Var _ | AVar _ | TName _ -> te
+    | Cste (n, ty, pos, _) -> Cste (n, ty, pos, true)
+    | Lambda (q, te, ty, pos, reduced) -> Lambda (q, te, ty, pos, true)
+    | Forall (q, te, ty, pos, reduced) -> Forall (q, te, ty, pos, true)
+    | Let (q, te, ty, pos, reduced) -> Let (q, te, ty, pos, true)
+    | App (f, args, ty, pos, reduced) -> App (f, args, ty, pos, true)
+    | Match (te, des, ty, pos, reduced) -> Match (te, des, ty, pos, true)

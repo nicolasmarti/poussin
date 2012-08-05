@@ -47,28 +47,30 @@ type uLevel = UName of name | USucc of uLevel | UMax of uLevel list
 type position = NoPosition
 		| Position of ((int * int) * (int * int)) * name list
 
+type reduced = bool
+
 type term = Universe of uType * uLevel * position 
 
             (* constante *)
-	    | Cste of name * typeannotation * position
+	    | Cste of name * typeannotation * position * reduced
 
 	    (* Free Var (index < 0) and Bounded Var (index > 0) *)
-	    | Var of index * typeannotation * position 
+	    | Var of index * typeannotation * position
 		
 	    (* these constructors are only valide after parsing, and removed by typechecking *)
 	    | AVar of typeannotation * position (* _ *)
 	    | TName of name * typeannotation * position
 
 	    (* quantifiers *)
-	    | Lambda of (name * term * nature * position) * term * typeannotation * position
-	    | Forall of (name * term * nature * position) * term * typeannotation * position
-	    | Let of (name * term * position) * term * typeannotation * position
+	    | Lambda of (name * term * nature * position) * term * typeannotation * position * reduced
+	    | Forall of (name * term * nature * position) * term * typeannotation * position * reduced
+	    | Let of (name * term * position) * term * typeannotation * position * reduced
 
 	    (* application *)
-	    | App of term * (term * nature) list * typeannotation * position
+	    | App of term * (term * nature) list * typeannotation * position * reduced
 
 	    (* destruction *)
-	    | Match of term * (pattern list * term) list * typeannotation * position
+	    | Match of term * (pattern list * term) list * typeannotation * position * reduced
 
 and pattern = PAvar | PName of string
 	      | PCstor of name * (pattern * nature) list

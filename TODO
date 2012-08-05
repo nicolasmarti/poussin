@@ -7,9 +7,9 @@
    + shift substitution
    + term_substitution
 2) reduction
-   - is_clean_term
-   - reduction_term
-     - NB: it might be proper to have a mark on terms that store the fact that a term is already reduced
+   + added reduced flag to terms
+   + is_clean_term, pattern_match, reduction_term 
+   - need to be tested
 3) unification
 4) termcheck
 

@@ -18,7 +18,7 @@ let rec shift_term (te: term) (delta: int) : term =
 and leveled_shift_term (te: term) (level: int) (delta: int) : term =
   match te with
     | Universe _ -> te
-    | Cste (n, ty, pos) -> Cste (n, leveled_shift_typeannotation ty level delta, pos)
+    | Cste (n, ty, pos, reduced) -> Cste (n, leveled_shift_typeannotation ty level delta, pos, reduced)
     | AVar (ty, pos) -> AVar (leveled_shift_typeannotation ty level delta, pos)
     | TName (n, ty, pos) -> TName (n, leveled_shift_typeannotation ty level delta, pos)
       
@@ -34,34 +34,35 @@ and leveled_shift_term (te: term) (level: int) (delta: int) : term =
       else
 	Var (i, leveled_shift_typeannotation ty level delta, pos)
 
-    | App (te, args, ty, pos) ->
+    | App (te, args, ty, pos, reduced) ->
       App (
 	leveled_shift_term te level delta,
 	List.map (fun (te, n) -> leveled_shift_term te level delta, n) args,
 	leveled_shift_typeannotation ty level delta,
-	pos
+	pos,
+	reduced
       )
 
-    | Forall ((s, ty, n, p), te, ty2, pos) ->
+    | Forall ((s, ty, n, p), te, ty2, pos, reduced) ->
       Forall ((s, leveled_shift_term ty level delta, n, p), leveled_shift_term te (level + 1) delta,
 	      leveled_shift_typeannotation ty2 level delta,
-	      pos)
+	      pos, reduced)
 
-    | Lambda ((s, ty, n, p), te, ty2, pos) ->
+    | Lambda ((s, ty, n, p), te, ty2, pos, reduced) ->
       Lambda ((s, leveled_shift_term ty level delta, n, p), leveled_shift_term te (level + 1) delta, 
 	      leveled_shift_typeannotation ty2 level delta,
-	      pos)
+	      pos, reduced)
 
-    | Let ((s, ty,p), te, ty2, pos) ->
+    | Let ((s, ty,p), te, ty2, pos, reduced) ->
       Let ((s, leveled_shift_term ty level delta, p), leveled_shift_term te (level + 1) delta, 
 	      leveled_shift_typeannotation ty2 level delta,
-	      pos)
+	      pos, reduced)
 
-    | Match (te, des, ty, pos) ->
+    | Match (te, des, ty, pos, reduced) ->
       Match (leveled_shift_term te level delta,
 	     List.map (fun des -> leveled_shift_destructor des level delta) des,
 	     leveled_shift_typeannotation ty level delta,
-	     pos)
+	     pos, reduced)
 
 and leveled_shift_typeannotation (ty: typeannotation) (level: int) (delta: int) : typeannotation =
   match ty with
@@ -90,7 +91,7 @@ let rec shift_substitution (s: substitution) (delta: int) : substitution =
 let rec term_substitution (s: substitution) (te: term) : term =
   match te with
     | Universe _ -> te
-    | Cste (n, ty, pos) -> Cste (n, typeannotation_substitution s ty, pos)
+    | Cste (n, ty, pos, reduced) -> Cste (n, typeannotation_substitution s ty, pos, reduced)
     | Var (i, ty, pos) -> 
       (
 	try 
@@ -102,35 +103,35 @@ let rec term_substitution (s: substitution) (te: term) : term =
     | AVar _ -> raise (DoudouException (FreeError "term_substitution catastrophic: AVar"))
     | TName _ -> raise (DoudouException (FreeError "term_substitution catastrophic: TName"))
 
-    | App (te, args, ty, pos) ->
+    | App (te, args, ty, pos, reduced) ->
       App (term_substitution s te,
 	   List.map (fun (te, n) -> term_substitution s te, n) args,
 	   typeannotation_substitution s ty,
-	   pos)
+	   pos, false)
 
-    | Forall ((symb, ty, n, p), te, ty2, pos) ->
+    | Forall ((symb, ty, n, p), te, ty2, pos, reduced) ->
       Forall ((symb, term_substitution s ty, n, p),
 	      term_substitution (shift_substitution s 1) te,
 	      typeannotation_substitution s ty2,
-	      pos)
+	      pos, false)
 
-    | Lambda ((symb, ty, n, p), te, ty2, pos) ->
+    | Lambda ((symb, ty, n, p), te, ty2, pos, reduced) ->
       Lambda ((symb, term_substitution s ty, n, p),
 	      term_substitution (shift_substitution s 1) te,
 	      typeannotation_substitution s ty2,
-	      pos)
+	      pos, false)
 
-    | Let ((symb, ty, p), te, ty2, pos) ->
+    | Let ((symb, ty, p), te, ty2, pos, reduced) ->
       Let ((symb, term_substitution s ty, p),
 	      term_substitution (shift_substitution s 1) te,
 	      typeannotation_substitution s ty2,
-	      pos)
+	      pos, false)
 
-    | Match (te, des, ty, p) ->
+    | Match (te, des, ty, p, reduced) ->
       Match (term_substitution s te,
 	     List.map (fun des -> destructor_substitution s des) des,
 	     typeannotation_substitution s ty,
-	     p
+	     p, false
       )
 
 and typeannotation_substitution (s: substitution) (ty: typeannotation) : typeannotation =
