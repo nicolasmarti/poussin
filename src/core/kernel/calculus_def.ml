@@ -88,18 +88,18 @@ and substitution = term IndexMap.t
 and var_frame = {
 
   name: name;
-  ty: term ref;
+  ty: term;
+  nature: nature;
+  pos: position;
     
 }
 
 (* context *)
 and context = {
-  bvs: var_frame list;
-  fvs: (index * term * term * name option) list list;
-  termstack: term list list;
-  naturestack: nature list;
-  conversion_hyps: (term * term) list list;
-  lvl_cste: uLevel_constraints list;
+  bvs: var_frame list; (* size = n *)
+  fvs: (index * term option * name option) list list; (* size = n+1 *)
+  conversion_hyps: (term * term) list list; (* size = n *)
+  lvl_cste: uLevel_constraints list; (* size = ??? *)
 }
   
   

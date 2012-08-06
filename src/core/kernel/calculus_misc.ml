@@ -337,3 +337,11 @@ let get_type (te: term) : term =
     | Universe (ty, lvl, pos) -> Universe (Type, USucc lvl, pos)
     | _ -> let Typed ty = get_term_annotation te in ty
 
+(* an empty context *)
+let empty_context = {
+  bvs = [];
+  fvs = []::[];
+  conversion_hyps = []::[];
+  lvl_cste = [];
+}
+    
