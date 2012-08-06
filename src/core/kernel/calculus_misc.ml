@@ -283,3 +283,10 @@ let set_reduced (te: term) : term =
     | Let (q, te, ty, pos, reduced) -> Let (q, te, ty, pos, true)
     | App (f, args, ty, pos, reduced) -> App (f, args, ty, pos, true)
     | Match (te, des, ty, pos, reduced) -> Match (te, des, ty, pos, true)
+
+(* get the typeannotation of a typed term *)
+let get_type (te: term) : term =
+  match te with
+    | Universe (ty, lvl, pos) -> Universe (Type, USucc lvl, pos)
+    | _ -> let Typed ty = get_term_annotation te in ty
+

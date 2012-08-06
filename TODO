@@ -10,6 +10,8 @@
    + added reduced flag to terms
    + is_clean_term, pattern_match, reduction_term 
    - need to be tested
-3) unification
-4) termcheck
+3) equality resolution
+   - Lambda, Forall, Let, App, Match
+4) unification
+5) termcheck
 

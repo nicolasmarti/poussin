@@ -44,6 +44,9 @@ type uType = Type | Set | Prop
 
 type uLevel = UName of name | USucc of uLevel | UMax of uLevel list
 
+type uLevel_constraints = UEq of uLevel * uLevel
+			  | ULt of uLevel * uLevel
+
 type position = NoPosition
 		| Position of ((int * int) * (int * int)) * name list
 
@@ -74,11 +77,6 @@ type term = Universe of uType * uLevel * position
 
 and pattern = PAvar | PName of string
 	      | PCstor of name * (pattern * nature) list
-
-and conversion_formula = 
-  Conv_Lit of bool * term * term
-  | Conv_And of conversion_formula list
-  | Conv_Or of conversion_formula list
 
 and typeannotation = NoAnnotation
 		     | Annotation of term
