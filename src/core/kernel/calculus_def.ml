@@ -83,12 +83,18 @@ and typeannotation = NoAnnotation
 		     | Typed of term
 
 
+and substitution = term IndexMap.t
+
 and var_frame = {
 
   name: name;
   ty: term;
   nature: nature;
   pos: position;
+
+  fv: substitution;
+  hyps: (term * term) list;
+  lvl_cste: uLevel_constraints list;
     
 }
 

@@ -7,9 +7,6 @@ open Calculus_misc
 
 (* substitution = replace variables (free or bound) by terms (used for typechecking/inference with free variables, and for reduction with bound variable) *)
 
-(* substitution: from free variables to term *) 
-type substitution = term IndexMap.t;;
-
 (* shifting of terms *)
 let rec shift_term (te: term) (delta: int) : term =
   leveled_shift_term te 0 delta

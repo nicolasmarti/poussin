@@ -12,7 +12,7 @@ let is_irreducible (defs: defs) (n: name) : bool =
     | Definition _ -> false
 
 (* all the terms should be typed *)
-let rec eq_resolution (defs: defs) (hyps: (bool * term * term) list) (goal: (term * term)) : (substitution * uLevel_constraints list * (term * term) list) option =
+let rec eq_resolution (defs: defs) (hyps: (term * term) list) (goal: (term * term)) : (substitution * uLevel_constraints list * (term * term) list) option =
   let te1, te2 = goal in
   match goal with
 

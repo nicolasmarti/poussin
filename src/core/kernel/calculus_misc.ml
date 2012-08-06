@@ -82,6 +82,53 @@ let set_term_annotation (te: term) (ty: term) : term =
     | Match (te, des, _, pos, reduced) ->
       Match (te, des, Annotation ty, pos, reduced)
 
+let set_term_type (te: term) (ty: term) : term =
+  match te with
+    | Universe (ty, lvl, pos) -> 
+      Universe (ty, lvl, pos)
+    | Cste (n, _, pos, reduced) ->
+      Cste (n, Typed ty, pos, reduced)
+    | Var (i, _, pos) ->
+      Var (i, Typed ty, pos)
+    | AVar (_, pos) ->
+      AVar (Typed ty, pos)
+    | TName (n, _, pos) ->
+      TName (n, Typed ty, pos)
+    | Lambda (q, te, _, pos, reduced) ->
+      Lambda (q, te, Typed ty, pos, reduced)
+    | Forall (q, te, _, pos, reduced) ->
+      Forall (q, te, Typed ty, pos, reduced)
+    | Let (q, te, _, pos, reduced) ->
+      Let (q, te, Typed ty, pos, reduced)
+    | App (f, args, _, pos, reduced) ->
+      App (f, args, Typed ty, pos, reduced)
+    | Match (te, des, _, pos, reduced) ->
+      Match (te, des, Typed ty, pos, reduced)
+
+let set_term_noannotation (te: term) : term =
+  match te with
+    | Universe (ty, lvl, pos) -> 
+      Universe (ty, lvl, pos)
+    | Cste (n, _, pos, reduced) ->
+      Cste (n, NoAnnotation, pos, reduced)
+    | Var (i, _, pos) ->
+      Var (i, NoAnnotation, pos)
+    | AVar (_, pos) ->
+      AVar (NoAnnotation, pos)
+    | TName (n, _, pos) ->
+      TName (n, NoAnnotation, pos)
+    | Lambda (q, te, _, pos, reduced) ->
+      Lambda (q, te, NoAnnotation, pos, reduced)
+    | Forall (q, te, _, pos, reduced) ->
+      Forall (q, te, NoAnnotation, pos, reduced)
+    | Let (q, te, _, pos, reduced) ->
+      Let (q, te, NoAnnotation, pos, reduced)
+    | App (f, args, _, pos, reduced) ->
+      App (f, args, NoAnnotation, pos, reduced)
+    | Match (te, des, _, pos, reduced) ->
+      Match (te, des, NoAnnotation, pos, reduced)
+
+
 (* the set of free variable in a term *)
 let rec fv_term (te: term) : IndexSet.t =
   raise (Failure "fv_term: NYI")
