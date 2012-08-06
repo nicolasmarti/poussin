@@ -24,10 +24,10 @@ let context_add_substitution (ctxt: context ref) (s: substitution) : unit =
     bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss';
 
     fvs = List.map2 (fun hd1 hd2 -> 
-      List.map (fun (i, ty, n) -> 
-	match ty with
-	  | None -> (i, ty, n)
-	  | Some ty -> (i, Some (term_substitution hd2 ty), n)
+      List.map (fun (i, ty, te, n) -> 
+	match te with
+	  | None -> (i, term_substitution hd2 ty, None, n)
+	  | Some te -> (i, term_substitution hd2 ty, Some (term_substitution hd2 te), n)
       ) hd1
     ) !ctxt.fvs ss;
 
@@ -46,71 +46,69 @@ let push_quantification (q: (name * term * nature * position)) (ctxt: context re
     conversion_hyps = (List.map (fun (hd1, hd2) -> (shift_term hd1 1, shift_term hd2 1))  (List.hd !ctxt.conversion_hyps))::!ctxt.conversion_hyps
   }
 
-(*
+
 (* this function rewrite all free vars that have a real value in the upper frame of a context into a list of terms, and removes them *)
 let rec flush_fvars (defs: defs) (ctxt: context ref) (l: term list) : term list =
   (*if !debug then printf "before flush_vars: %s\n" (context2string !ctxt);*)
-  let hd, tl = List.hd !ctxt, List.tl !ctxt in
   (* we compute the fvars of the terms *)
   let lfvs = List.fold_left (fun acc te -> IndexSet.union acc (fv_term te)) IndexSet.empty l in
   (* and traverse the free variables *)
   let (terms, fvs) = fold_cont (fun (terms, fvs) ((i, ty, te, name)::tl) ->
     match te with
-      | TVar (i', _) when not (IndexSet.mem i' lfvs) ->
+      | None when not (IndexSet.mem i lfvs) ->
 	(* there is no value for this free variable, and it does not appear in the terms --> remove it *)
 	tl, (terms, fvs)
-      | TVar (i', _) when IndexSet.mem i' lfvs ->
+      | None when IndexSet.mem i lfvs ->
 	(* there is no value for this free variable, but it does appear in the terms --> keep it *)
 	tl, (terms, fvs @ [i, ty, te, name])
-      | _ -> 
+      | Some te -> 
       (* there is a value, we can get rid of the free var *)
 	(*if !debug then printf "flush_vars, rewrite %s --> %s\n" (term2string !ctxt (TVar (i, nopos))) (term2string !ctxt te);*)
 	let s = (IndexMap.singleton i te) in
 	let terms = List.map (fun hd -> term_substitution s hd) terms in
-	let tl = List.map (fun (i, ty, te, name) -> i, term_substitution s ty, term_substitution s te, None) tl in
+	let tl = List.map (fun (i, ty, te, name) -> i, term_substitution s ty, (match te with | None -> None | Some te -> Some (term_substitution s te)), name) tl in
 	tl, (terms, fvs)
-  ) (l, []) (List.rev hd.fvs) in
+  ) (l, []) (List.hd !ctxt.fvs) in
   (* here we are removing the free vars and putting them bellow only if they have no TVar 0 in their term/type *)
   (* first we shift them *)
   let terms, fvs = List.fold_left (fun (terms, acc) (i, ty, te, name) ->
     try 
-      terms, (acc @ [i, shift_term ty (-1), shift_term te (-1), name])
+      terms, (acc @ [i, shift_term ty (-1), 
+		     (match te with
+		       | None -> None
+		       | Some te -> Some (shift_term te (-1))), 
+		     name])
     with
-      | DoudouException (Unshiftable_term _) ->
+      | PoussinException (Unshiftable_term _) ->
 	(* we have a free variable that has a type / value containing the symbol in hd -> 
 	   we try to ask an oracle if it can guess the term
 	*)
-	if !debug_oracles then printf "flush_fvars asks to oracles: %s\n" (!term2string_ptr !ctxt ty);
-	let _(*guessed_value*) = fold_stop (fun () oracle ->
-	  match oracle (defs, !ctxt, ty) with
-	    | None -> Left ()
-	    | Some prf ->
-		(* we check the proof *)
-	      try 
-		let _ = !typecheck_ptr defs ctxt prf ty in
-		if not (IndexSet.mem i (fv_term te)) then Right prf else Left ()
-	      with
-		| _ -> 		  
-		  Left ()
-	) () !oracles_list in
-	raise (DoudouException (FreeError "we failed to infer a free variable that cannot be out-scoped"))
-  ) (terms, []) (List.rev fvs) in
-  (match tl with
-    (* we are in toplevel, we return an error if there is still free variables *)
-    | [] -> 
-      if List.length fvs = 0 then
-	ctxt := ({hd with fvs = []})::tl
-      else
-	raise (DoudouException (FreeError "flush_fvars failed because the term still have freevariables"))
-    (* we are not in toplevel -> we copy the fvs (that have been shifted), to the previous level *)
-    | hd'::tl -> ctxt := ({hd with fvs = []})::({hd' with fvs = fvs @ hd'.fvs})::tl
-  ); 
-  (*if !debug then printf "after flush_vars: %s\n" (context2string !ctxt);*)
+	raise (PoussinException (FreeError "we failed to infer a free variable that cannot be out-scoped"))
+  ) (terms, []) fvs in
+  (* pushing the freevariables on the upper frame *)
+  if List.length !ctxt.bvs = 0 then
+    (if List.length fvs != 0 then raise (PoussinException (FreeError "flush_fvars failed because the term still have freevariables")))
+  else
+  ctxt := { !ctxt with
+    fvs = (fvs @ List.tl (List.hd !ctxt.fvs))::(List.tl (List.tl !ctxt.fvs));
+    conversion_hyps = List.tl !ctxt.conversion_hyps;
+  };
   terms
-*)
+
 
 let pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature * position) * term list =
-  raise (Failure "pop_quantification: NYI")
+  (* we flush the free variables *)
+  let tes = flush_fvars defs ctxt tes in
+  (* we grab the remaining context and the popped frame *)
+  let frame = List.hd (!ctxt.bvs) in
+  (* we set the context *)
+  ctxt := { !ctxt with 
+    bvs = List.tl !ctxt.bvs;
+    fvs = List.tl !ctxt.fvs;    
+    conversion_hyps = List.tl !ctxt.conversion_hyps;    
+  };
+  (* and returns the quantifier *)
+  (frame.name, shift_term frame.ty (-1), frame.nature, frame.pos), tes  
 
 let rec pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n: int) : (name * term * nature * position) list * term list =
   match n with
@@ -129,13 +127,26 @@ let rec typecheck
     (ctxt: context ref)
     (te: term)
     (ty: term) : term =
-  raise (Failure "")
+  match get_term_annotation te with
+    | Typed ty' ->
+      ignore(unification defs ctxt false ty' ty);
+      te
+    | Annotation ty' ->
+      (* TODO *)
+      typecheck defs ctxt (set_term_noannotation te) ty
+    | NoAnnotation ->
+      let te = typeinfer defs ctxt te in
+      ignore(unification defs ctxt false (get_type te) ty);
+      te
+
 
 and typeinfer 
     (defs: defs)
     (ctxt: context ref)
     (te: term) : term =
-  raise (Failure "")
+  match te with
+    | Universe _ -> te
+    | _ -> raise (Failure "")
 
 and unification 
     (defs: defs)
@@ -232,6 +243,20 @@ and unification
       let q1, [te] = pop_quantification defs ctxt [te] in
       (* and we return the term *)
       Lambda (q1, te, Typed lty, p1, reduced1 && reduced2)
+
+    | Forall ((s1, ty1, n1, pq1), te1, Typed lty1, p1, reduced1), Forall ((s2, ty2, n2, pq2), te2, Typed lty2, p2, reduced2) ->
+      if n1 <> n2 then raise (PoussinException (NoUnification (!ctxt, te1, te2)));
+      (* we unify the types *)
+      let lty = unification defs ctxt polarity lty1 lty2 in
+      let ty = unification defs ctxt polarity ty1 ty2 in
+      (* we push the quantification *)
+      push_quantification (s1, ty, n1, pq1) ctxt;
+      (* we unify the body *)
+      let te = unification defs ctxt polarity te1 te2 in
+      (* we pop quantification (possibly modifying te) *)
+      let q1, [te] = pop_quantification defs ctxt [te] in
+      (* and we return the term *)
+      Forall (q1, te, Typed lty, p1, reduced1 && reduced2)
 
 
 	
