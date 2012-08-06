@@ -88,18 +88,21 @@ and substitution = term IndexMap.t
 and var_frame = {
 
   name: name;
-  ty: term;
-  nature: nature;
-  pos: position;
-
-  fv: substitution;
-  hyps: (term * term) list;
-  lvl_cste: uLevel_constraints list;
+  ty: term ref;
     
 }
 
 (* context *)
-and context = var_frame list
+and context = {
+  bvs: var_frame list;
+  fvs: (index * term * term * name option) list list;
+  termstack: term list list;
+  naturestack: nature list;
+  conversion_hyps: (term * term) list list;
+  lvl_cste: uLevel_constraints list;
+}
+  
+  
 
 (* for notation *)
 type op = Nofix
@@ -109,15 +112,17 @@ type op = Nofix
 
 
 (* values contains in module *)
-type value = Inductive of (name * term) list
-	    | Axiom
+type value = Inductive of (name * term) list * term
+	    | Axiom of term
 	    | Definition of term
-	    | Constructor of name
+	    | Constructor of term
 
 and defs = (name, value) Hashtbl.t;;
 
-type doudou_error = FreeError of string
+type poussin_error = FreeError of string
 		    | Unshiftable_term of term * int * int
 		    | UnknownCste of name
+		    | NoUnification of context * term * term
 
-exception DoudouException of doudou_error
+
+exception PoussinException of poussin_error

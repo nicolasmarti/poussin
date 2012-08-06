@@ -24,7 +24,7 @@ and leveled_shift_term (te: term) (level: int) (delta: int) : term =
     | Var (i, ty, pos) when i >= 0 ->
       if i >= level then
 	if i + delta < level then (
-	  raise (DoudouException (Unshiftable_term (te, level, delta)))
+	  raise (PoussinException (Unshiftable_term (te, level, delta)))
 	)
 	else
 	  Var (i + delta, leveled_shift_typeannotation ty level delta, pos)
@@ -81,7 +81,7 @@ let rec shift_substitution (s: substitution) (delta: int) : substitution =
       else 
 	if key + delta < 0 then acc else IndexMap.add (key + delta) (shift_term value delta) acc 
     with
-      | DoudouException (Unshiftable_term _) -> acc
+      | PoussinException (Unshiftable_term _) -> acc
   ) s IndexMap.empty
 
 (* substitution *)
@@ -97,8 +97,8 @@ let rec term_substitution (s: substitution) (te: term) : term =
 	  | Not_found -> Var (i, typeannotation_substitution s ty, pos)
       )
 
-    | AVar _ -> raise (DoudouException (FreeError "term_substitution catastrophic: AVar"))
-    | TName _ -> raise (DoudouException (FreeError "term_substitution catastrophic: TName"))
+    | AVar _ -> raise (PoussinException (FreeError "term_substitution catastrophic: AVar"))
+    | TName _ -> raise (PoussinException (FreeError "term_substitution catastrophic: TName"))
 
     | App (te, args, ty, pos, reduced) ->
       App (term_substitution s te,

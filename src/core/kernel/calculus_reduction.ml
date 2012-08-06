@@ -83,7 +83,7 @@ let rec reduction_term (defs: defs) (strat: reduction_strategy) (te: term) : ter
 		)
 	      | _ -> set_reduced te
 	  with
-	    | Not_found -> raise (DoudouException (UnknownCste n))
+	    | Not_found -> raise (PoussinException (UnknownCste n))
 	      
 	)
 	  
