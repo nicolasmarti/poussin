@@ -112,7 +112,7 @@ type op = Nofix
 
 
 (* values contains in module *)
-type value = Inductive of (name * term) list * term
+type value = Inductive of name list * term
 	    | Axiom of term
 	    | Definition of term
 	    | Constructor of term
@@ -123,6 +123,10 @@ type poussin_error = FreeError of string
 		    | Unshiftable_term of term * int * int
 		    | UnknownCste of name
 		    | NoUnification of context * term * term
+		    | UnknownUnification of context * term * term
+		    | NegativeIndexBVar of int
+		    | UnknownBVar of context * int
+		    | UnknownFVar of context * int
 
 
 exception PoussinException of poussin_error

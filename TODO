@@ -11,6 +11,8 @@
    + is_clean_term, pattern_match, reduction_term 
    - need to be tested
 3) unification
+   - need to do App + conversion hyp uses
 4) terminfer
+   - need to do App next
 5) termcheck
 

@@ -55,3 +55,47 @@ let defs = ["Inductive True : Prop";
 	   ] in List.map (fun def -> let def = parse_definition_from_string def in
 				     printf "%s\n" (definition2string def)) defs;;
 
+let defs = Hashtbl.create 100;;
+
+let parse_and_typecheck_from_string (str: string) : unit  =
+  let lines = stream_of_string str in
+  let pb = build_parserbuffer lines in
+  let leftmost = cur_pos pb in
+  try 
+    let result = parse_definition (Hashtbl.create 100) leftmost pb in
+    let ctxt = ref empty_context in
+    match result with
+      | DefInductive (n, ty) -> 
+	let ty = typeinfer defs ctxt ty in
+	Hashtbl.add defs n (Inductive ([], ty));
+	printf "%s: %s\n" n (term2string [] ty)
+      | DefConstructor (n, ty) -> 
+	let ty = typeinfer defs ctxt ty in
+	Hashtbl.add defs n (Constructor ty);
+	printf "%s: %s\n" n (term2string [] ty)
+      | _ -> raise (Failure "parse_and_typecheck_from_string: NYI")
+
+  with
+    | NoMatch -> 
+      printf "parsing error: '%s'\n%s\n" (Buffer.contents pb.bufferstr) (errors2string pb); flush Pervasives.stdout;
+      raise Pervasives.Exit
+    | Failure s -> 
+      printf "error:\n%s\n" s;
+      raise Pervasives.Exit
+;;
+
+let defs = ["Inductive True : Prop";
+	    "Constructor I: True";
+	    "Inductive False : Prop";
+	    "Inductive Not (P: Prop) : Prop";
+	    "Constructor Contradiction  {P}: (P -> False) -> Not P";
+	    "Inductive And (A B: Prop) : Prop";
+	    "Constructor conj {A} {B}: A -> B -> And A B";
+	    "Inductive Or (A B: Prop) : Prop";
+	    "Constructor left {A} {B}: A -> Or A B";
+	    "Constructor right {A} {B}: B -> Or A B";
+	    "Inductive eq {A: Set} (a: A): A -> Prop";
+	    "Constructor eq_refl {A} a: eq a a";
+	    "Definition Relation (A: Set) : Type := A -> A -> Prop";
+	    "Inductive ReflexiveRel : Set"
+	   ] in List.map (fun def -> parse_and_typecheck_from_string def) defs;;

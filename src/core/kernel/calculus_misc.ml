@@ -131,7 +131,19 @@ let set_term_noannotation (te: term) : term =
 
 (* the set of free variable in a term *)
 let rec fv_term (te: term) : IndexSet.t =
-  raise (Failure "fv_term: NYI")
+  match te with
+    | Universe _ | Cste _ | AVar _ | TName _ -> IndexSet.empty
+    | Var (i, _, _) when i < 0 -> IndexSet.singleton i
+    | Var (i, _, _) when i >= 0 -> IndexSet.empty
+    | Lambda ((_, ty, _, _), te, _, _, _) ->
+      IndexSet.union (fv_term ty) (fv_term te)
+    | Forall ((_, ty, _, _), te, _, _, _) ->
+      IndexSet.union (fv_term ty) (fv_term te)
+    | Let ((_, te1, _), te2, _, _, _) ->
+      IndexSet.union (fv_term te1) (fv_term te2)
+    | App (te, args, _, _, _) -> List.fold_left (fun acc (te, _) -> IndexSet.union acc (fv_term te)) (fv_term te) args
+    | Match (te, des, _, _, _) ->
+      List.fold_left (fun acc (_, eq) -> IndexSet.union acc (fv_term eq)) (fv_term te) des
 
 (* shift a set of variable *)
 let shift_vars (vars: IndexSet.t) (delta: int) : IndexSet.t =
@@ -182,9 +194,9 @@ let rec bv_term (te: term) : IndexSet.t =
       IndexSet.union (bv_term te1) (shift_vars (bv_term te2) (-1))
     | App (te, args, _, _, _) -> List.fold_left (fun acc (te, _) -> IndexSet.union acc (bv_term te)) (bv_term te) args
     | Match (te, des, _, _, _) ->
-      List.fold_left (fun acc eq -> IndexSet.union acc (des_equation eq)) (bv_term te) des
+      List.fold_left (fun acc eq -> IndexSet.union acc (destructor_bv_term eq)) (bv_term te) des
 
-and des_equation (des: (pattern list * term)) : IndexSet.t =
+and destructor_bv_term (des: (pattern list * term)) : IndexSet.t =
     (shift_vars (bv_term (snd des)) (patterns_size (fst des)))
 
 

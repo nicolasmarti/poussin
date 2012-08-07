@@ -2,8 +2,10 @@ open Calculus_def
 open Calculus_misc
 open Calculus_substitution
 open Calculus_reduction
+open Calculus_pprinter
 open Extlist
 open Libparser
+open Printf
 
 (* returns if a definition is irreducible (an inductive or a constructor) *)
 let is_irreducible (defs: defs) (n: name) : bool =
@@ -15,6 +17,11 @@ let is_irreducible (defs: defs) (n: name) : bool =
 let context_add_lvl_contraint (ctxt: context ref) (c: uLevel_constraints) : unit =
   ctxt := { !ctxt with lvl_cste = c::!ctxt.lvl_cste }
 
+(**)
+let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
+  ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(List.hd !ctxt.conversion_hyps))::(List.tl !ctxt.conversion_hyps) }
+
+(**)
 let context_add_substitution (ctxt: context ref) (s: substitution) : unit =
   (* computes the needed shited substitution *)
   let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.fvs) in
@@ -86,13 +93,13 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (l: term list) : term list 
 	raise (PoussinException (FreeError "we failed to infer a free variable that cannot be out-scoped"))
   ) (terms, []) fvs in
   (* pushing the freevariables on the upper frame *)
-  if List.length !ctxt.bvs = 0 then
+  (if List.length !ctxt.bvs = 0 then
     (if List.length fvs != 0 then raise (PoussinException (FreeError "flush_fvars failed because the term still have freevariables")))
   else
-  ctxt := { !ctxt with
-    fvs = (fvs @ List.tl (List.hd !ctxt.fvs))::(List.tl (List.tl !ctxt.fvs));
-    conversion_hyps = List.tl !ctxt.conversion_hyps;
-  };
+      ctxt := { !ctxt with
+	fvs = (fvs @ (List.hd !ctxt.fvs))::(List.tl !ctxt.fvs);
+	conversion_hyps = List.tl !ctxt.conversion_hyps;
+      });
   terms
 
 
@@ -120,7 +127,95 @@ let rec pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n
       hd::tl, tes
 
 let fvar_subst (ctxt: context ref) (i: index) : term option =
-  raise (Failure "fvar_subst: NYI")
+  let lookup = fold_stop (fun level frame ->
+    let lookup = fold_stop (fun () (index, ty, value, name) -> 
+      if index = i then Right value else Left ()
+    ) () frame in
+    match lookup with
+      | Left () -> Left (level + 1)
+      | Right res -> Right (match res with | None -> None | Some res -> Some (shift_term res level))
+  ) 0 !ctxt.fvs in
+  match lookup with
+    | Left _ -> raise (PoussinException (UnknownFVar (!ctxt, i)))
+    | Right res -> res
+
+
+(* grab the type of a free var *)
+let fvar_type (ctxt: context ref) (i: index) : term =
+  let lookup = fold_stop (fun level frame ->
+    let lookup = fold_stop (fun () (index, ty, value, name) -> 
+      if index = i then Right ty else Left ()
+    ) () frame in
+    match lookup with
+      | Left () -> Left (level + 1)
+      | Right res -> Right (shift_term res level)
+  ) 0 !ctxt.fvs in
+  match lookup with
+    | Left _ -> raise (PoussinException (UnknownFVar (!ctxt, i)))
+    | Right res -> res
+
+(* grab the type of a bound var *)
+let bvar_type (ctxt: context ref) (i: index) : term =
+  try (
+    let frame = List.nth !ctxt.bvs i in
+    let ty = frame.ty in
+    shift_term ty i
+  ) with
+    | Failure "nth" -> raise (PoussinException (UnknownBVar (!ctxt, i)))
+    | Invalid_argument "List.nth" -> raise (PoussinException (NegativeIndexBVar i))
+
+(* we add a free variable *)
+let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te: term option = None) ?(ty: term option = None) (ctxt: context ref) : term =
+  let ty = match ty with
+    | None -> add_fvar ~ty:(Some (type_ (UName""))) ctxt
+    | Some ty -> ty 
+      in
+  let next_fvar_index = 
+    match (fold_stop (fun acc frame ->
+      match frame with
+	| [] -> Left acc
+	| (i, _, _, _)::_ -> Right (i - 1)
+    ) (-1) !ctxt.fvs)
+    with
+      | Left i -> i
+      | Right i -> i
+  in
+  ctxt := { !ctxt with 
+    fvs = ((next_fvar_index, ty, te, name)::(List.hd !ctxt.fvs))::(List.tl !ctxt.fvs)
+  };
+  Var (next_fvar_index, Typed ty, pos)
+
+(* retrieve the debruijn index of a bound var through its symbol *)
+let var_lookup (ctxt: context ref) (n: name) : index option =
+  let res = fold_stop (fun level frame ->
+    if frame.name = n then Right level else Left (level+1)
+  ) 0 !ctxt.bvs in
+  match res with
+    | Left _ -> (
+      let res = fold_stop (fun () frame ->
+	fold_stop (fun () (i, _, _, n') ->
+	  match n' with
+	    | Some n' when n' = n -> Right i
+	    | _ -> Left ()
+	) () frame
+      ) () !ctxt.fvs in
+      match res with
+	| Left () -> None
+	| Right i -> Some i
+    )
+    | Right level -> Some level
+
+
+let unification_strat = {
+  beta = Some BetaWeak;
+  delta = Some DeltaStrong;
+  iota = true;
+  zeta = true;
+  eta = true;
+}
+
+let context2namelist (ctxt: context ref): name list =
+  List.map (fun f -> f.name) !ctxt.bvs
 
 let rec typecheck 
     (defs: defs)
@@ -144,10 +239,54 @@ and typeinfer
     (defs: defs)
     (ctxt: context ref)
     (te: term) : term =
-  match te with
-    | Universe _ -> te
-    | _ -> raise (Failure "")
+  match get_term_annotation te with
+    | Typed ty -> te
+    | _ ->
+      match te with
+	| Universe _ -> te
+	| Cste (n, _, pos, reduced) -> (
+	  try 
+	    match Hashtbl.find defs n with
+	      | Inductive (_, ty) | Axiom ty | Constructor ty -> 
+		Cste (n, Typed ty, pos, reduced)
+	      | Definition te -> 
+		Cste (n, Typed (get_type te), pos, reduced)
+	  with
+	    | Not_found -> raise (PoussinException (UnknownCste n))
+	)
 
+	| Var (i, _, pos) when i < 0 ->
+	  Var (i, Typed (fvar_type ctxt i), pos)
+	| Var (i, _, pos) when i >= 0 ->
+	  Var (i, Typed (bvar_type ctxt i), pos)
+
+	| AVar (_, pos) ->
+	  add_fvar ~pos:pos ctxt
+
+	| TName (n, _, pos) -> (
+	  (* we first look for a variable *)
+	  match var_lookup ctxt n with
+	    | Some i -> 
+	      Var (i, Typed (bvar_type ctxt i), pos)
+	    | None -> 
+	      typeinfer defs ctxt (Cste (n, NoAnnotation, pos, false))		
+	)
+
+	| Forall ((s, ty, n, pq), te, _, p, reduced) ->
+	  (* first let's be sure that ty :: Type *)
+	  let ty = typecheck defs ctxt ty (type_ (UName "")) in
+	  (* we push the quantification *)
+	  push_quantification (s, ty, n, pq) ctxt;
+	  (* we typecheck te :: Type *)
+	  let te = typecheck defs ctxt te (type_ (UName "")) in
+	  (* we pop quantification *)
+	  let q1, [te] = pop_quantification defs ctxt [te] in
+	  (* and we returns the term with type Type *)
+	  Forall ((s, ty, n, pq), te, Typed (type_ (UName "")), p, reduced)
+
+	  
+	| _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string (context2namelist ctxt) te]))
+	  
 and unification 
     (defs: defs)
     (ctxt: context ref)
@@ -258,6 +397,25 @@ and unification
       (* and we return the term *)
       Forall (q1, te, Typed lty, p1, reduced1 && reduced2)
 
+    (* TODO: App case *)
+    (* some higher order unification *)
+    | App (Var (i, _, _), _::args, _, _, _), t2 when i < 0 ->
+      raise (Failure "unification: NYI")
+    | t1, App (Var (i, _, _), _::args, _, _, _) when i < 0  ->
+      raise (Failure "unification: NYI")
+    (* the case of two application: with the same arity *)
+    | App (hd1, args1, _, _, _), App (hd2, args2, _, _, _) when List.length args1 = List.length args2 ->
+      raise (Failure "unification: NYI")
 
-	
-    | _ -> raise (Failure "")
+    (* maybe we can reduce the term *)
+    | _ when not (is_reduced te1) ->
+      unification defs ctxt polarity (reduction_term defs unification_strat te1) te2
+    | _ when not (is_reduced te2) ->
+      unification defs ctxt polarity te1 (reduction_term defs unification_strat te2)
+
+    (* nothing so far, if the polarity is negative, we add the unification as a converion hypothesis *)
+    | _ when not polarity ->
+      context_add_conversion ctxt te1 te2;
+      te1
+
+    | _ -> raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
