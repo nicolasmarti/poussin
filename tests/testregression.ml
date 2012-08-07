@@ -13,12 +13,13 @@ open Calculus_parser
 
 let () = printf "calculus regression tests\n";;
 
+let ctxt = ref empty_context;;
 
 let te1 : term = lambda_ "x" (var_ (-1));;
-printf "%s\n" (term2string [] te1);;
+printf "%s\n" (term2string ctxt te1);;
 
 let te2 : term = forall_ "x" ~ty:(type_ (UName "")) (forall_ "x" ~ty:(var_ 0) (var_ 0));;
-printf "%s\n" (term2string [] te2);;
+printf "%s\n" (term2string ctxt te2);;
 
 let parse_definition_from_string (str: string) : definition  =
   let lines = stream_of_string str in
@@ -53,7 +54,7 @@ let defs = ["Inductive True : Prop";
 	    "Constructor build_ReflexiveRel: (A: Set) -> (rel: Relation A) -> (refl: (x: A) -> rel x x) -> ReflexiveRel";
 	    "Definition ReflexiveRel_t {rel: ReflexiveRel} : Set :=  match rel with | build_ReflexiveRel A _ _ := A end";
 	   ] in List.map (fun def -> let def = parse_definition_from_string def in
-				     printf "%s\n" (definition2string def)) defs;;
+				     printf "%s\n" (definition2string def ctxt)) defs;;
 
 let defs = Hashtbl.create 100;;
 
@@ -68,11 +69,11 @@ let parse_and_typecheck_from_string (str: string) : unit  =
       | DefInductive (n, ty) -> 
 	let ty = typeinfer defs ctxt ty in
 	Hashtbl.add defs n (Inductive ([], ty));
-	printf "%s: %s\n" n (term2string [] ty)
+	printf "%s: %s\n" n (term2string ctxt ty)
       | DefConstructor (n, ty) -> 
 	let ty = typeinfer defs ctxt ty in
 	Hashtbl.add defs n (Constructor ty);
-	printf "%s: %s\n" n (term2string [] ty)
+	printf "%s: %s\n" n (term2string ctxt ty)
       | _ -> raise (Failure "parse_and_typecheck_from_string: NYI")
 
   with

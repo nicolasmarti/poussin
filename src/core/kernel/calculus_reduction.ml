@@ -150,12 +150,15 @@ let rec reduction_term (defs: defs) (strat: reduction_strategy) (te: term) : ter
     | App (f, [], _, _, _) ->
       set_reduced (reduction_term defs strat f)
 
-    | App (f, args, ty, pos, _) -> (
+    | App (f, args, ty, pos, _) when not (is_reduced f) -> (
       let f = reduction_term defs strat f in
-      (* here we are doing eager by default *)
-      let args = List.map (fun (te, n) -> reduction_term defs strat te, n) args in
       set_reduced (reduction_term defs strat (App (f, args, ty, pos, false)))
     )
+
+    | App (f, args, ty, pos, _) when is_reduced f ->
+      let args = List.map (fun (te, n) -> reduction_term defs strat te, n) args in
+      App (f, args, ty, pos, true)
+
 
 
 and reduction_typeannotation (defs: defs) (strat: reduction_strategy) (ty: typeannotation) : typeannotation =

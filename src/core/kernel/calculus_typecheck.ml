@@ -97,8 +97,7 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (l: term list) : term list 
     (if List.length fvs != 0 then raise (PoussinException (FreeError "flush_fvars failed because the term still have freevariables")))
   else
       ctxt := { !ctxt with
-	fvs = (fvs @ (List.hd !ctxt.fvs))::(List.tl !ctxt.fvs);
-	conversion_hyps = List.tl !ctxt.conversion_hyps;
+	fvs = (fvs @ (List.hd !ctxt.fvs))::(List.tl !ctxt.fvs)
       });
   terms
 
@@ -214,8 +213,13 @@ let unification_strat = {
   eta = true;
 }
 
-let context2namelist (ctxt: context ref): name list =
-  List.map (fun f -> f.name) !ctxt.bvs
+let typeinfer_strat = {
+  beta = Some BetaWeak;
+  delta = Some DeltaStrong;
+  iota = true;
+  zeta = true;
+  eta = true;
+}
 
 let rec typecheck 
     (defs: defs)
@@ -284,8 +288,40 @@ and typeinfer
 	  (* and we returns the term with type Type *)
 	  Forall ((s, ty, n, pq), te, Typed (type_ (UName "")), p, reduced)
 
+	| Lambda ((s, ty, n, pq), te, _, p, reduced) ->
+	  (* first let's be sure that ty :: Type *)
+	  let ty = typecheck defs ctxt ty (type_ (UName "")) in
+	  (* we push the quantification *)
+	  push_quantification (s, ty, n, pq) ctxt;
+	  (* we typecheck te :: Type *)
+	  let te = typeinfer defs ctxt te in
+	  (* we pop quantification *)
+	  let q1, [te] = pop_quantification defs ctxt [te] in
+	  (* and we returns the term with type Type *)
+	  let res = Forall ((s, ty, n, pq), get_type te, Typed (type_ (UName "")), NoPosition, reduced) in
+	  Lambda ((s, ty, n, pq), te, Typed res, p, reduced)
+
+	| App (hd, [], _, pos, reduced) ->
+	  typeinfer defs ctxt hd 
+
+	| App (hd, (arg, n)::args, _, pos, reduced) ->	  
+	  (* we infer hd and arg *)
+	  let hd = typeinfer defs ctxt hd in
+	  let arg = typeinfer defs ctxt arg in
+	  (* we unify the type of hd with a forall *)
+	  let hd_ty = unification defs ctxt true (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "_" ~nature:n ~ty:(get_type arg) (avar_ ())) in
+	  (* we build a new head, as the reduction of hd and arg, with the proper type *)
+	  let Forall (q, te, Typed fty, p, reduced) = hd_ty in
+	  let new_hd_ty = reduction_term defs typeinfer_strat (App (Lambda (q, te, Typed fty, p, reduced), (arg,n)::[], Typed fty, pos, false)) in
+	  let new_hd = reduction_term defs typeinfer_strat (
+	    App (hd, (arg, n)::[], 
+	    Typed (new_hd_ty), pos,
+	    false)
+	  ) in 
+	  typeinfer defs ctxt (App (new_hd, args, NoAnnotation, pos, reduced))
 	  
-	| _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string (context2namelist ctxt) te]))
+	  
+	| _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
 	  
 and unification 
     (defs: defs)
@@ -294,9 +330,12 @@ and unification
     (te1: term) (te2: term) : term =
   match te1, te2 with
 
-    (* the error cases for AVar and TName *)
-    | AVar _, _ -> raise (PoussinException (FreeError "unification_term_term catastrophic: AVar in te1 "))
-    | _, AVar _ -> raise (PoussinException (FreeError "unification_term_term catastrophic: AVar in te2 "))
+    (* AVar is just a wildcard for unification *)
+    | AVar _, _ -> te2
+    | _, AVar _ -> te1
+
+
+    (* the error case for AVar *)
     | TName _, _ -> raise (PoussinException (FreeError "unification_term_term catastrophic: TName in te1 "))
     | _, TName _ -> raise (PoussinException (FreeError "unification_term_term catastrophic: TName in te2 "))
      
@@ -381,7 +420,7 @@ and unification
       (* we pop quantification (possibly modifying te) *)
       let q1, [te] = pop_quantification defs ctxt [te] in
       (* and we return the term *)
-      Lambda (q1, te, Typed lty, p1, reduced1 && reduced2)
+      Lambda (q1, te, Typed lty, p1, false)
 
     | Forall ((s1, ty1, n1, pq1), te1, Typed lty1, p1, reduced1), Forall ((s2, ty2, n2, pq2), te2, Typed lty2, p2, reduced2) ->
       if n1 <> n2 then raise (PoussinException (NoUnification (!ctxt, te1, te2)));
@@ -395,17 +434,26 @@ and unification
       (* we pop quantification (possibly modifying te) *)
       let q1, [te] = pop_quantification defs ctxt [te] in
       (* and we return the term *)
-      Forall (q1, te, Typed lty, p1, reduced1 && reduced2)
+      Forall (q1, te, Typed lty, p1, false)
 
     (* TODO: App case *)
     (* some higher order unification *)
-    | App (Var (i, _, _), _::args, _, _, _), t2 when i < 0 ->
+    | App (Var (i, _, _), _::args, _, _, true), t2 when i < 0 ->
       raise (Failure "unification: NYI")
-    | t1, App (Var (i, _, _), _::args, _, _, _) when i < 0  ->
+    | t1, App (Var (i, _, _), _::args, _, _, true) when i < 0  ->
       raise (Failure "unification: NYI")
     (* the case of two application: with the same arity *)
-    | App (hd1, args1, _, _, _), App (hd2, args2, _, _, _) when List.length args1 = List.length args2 ->
-      raise (Failure "unification: NYI")
+    | App (hd1, args1, Typed ty1, pos1, true), App (hd2, args2, Typed ty2, pos2, true) when List.length args1 = List.length args2 ->
+      let ty = unification defs ctxt polarity ty1 ty2 in
+      let hd = unification defs ctxt polarity hd1 hd2 in
+      let args = List.map (fun (n, hd1, hd2) -> unification defs ctxt polarity hd1 hd2, n) 
+	(List.map2 (fun (hd1, n1) (hd2, n2) -> 
+	  if n1 <> n2 then 
+	    raise (PoussinException (NoNatureUnification (!ctxt, hd1, hd2)))
+	  else
+	    n1, hd1, hd2
+	 ) args1 args2) in
+      App (hd, args, Typed ty, pos1, false)
 
     (* maybe we can reduce the term *)
     | _ when not (is_reduced te1) ->

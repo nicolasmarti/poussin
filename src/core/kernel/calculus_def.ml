@@ -123,6 +123,7 @@ type poussin_error = FreeError of string
 		    | Unshiftable_term of term * int * int
 		    | UnknownCste of name
 		    | NoUnification of context * term * term
+		    | NoNatureUnification of context * term * term
 		    | UnknownUnification of context * term * term
 		    | NegativeIndexBVar of int
 		    | UnknownBVar of context * int

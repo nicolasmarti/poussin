@@ -132,18 +132,26 @@ let set_term_noannotation (te: term) : term =
 (* the set of free variable in a term *)
 let rec fv_term (te: term) : IndexSet.t =
   match te with
-    | Universe _ | Cste _ | AVar _ | TName _ -> IndexSet.empty
-    | Var (i, _, _) when i < 0 -> IndexSet.singleton i
-    | Var (i, _, _) when i >= 0 -> IndexSet.empty
-    | Lambda ((_, ty, _, _), te, _, _, _) ->
-      IndexSet.union (fv_term ty) (fv_term te)
-    | Forall ((_, ty, _, _), te, _, _, _) ->
-      IndexSet.union (fv_term ty) (fv_term te)
-    | Let ((_, te1, _), te2, _, _, _) ->
-      IndexSet.union (fv_term te1) (fv_term te2)
-    | App (te, args, _, _, _) -> List.fold_left (fun acc (te, _) -> IndexSet.union acc (fv_term te)) (fv_term te) args
-    | Match (te, des, _, _, _) ->
-      List.fold_left (fun acc (_, eq) -> IndexSet.union acc (fv_term eq)) (fv_term te) des
+    | Universe _ | AVar _ | TName _ -> IndexSet.empty
+    | Cste (_, ty, _, _) -> fv_typeannotation ty
+    | Var (i, ty, _) when i < 0 -> IndexSet.union (IndexSet.singleton i) (fv_typeannotation ty)
+    | Var (i, ty, _) when i >= 0 -> fv_typeannotation ty
+    | Lambda ((_, ty, _, _), te, aty, _, _) ->
+      IndexSet.union (fv_typeannotation aty) (IndexSet.union (fv_term ty) (fv_term te))
+    | Forall ((_, ty, _, _), te, aty, _, _) ->
+      IndexSet.union (fv_typeannotation aty) (IndexSet.union (fv_term ty) (fv_term te))
+    | Let ((_, te1, _), te2, aty, _, _) ->
+      IndexSet.union (fv_typeannotation aty) (IndexSet.union (fv_term te1) (fv_term te2))
+    | App (te, args, aty, _, _) -> List.fold_left (fun acc (te, _) -> IndexSet.union acc (fv_term te)) (IndexSet.union (fv_typeannotation aty) (fv_term te)) args
+    | Match (te, des, aty, _, _) ->
+      List.fold_left (fun acc (_, eq) -> IndexSet.union acc (fv_term eq)) (IndexSet.union (fv_typeannotation aty) (fv_term te)) des
+
+and fv_typeannotation (ty: typeannotation) : IndexSet.t =
+  match ty with
+    | NoAnnotation -> IndexSet.empty
+    | Annotation te -> fv_term te
+    | Typed te -> fv_term te
+  
 
 (* shift a set of variable *)
 let shift_vars (vars: IndexSet.t) (delta: int) : IndexSet.t =
@@ -183,21 +191,28 @@ let rec patterns_vars (ps: pattern list) : name list =
 (* the set of bounded variable in a term NB: does not take into account vars in type annotation *)
 let rec bv_term (te: term) : IndexSet.t =
   match te with
-    | Universe _ | Cste _ | AVar _ | TName _ -> IndexSet.empty
-    | Var (i, _, _) when i < 0 -> IndexSet.empty
-    | Var (i, _, _) when i >= 0 -> IndexSet.singleton i
-    | Lambda ((_, ty, _, _), te, _, _, _) ->
-      IndexSet.union (bv_term ty) (shift_vars (bv_term te) (-1))
-    | Forall ((_, ty, _, _), te, _, _, _) ->
-      IndexSet.union (bv_term ty) (shift_vars (bv_term te) (-1))
-    | Let ((_, te1, _), te2, _, _, _) ->
-      IndexSet.union (bv_term te1) (shift_vars (bv_term te2) (-1))
-    | App (te, args, _, _, _) -> List.fold_left (fun acc (te, _) -> IndexSet.union acc (bv_term te)) (bv_term te) args
+    | Universe _ | AVar _ | TName _ -> IndexSet.empty
+    | Cste (_, aty, _, _) ->  bv_typeannotation aty
+    | Var (i, aty, _) when i < 0 -> bv_typeannotation aty
+    | Var (i, aty, _) when i >= 0 -> IndexSet.union (bv_typeannotation aty) (IndexSet.singleton i)
+    | Lambda ((_, ty, _, _), te, aty, _, _) ->
+      IndexSet.union (bv_typeannotation aty) (IndexSet.union (bv_term ty) (shift_vars (bv_term te) (-1)))
+    | Forall ((_, ty, _, _), te, aty, _, _) ->
+      IndexSet.union (bv_typeannotation aty) (IndexSet.union (bv_term ty) (shift_vars (bv_term te) (-1)))
+    | Let ((_, te1, _), te2, aty, _, _) ->
+      IndexSet.union (bv_typeannotation aty) (IndexSet.union (bv_term te1) (shift_vars (bv_term te2) (-1)))
+    | App (te, args, aty, _, _) -> List.fold_left (fun acc (te, _) -> IndexSet.union acc (bv_term te)) (IndexSet.union (bv_typeannotation aty) (bv_term te)) args
     | Match (te, des, _, _, _) ->
       List.fold_left (fun acc eq -> IndexSet.union acc (destructor_bv_term eq)) (bv_term te) des
 
 and destructor_bv_term (des: (pattern list * term)) : IndexSet.t =
     (shift_vars (bv_term (snd des)) (patterns_size (fst des)))
+
+and bv_typeannotation (ty: typeannotation) : IndexSet.t =
+  match ty with
+    | NoAnnotation -> IndexSet.empty
+    | Annotation te -> bv_term te
+    | Typed te -> bv_term te
 
 
 (* function that map symbol into string *)

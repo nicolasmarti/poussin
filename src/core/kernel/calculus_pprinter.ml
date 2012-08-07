@@ -205,27 +205,28 @@ and pattern2token (vars: name list) (pattern: pattern) (p: place) : token =
        )
 	    
 
-
+let context2namelist (ctxt: context ref): name list =
+  List.map (fun f -> f.name) !ctxt.bvs
 
 (* make a string from a term *)
-let term2string (vars: name list) (te: term) : string =
-  let token = term2token vars te Alone in
+let term2string (ctxt: context ref) (te: term) : string =
+  let token = term2token (context2namelist ctxt) te Alone in
   let box = token2box token 80 2 in
   box2string box
 
-let rec definition2token (def: definition): token =
+let rec definition2token (def: definition) (ctxt: context ref): token =
   match def with
     | DefSignature (n, ty) ->
-      Box [Verbatim "Signature"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token [] ty Alone]
+      Box [Verbatim "Signature"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone]
     | DefDefinition (n, te) ->
-      Box [Verbatim "Definition"; Space 1; Verbatim n; Space 1; Verbatim ":="; Space 1; term2token [] te Alone]
+      Box [Verbatim "Definition"; Space 1; Verbatim n; Space 1; Verbatim ":="; Space 1; term2token (context2namelist ctxt) te Alone]
     | DefInductive (n, ty) ->
-      Box [Verbatim "Inductive"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token [] ty Alone]
+      Box [Verbatim "Inductive"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone]
     | DefConstructor (n, ty) ->
-      Box [Verbatim "Constructor"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token [] ty Alone]
+      Box [Verbatim "Constructor"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone]
 
-let definition2string (def: definition) : string =
-  let token = definition2token def in
+let definition2string (def: definition) (ctxt: context ref): string =
+  let token = definition2token def ctxt in
   let box = token2box token 80 2 in
   box2string box
 
