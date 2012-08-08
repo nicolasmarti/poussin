@@ -462,6 +462,19 @@ and unification
       (* and we return the term *)
       Forall ((s, ty, n, pq), te, Typed lty, p1, false)
 
+    | Let ((s1, ty1, pq1), te1, Typed lty1, p1, reduced1), Let ((s2, ty2, pq2), te2, Typed lty2, p2, reduced2) ->
+      (* we unify the types *)
+      let lty = unification defs ctxt polarity lty1 lty2 in
+      let ty = unification defs ctxt polarity ty1 ty2 in
+      (* we push the quantification *)
+      push_quantification (s1, ty, Explicit, pq1) ctxt;
+      (* we unify the body *)
+      let te = unification defs ctxt polarity te1 te2 in
+      (* we pop quantification (possibly modifying te) *)
+      let (s, ty, _, pq), [te] = pop_quantification defs ctxt [te] in
+      (* and we return the term *)
+      Let ((s, ty, pq), te, Typed lty, p1, false)
+
     (* TODO: App case *)
     (* some higher order unification *)
     | App (Var (i, _, _), _::args, _, _, true), t2 when i < 0 ->

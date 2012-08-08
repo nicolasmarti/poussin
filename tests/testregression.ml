@@ -103,5 +103,6 @@ let defs = ["Inductive True : Prop";
 	    "Inductive eq {A: Set} (a: A): A -> Prop";
 	    "Constructor eq_refl {A} (a: A): eq a a";
 	    "Inductive ReflexiveRel : Set";
-	    "Constructor build_ReflexiveRel: (A: Set) -> (rel: A -> A -> Prop) -> (refl: (x: A) -> rel x x) -> ReflexiveRel"
+	    "Constructor build_ReflexiveRel: (A: Set) -> (rel: A -> A -> Prop) -> (refl: (x: A) -> rel x x) -> ReflexiveRel";
+	    "Definition ReflexiveRel_t {rel: ReflexiveRel} : Set :=  match rel with | build_ReflexiveRel A _ _ := A end"
 	   ] in List.map (fun def -> parse_and_typecheck_from_string def) defs;;
