@@ -68,10 +68,12 @@ let parse_and_typecheck_from_string (str: string) : unit  =
     match result with
       | DefInductive (n, ty) -> 
 	let ty = typeinfer defs ctxt ty in
+	let [ty] = flush_fvars defs ctxt [ty] in 
 	Hashtbl.add defs n (Inductive ([], ty));
 	printf "%s: %s\n" n (term2string ctxt ty)
       | DefConstructor (n, ty) -> 
 	let ty = typeinfer defs ctxt ty in
+	let [ty] = flush_fvars defs ctxt [ty] in 
 	Hashtbl.add defs n (Constructor ty);
 	printf "%s: %s\n" n (term2string ctxt ty)
       | _ -> raise (Failure "parse_and_typecheck_from_string: NYI")
@@ -82,6 +84,9 @@ let parse_and_typecheck_from_string (str: string) : unit  =
       raise Pervasives.Exit
     | Failure s -> 
       printf "error:\n%s\n" s;
+      raise Pervasives.Exit
+    | PoussinException err ->
+      printf "poussin_error:\n%s\n" (poussin_error2string err);
       raise Pervasives.Exit
 ;;
 
@@ -96,7 +101,7 @@ let defs = ["Inductive True : Prop";
 	    "Constructor left {A} {B}: A -> Or A B";
 	    "Constructor right {A} {B}: B -> Or A B";
 	    "Inductive eq {A: Set} (a: A): A -> Prop";
-	    "Constructor eq_refl {A} a: eq a a";
-	    "Definition Relation (A: Set) : Type := A -> A -> Prop";
-	    "Inductive ReflexiveRel : Set"
+	    "Constructor eq_refl {A} (a: A): eq {A} a a";
+	    "Inductive ReflexiveRel : Set";
+	    "Constructor build_ReflexiveRel: (A: Set) -> (rel: A -> A -> Prop) -> (refl: (x: A) -> rel x x) -> ReflexiveRel"
 	   ] in List.map (fun def -> parse_and_typecheck_from_string def) defs;;

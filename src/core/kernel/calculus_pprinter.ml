@@ -152,7 +152,10 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	| _ -> fun x -> x
       ) (
 	(* simply compute the list of token for the args *)
-	let args = List.map (fun te -> term2token vars te (InArg Explicit)) (if !pp_option.show_implicit then List.map fst args else filter_explicit args) in
+	let args = List.map (fun (te, n) -> 
+	  (if n = Implicit then withBracket else (fun x -> x))
+	  (term2token vars te (InArg n))) 
+	  (if !pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args) in
 	(* the token for the function *)
 	let te = term2token vars te InApp in
 	(* put it all together *)
@@ -197,7 +200,10 @@ and pattern2token (vars: name list) (pattern: pattern) (p: place) : token =
 	| _ -> fun x -> x
       ) (
 	(* simply compute the list of token for the args *)
-	let args = List.map (fun te -> pattern2token vars te (InArg Explicit)) (List.map fst (if !pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args)) in
+	let args = List.map (fun (te, n) -> 
+	  (if n = Implicit then withBracket else (fun x -> x))
+	  (pattern2token vars te (InArg n))
+	) (if !pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args) in
 	(* the token for the function *)
 	let te = term2token vars (Cste (n, NoAnnotation, NoPosition, true)) InApp in
 	(* put it all together *)
@@ -230,4 +236,37 @@ let definition2string (def: definition) (ctxt: context ref): string =
   let box = token2box token 80 2 in
   box2string box
 
+let substitution2token (ctxt: context ref) (s: substitution) : token =
+  Box ([Verbatim "{"] @
+       intercalates [Verbatim ","; Space 1]
+       (List.map ( fun (i, te) ->
+	 Box [verbatims [string_of_int i; " |-> "];
+	      term2token (context2namelist ctxt) te Alone]
+	) (IndexMap.bindings s)) @
+       [Verbatim "}"])
+      
+let substitution2string (ctxt: context ref) (s: substitution) : string =
+  let token = substitution2token ctxt s in
+  let box = token2box token 80 2 in
+  box2string box
 
+let poussin_error2token (err: poussin_error) : token =
+  match err with
+    | FreeError s -> Verbatim "FreeError"
+    | Unshiftable_term _ -> Verbatim "Unshiftable_term"
+    | UnknownCste s -> verbatims ["UnknownCste: "; s]
+    | NoUnification (ctxt, te1, te2) -> 
+      Box [Verbatim "NoUnification between"; Newline; 
+	   term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
+	   term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
+
+    | NoNatureUnification  _ -> Verbatim "NoNatureUnification"
+    | UnknownUnification  _ -> Verbatim "UnknownUnification"
+    | NegativeIndexBVar  _ -> Verbatim "NegativeIndexBVar"
+    | UnknownBVar  _ -> Verbatim "UnknownBVar"
+    | UnknownFVar _ -> Verbatim "UnknownFVar"
+	
+let poussin_error2string (err: poussin_error) : string =
+  let token = poussin_error2token err in
+  let box = token2box token 80 2 in
+  box2string box

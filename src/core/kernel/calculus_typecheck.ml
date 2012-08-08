@@ -23,6 +23,7 @@ let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
 
 (**)
 let context_add_substitution (ctxt: context ref) (s: substitution) : unit =
+  (*printf "ctxt + %s\n" (substitution2string ctxt s);*)
   (* computes the needed shited substitution *)
   let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.fvs) in
   (* for bvs, we do not neet the last one *)
@@ -32,9 +33,16 @@ let context_add_substitution (ctxt: context ref) (s: substitution) : unit =
 
     fvs = List.map2 (fun hd1 hd2 -> 
       List.map (fun (i, ty, te, n) -> 
+	if IndexMap.mem i hd2 then (
+	match te with
+	  | None -> (i, term_substitution hd2 ty, Some (IndexMap.find i hd2), n)
+	    (* here we should to the unification between both values (maybe not necessary as addition is always on a singleton ...) *)
+	  | Some te -> (i, term_substitution hd2 ty, Some (term_substitution hd2 te), n)
+	) else (
 	match te with
 	  | None -> (i, term_substitution hd2 ty, None, n)
 	  | Some te -> (i, term_substitution hd2 ty, Some (term_substitution hd2 te), n)
+	)
       ) hd1
     ) !ctxt.fvs ss;
 
@@ -64,6 +72,7 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (l: term list) : term list 
     match te with
       | None when not (IndexSet.mem i lfvs) ->
 	(* there is no value for this free variable, and it does not appear in the terms --> remove it *)
+	printf "removed: %s\n" (string_of_int i);
 	tl, (terms, fvs)
       | None when IndexSet.mem i lfvs ->
 	(* there is no value for this free variable, but it does appear in the terms --> keep it *)
@@ -93,9 +102,7 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (l: term list) : term list 
 	raise (PoussinException (FreeError "we failed to infer a free variable that cannot be out-scoped"))
   ) (terms, []) fvs in
   (* pushing the freevariables on the upper frame *)
-  (if List.length !ctxt.bvs = 0 then
-    (if List.length fvs != 0 then raise (PoussinException (FreeError "flush_fvars failed because the term still have freevariables")))
-  else
+  (if List.length !ctxt.bvs != 0 then
       ctxt := { !ctxt with
 	fvs = (fvs @ (List.hd !ctxt.fvs))::(List.tl !ctxt.fvs)
       });
@@ -309,7 +316,7 @@ and typeinfer
 	  let hd = typeinfer defs ctxt hd in
 	  let arg = typeinfer defs ctxt arg in
 	  (* we unify the type of hd with a forall *)
-	  let hd_ty = unification defs ctxt true (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "_" ~nature:n ~ty:(get_type arg) (avar_ ())) in
+	  let hd_ty = unification defs ctxt true (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:n ~ty:(get_type arg) (avar_ ())) in
 	  (* we build a new head, as the reduction of hd and arg, with the proper type *)
 	  let Forall (q, te, Typed fty, p, reduced) = hd_ty in
 	  let new_hd_ty = reduction_term defs typeinfer_strat (App (Lambda (q, te, Typed fty, p, reduced), (arg,n)::[], Typed fty, pos, false)) in
@@ -422,7 +429,7 @@ and unification
       (* and we return the term *)
       Lambda (q1, te, Typed lty, p1, false)
 
-    | Forall ((s1, ty1, n1, pq1), te1, Typed lty1, p1, reduced1), Forall ((s2, ty2, n2, pq2), te2, Typed lty2, p2, reduced2) ->
+    | Forall ((s1, ty1, n1, pq1), fte1, Typed lty1, p1, reduced1), Forall ((s2, ty2, n2, pq2), fte2, Typed lty2, p2, reduced2) ->
       if n1 <> n2 then raise (PoussinException (NoUnification (!ctxt, te1, te2)));
       (* we unify the types *)
       let lty = unification defs ctxt polarity lty1 lty2 in
@@ -430,7 +437,7 @@ and unification
       (* we push the quantification *)
       push_quantification (s1, ty, n1, pq1) ctxt;
       (* we unify the body *)
-      let te = unification defs ctxt polarity te1 te2 in
+      let te = unification defs ctxt polarity fte1 fte2 in
       (* we pop quantification (possibly modifying te) *)
       let q1, [te] = pop_quantification defs ctxt [te] in
       (* and we return the term *)
