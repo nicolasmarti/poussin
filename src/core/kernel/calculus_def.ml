@@ -39,6 +39,7 @@ module IndexMap = Map.Make(
 
 type nature = Explicit
 	      | Implicit
+	      | NJoker (* used for unification *)
 
 type uType = Type | Set | Prop 
 

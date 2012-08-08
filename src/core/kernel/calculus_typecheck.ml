@@ -211,6 +211,13 @@ let var_lookup (ctxt: context ref) (n: name) : index option =
     )
     | Right level -> Some level
 
+let nature_unify (n1: nature) (n2: nature) : nature option =
+  match n1, n2 with
+    | NJoker, NJoker | Explicit, Implicit | Implicit, Explicit -> None
+    | NJoker, _ -> Some n2
+    | _, NJoker -> Some n1
+    | Explicit, Explicit -> Some Explicit
+    | Implicit, Implicit -> Some Implicit
 
 let unification_strat = {
   beta = Some BetaWeak;
@@ -316,17 +323,27 @@ and typeinfer
 	  let hd = typeinfer defs ctxt hd in
 	  let arg = typeinfer defs ctxt arg in
 	  (* we unify the type of hd with a forall *)
-	  let hd_ty = unification defs ctxt true (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:n ~ty:(get_type arg) (avar_ ())) in
-	  (* we build a new head, as the reduction of hd and arg, with the proper type *)
-	  let Forall (q, te, Typed fty, p, reduced) = hd_ty in
-	  let new_hd_ty = reduction_term defs typeinfer_strat (App (Lambda (q, te, Typed fty, p, reduced), (arg,n)::[], Typed fty, pos, false)) in
-	  let new_hd = reduction_term defs typeinfer_strat (
-	    App (hd, (arg, n)::[], 
-	    Typed (new_hd_ty), pos,
-	    false)
-	  ) in 
-	  typeinfer defs ctxt (App (new_hd, args, NoAnnotation, pos, reduced))
-	  
+	  let fty = add_fvar ctxt in
+	  let hd_ty = unification defs ctxt true (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
+	  let Forall ((_, _, n', _), _, _, _, _) = hd_ty in
+	  (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
+	  if n' = Implicit && n = Explicit then (
+	    let new_arg = add_fvar ctxt in
+	    (* and retypeinfer the whole *)
+	    typeinfer defs ctxt (App (hd, (new_arg, n')::(arg, n)::args, NoAnnotation, pos, reduced))
+	  ) else (
+	    (* needs to unify the type properly *)
+	    let ty = unification defs ctxt true fty (get_type arg) in
+	    let Forall ((q, _, n', pq), te, Typed fty, p, reduced) = hd_ty in
+	    (* we build a new head, as the reduction of hd and arg, with the proper type *)
+	    let new_hd_ty = reduction_term defs typeinfer_strat (App (Lambda ((q, ty, n, pq), te, Typed fty, p, reduced), (arg,n)::[], Typed fty, pos, false)) in
+	    let new_hd = reduction_term defs typeinfer_strat (
+	      App (hd, (arg, n)::[], 
+		   Typed (new_hd_ty), pos,
+		   false)
+	    ) in 
+	    typeinfer defs ctxt (App (new_hd, args, NoAnnotation, pos, reduced))
+	  )
 	  
 	| _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
 	  
@@ -430,7 +447,9 @@ and unification
       Lambda (q1, te, Typed lty, p1, false)
 
     | Forall ((s1, ty1, n1, pq1), fte1, Typed lty1, p1, reduced1), Forall ((s2, ty2, n2, pq2), fte2, Typed lty2, p2, reduced2) ->
-      if n1 <> n2 then raise (PoussinException (NoUnification (!ctxt, te1, te2)));
+      let n = nature_unify n1 n2 in
+      if n = None then raise (PoussinException (NoUnification (!ctxt, te1, te2)));
+      let Some n = n in
       (* we unify the types *)
       let lty = unification defs ctxt polarity lty1 lty2 in
       let ty = unification defs ctxt polarity ty1 ty2 in
@@ -439,9 +458,9 @@ and unification
       (* we unify the body *)
       let te = unification defs ctxt polarity fte1 fte2 in
       (* we pop quantification (possibly modifying te) *)
-      let q1, [te] = pop_quantification defs ctxt [te] in
+      let (s, ty, _, pq), [te] = pop_quantification defs ctxt [te] in
       (* and we return the term *)
-      Forall (q1, te, Typed lty, p1, false)
+      Forall ((s, ty, n, pq), te, Typed lty, p1, false)
 
     (* TODO: App case *)
     (* some higher order unification *)

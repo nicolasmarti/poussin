@@ -3,15 +3,10 @@
    + test1.p passed line by line in regression
    - Enhanced
 1) calculus_substitution
-   + shifting of terms
-   + shift substitution
-   + term_substitution
+   - need to be tested
 2) reduction
-   + added reduced flag to terms
-   + is_clean_term, pattern_match, reduction_term 
    - need to be tested
 3) unification
-   - add implicit to App
    - add match
 4) terminfer
    - add using conversion when not solvable

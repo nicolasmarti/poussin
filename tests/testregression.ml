@@ -101,7 +101,7 @@ let defs = ["Inductive True : Prop";
 	    "Constructor left {A} {B}: A -> Or A B";
 	    "Constructor right {A} {B}: B -> Or A B";
 	    "Inductive eq {A: Set} (a: A): A -> Prop";
-	    "Constructor eq_refl {A} (a: A): eq {A} a a";
+	    "Constructor eq_refl {A} (a: A): eq a a";
 	    "Inductive ReflexiveRel : Set";
 	    "Constructor build_ReflexiveRel: (A: Set) -> (rel: A -> A -> Prop) -> (refl: (x: A) -> rel x x) -> ReflexiveRel"
 	   ] in List.map (fun def -> parse_and_typecheck_from_string def) defs;;
