@@ -32,6 +32,9 @@ let lambda_ ?(annot: typeannotation = NoAnnotation) ?(posq: position = NoPositio
 let forall_ ?(annot: typeannotation = NoAnnotation) ?(posq: position = NoPosition) ?(posl: position = NoPosition) (name: name) ?(nature: nature = Explicit) ?(ty: term = avar_ ()) (body: term) : term =
   Forall ((name, ty, nature, posl), body, annot, posl, false)
 
+let app_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) f args =
+  App (f, args, annot, pos, false)
+
 (* function for deconstructing/constructing contiguous lambdas *)
 let rec destruct_lambda (te: term) : ((name * term * nature * position) * typeannotation * position) list * term =
   match te with
@@ -81,6 +84,29 @@ let set_term_annotation (te: term) (ty: term) : term =
       App (f, args, Annotation ty, pos, reduced)
     | Match (te, des, _, pos, reduced) ->
       Match (te, des, Annotation ty, pos, reduced)
+
+let set_term_tannotation (te: term) (ty: term) : term =
+  match te with
+    | Universe (ty, lvl, pos) -> 
+      Universe (ty, lvl, pos)
+    | Cste (n, _, pos, reduced) ->
+      Cste (n, TypedAnnotation ty, pos, reduced)
+    | Var (i, _, pos) ->
+      Var (i, TypedAnnotation ty, pos)
+    | AVar (_, pos) ->
+      AVar (TypedAnnotation ty, pos)
+    | TName (n, _, pos) ->
+      TName (n, TypedAnnotation ty, pos)
+    | Lambda (q, te, _, pos, reduced) ->
+      Lambda (q, te, TypedAnnotation ty, pos, reduced)
+    | Forall (q, te, _, pos, reduced) ->
+      Forall (q, te, TypedAnnotation ty, pos, reduced)
+    | Let (q, te, _, pos, reduced) ->
+      Let (q, te, TypedAnnotation ty, pos, reduced)
+    | App (f, args, _, pos, reduced) ->
+      App (f, args, TypedAnnotation ty, pos, reduced)
+    | Match (te, des, _, pos, reduced) ->
+      Match (te, des, TypedAnnotation ty, pos, reduced)
 
 let set_term_type (te: term) (ty: term) : term =
   match te with
@@ -150,6 +176,7 @@ and fv_typeannotation (ty: typeannotation) : IndexSet.t =
   match ty with
     | NoAnnotation -> IndexSet.empty
     | Annotation te -> fv_term te
+    | TypedAnnotation te -> fv_term te
     | Typed te -> fv_term te
   
 
@@ -212,6 +239,7 @@ and bv_typeannotation (ty: typeannotation) : IndexSet.t =
   match ty with
     | NoAnnotation -> IndexSet.empty
     | Annotation te -> bv_term te
+    | TypedAnnotation te -> bv_term te
     | Typed te -> bv_term te
 
 

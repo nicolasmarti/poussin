@@ -1,14 +1,11 @@
 (* calculus_misc should populate himself during the process *)
 0) pprinter / parser
-   + test1.p passed line by line in regression
-   - Enhanced
 1) calculus_substitution
-   - need to be tested
 2) reduction
-   - need to be tested
 3) unification
-   - add match
+   - need to add flushing of terms 
+   - higher order unification
 4) terminfer
    - add using conversion when not solvable
 5) termcheck
-   - add final implicit
+

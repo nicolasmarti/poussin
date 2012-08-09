@@ -81,6 +81,7 @@ and pattern = PAvar | PName of string
 
 and typeannotation = NoAnnotation
 		     | Annotation of term
+		     | TypedAnnotation of term
 		     | Typed of term
 
 
@@ -129,6 +130,7 @@ type poussin_error = FreeError of string
 		    | NegativeIndexBVar of int
 		    | UnknownBVar of context * int
 		    | UnknownFVar of context * int
+		    | NotInductiveDestruction of context * term
 
 
 exception PoussinException of poussin_error

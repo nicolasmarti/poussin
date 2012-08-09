@@ -436,7 +436,7 @@ let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsing
     DefDefinition (s, 
 		  (set_term_annotation 
 		     (set_term_pos 
-			(build_lambdas qs te) 
+			(build_lambdas qs (set_term_annotation te ty)) 
 			(pos_to_position (startpos2, endpos2))
 		     )
 		     (set_term_pos 

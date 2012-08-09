@@ -57,108 +57,104 @@ let rec pattern_match (p: pattern) (te: term) : (term list) option =
 *)
 
 let rec reduction_term (defs: defs) (strat: reduction_strategy) (te: term) : term = 
-  match te with
-    | Universe _ | Var _ | AVar _ | TName _ -> te
+  let te' = (
+    match te with
+      | Universe _ | Var _ | AVar _ | TName _ -> te
 
-    | _ when is_reduced te -> te
+      | _ when is_reduced te -> te
 
-    | Cste (n, ty, position, _) -> (
-      match strat.delta with
-	(* no unfolding *)
-	| None -> te
+      | Cste (n, ty, position, _) -> (
+	try 
+	  match Hashtbl.find defs n with
+		(* delta strong -> we return it 
+		   delta_weak -> we make sure the resulting term is 'clean'
+		*)
+	    | Definition te -> (
+	      match strat.delta with
+		| Some _ -> 
+		  let te' = reduction_term defs strat te in
+		  te'
+		| None -> set_reduced te
+	    )
+	    | _ -> set_reduced te
+	with
+	  | Not_found -> raise (PoussinException (UnknownCste n))
+	    
+      )
+	
+      | Lambda _ | Forall _ when strat.beta != Some BetaStrong -> set_reduced te
 
-	| Some delta -> (
-	  try 
-	    match Hashtbl.find defs n with
-	      (* delta strong -> we return it 
-		 delta_weak -> we make sure the resulting term is 'clean'
-	      *)
-	      | Definition te ->
-		let te' = reduction_term defs strat te in
-		set_reduced (
-		  match delta with
-		    | DeltaStrong -> te'
-		    | DeltaWeak when is_clean_term te' -> te'
-		    | _ -> te
-		)
-	      | _ -> set_reduced te
-	  with
-	    | Not_found -> raise (PoussinException (UnknownCste n))
-	      
+      | Lambda ((n, ty, nature, pos), te, ty2, pos2, _) ->
+	(
+	  let te = reduction_term defs strat te in
+	  Lambda ((n, ty, nature, pos), te, ty2, pos2, true)
 	)
-	  
-    )
 
-    | Lambda _ | Forall _ when strat.beta != Some BetaStrong -> set_reduced te
+      | Forall ((n, ty, nature, pos), te, ty2, pos2, _) ->
+	(
+	  let te = reduction_term defs strat te in
+	  Forall ((n, ty, nature, pos), te, ty2, pos2, true)
+	)
 
-    | Lambda ((n, ty, nature, pos), te, ty2, pos2, _) ->
-      (
-	let te = reduction_term defs strat te in
-	Lambda ((n, ty, nature, pos), te, ty2, pos2, true)
-      )
+      | Let _ when strat.zeta = false && strat.beta != Some BetaStrong -> set_reduced te
+      | Let ((n, te, pos), te2, ty, pos2, _) when strat.zeta = false && strat.beta = Some BetaStrong ->
+	Let ((n, te, pos), reduction_term defs strat te2, ty, pos2, true)
 
-    | Forall ((n, ty, nature, pos), te, ty2, pos2, _) ->
-      (
-	let te = reduction_term defs strat te in
-	Forall ((n, ty, nature, pos), te, ty2, pos2, true)
-      )
-
-    | Let _ when strat.zeta = false && strat.beta != Some BetaStrong -> set_reduced te
-    | Let ((n, te, pos), te2, ty, pos2, _) when strat.zeta = false && strat.beta = Some BetaStrong ->
-      Let ((n, te, pos), reduction_term defs strat te2, ty, pos2, true)
-
-    | Let ((n, te, pos), te2, ty, pos2, _) when strat.zeta = true ->
+      | Let ((n, te, pos), te2, ty, pos2, _) when strat.zeta = true ->
       (* here we compute the reduction of te and shift it such that it is at the same level as te2 *)
-      let te = shift_term (reduction_term defs strat te) 1 in
+	let te = shift_term (reduction_term defs strat te) 1 in
       (* we substitute all occurence of n by te *)
-      let te2 = term_substitution (IndexMap.singleton 0 te) te2 in
+	let te2 = term_substitution (IndexMap.singleton 0 te) te2 in
       (* and we shift back to the proper level *)
-      let te2 = shift_term te2 (-1) in
-      reduction_term defs strat te2
+	let te2 = shift_term te2 (-1) in
+	reduction_term defs strat te2
 
-    | Match _ when strat.iota = false -> set_reduced te
-    | Match (dte, des, ty, pos, _) -> (
-      let dte = reduction_term defs strat dte in
-      let res = fold_stop (fun () (ps, body) ->
-	fold_stop (fun () p ->
-	  match pattern_match p dte with
-	    | None -> Left ()
-	    | Some l ->
+      | Match _ when strat.iota = false -> set_reduced te
+      | Match (dte, des, ty, pos, _) -> (
+	let dte = reduction_term defs strat dte in
+	let res = fold_stop (fun () (ps, body) ->
+	  fold_stop (fun () p ->
+	    match pattern_match p dte with
+	      | None -> Left ()
+	      | Some l ->
 	      (* we will do the same thing as in let, but on the reversed order of the matching list *)
-	      let te = List.fold_left (fun acc te -> 
+		let te = List.fold_left (fun acc te -> 
 		(* rewrite the var 0 *)
-		let acc = term_substitution (IndexMap.singleton 0 te) acc in
+		  let acc = term_substitution (IndexMap.singleton 0 te) acc in
 		(* shift the term by -1 *)
-		let acc = shift_term acc (-1) in
-		acc
-	      ) 
-		body 
-		(List.map (fun te -> shift_term te (List.length l)) (List.rev l)) in
-	      Right te
-	) () ps
-      ) () des in
-      match res with
-	| Left () -> set_reduced te
-	| Right te -> reduction_term defs strat te
-    )
+		  let acc = shift_term acc (-1) in
+		  acc
+		) 
+		  body 
+		  (List.map (fun te -> shift_term te (List.length l)) (List.rev l)) in
+		Right te
+	  ) () ps
+	) () des in
+	match res with
+	  | Left () -> set_reduced te
+	  | Right te -> reduction_term defs strat te
+      )
 
-    | App (Lambda ((n, ty, nature, pos), te, ty2, pos2, _), (hd1, hd2)::tl, app_ty, app_pos, _) ->
-      let hd1 = shift_term (reduction_term defs strat hd1) 1 in
-      let f = term_substitution (IndexMap.singleton 0 hd1) te in
-      reduction_term defs strat (App (shift_term f (-1), tl, app_ty, app_pos, false))
+      | App (Lambda ((n, ty, nature, pos), te, ty2, pos2, _), (hd1, hd2)::tl, app_ty, app_pos, _) ->
+	let hd1 = shift_term (reduction_term defs strat hd1) 1 in
+	let f = term_substitution (IndexMap.singleton 0 hd1) te in
+	reduction_term defs strat (App (shift_term f (-1), tl, app_ty, app_pos, false))
 
-    | App (f, [], _, _, _) ->
-      set_reduced (reduction_term defs strat f)
+      | App (f, [], _, _, _) ->
+	set_reduced (reduction_term defs strat f)
 
-    | App (f, args, ty, pos, _) when not (is_reduced f) -> (
-      let f = reduction_term defs strat f in
-      set_reduced (reduction_term defs strat (App (f, args, ty, pos, false)))
-    )
+      | App (f, args, ty, pos, _) when not (is_reduced f) -> (
+	let f = reduction_term defs strat f in
+	set_reduced (reduction_term defs strat (App (f, args, ty, pos, false)))
+      )
 
-    | App (f, args, ty, pos, _) when is_reduced f ->
-      let args = List.map (fun (te, n) -> reduction_term defs strat te, n) args in
-      App (f, args, ty, pos, true)
-
+      | App (f, args, ty, pos, _) when is_reduced f ->
+	let args = List.map (fun (te, n) -> reduction_term defs strat te, n) args in
+	App (f, args, ty, pos, true)
+  ) in
+  match strat.delta with
+    | Some DeltaWeak when is_clean_term te' -> te'
+    | _ -> set_reduced te      
 
 
 and reduction_typeannotation (defs: defs) (strat: reduction_strategy) (ty: typeannotation) : typeannotation =

@@ -64,7 +64,9 @@ and leveled_shift_term (te: term) (level: int) (delta: int) : term =
 and leveled_shift_typeannotation (ty: typeannotation) (level: int) (delta: int) : typeannotation =
   match ty with
     | NoAnnotation -> NoAnnotation
+      (* this case should be an error ... *)
     | Annotation te -> Annotation (leveled_shift_term te level delta)
+    | TypedAnnotation te -> TypedAnnotation (leveled_shift_term te level delta)
     | Typed te -> Typed (leveled_shift_term te level delta)
 
 and leveled_shift_destructor (des: pattern list * term) (level: int) (delta: int) : pattern list * term =
@@ -135,6 +137,7 @@ and typeannotation_substitution (s: substitution) (ty: typeannotation) : typeann
   match ty with
     | NoAnnotation -> NoAnnotation
     | Annotation te -> Annotation (term_substitution s te)
+    | TypedAnnotation te -> TypedAnnotation (term_substitution s te)
     | Typed te -> Typed (term_substitution s te)
 
 and destructor_substitution (s: substitution) (des: pattern list * term) : pattern list * term =

@@ -72,7 +72,7 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (l: term list) : term list 
     match te with
       | None when not (IndexSet.mem i lfvs) ->
 	(* there is no value for this free variable, and it does not appear in the terms --> remove it *)
-	printf "removed: %s\n" (string_of_int i);
+	(*printf "removed: %s\n" (string_of_int i);*)
 	tl, (terms, fvs)
       | None when IndexSet.mem i lfvs ->
 	(* there is no value for this free variable, but it does appear in the terms --> keep it *)
@@ -105,11 +105,19 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (l: term list) : term list 
   (if List.length !ctxt.bvs != 0 then
       ctxt := { !ctxt with
 	fvs = (fvs @ (List.hd !ctxt.fvs))::(List.tl !ctxt.fvs)
-      });
+      } else 
+      List.iter (fun te -> 
+	if not (IndexSet.is_empty (fv_term te)) then
+	  let msg = String.concat "" ["there are free variables in the remaining term: \n"; term2string ctxt te] in
+	  raise (PoussinException (FreeError msg))
+  
+      ) terms
+  );
   terms
 
 
 let pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature * position) * term list =
+  (* we should here flush the bvars, using the conversion_hypothesis *)
   (* we flush the free variables *)
   let tes = flush_fvars defs ctxt tes in
   (* we grab the remaining context and the popped frame *)
@@ -219,6 +227,26 @@ let nature_unify (n1: nature) (n2: nature) : nature option =
     | Explicit, Explicit -> Some Explicit
     | Implicit, Implicit -> Some Implicit
 
+let rec head (te: term) : term =
+  match te with
+    | App (hd, _, _, _, _) ->
+      head hd
+    | _ -> te
+
+let rec pattern_to_term (p: pattern) : term =
+  fst (pattern_to_term_loop p 0)
+and pattern_to_term_loop (p: pattern) (i: int): term * int =
+  match p with
+    | PAvar -> (avar_ (), i)
+    | PName s -> (var_ i, i+1)
+    | PCstor (n, args) ->
+      let args, i = List.fold_left (fun (hds, i) (p, n) ->
+	let p, i = pattern_to_term_loop p i in
+	((hds @ [p, n]), i)
+      ) ([], i) args in
+      (app_ (cste_ n) args, i)
+
+
 let unification_strat = {
   beta = Some BetaWeak;
   delta = Some DeltaStrong;
@@ -235,6 +263,14 @@ let typeinfer_strat = {
   eta = true;
 }
 
+let simplification_strat = {
+  beta = Some BetaWeak;
+  delta = Some DeltaWeak;
+  iota = false;
+  zeta = false;
+  eta = false;
+}
+
 let rec typecheck 
     (defs: defs)
     (ctxt: context ref)
@@ -245,8 +281,14 @@ let rec typecheck
       ignore(unification defs ctxt false ty' ty);
       te
     | Annotation ty' ->
-      (* TODO *)
-      typecheck defs ctxt (set_term_noannotation te) ty
+      let ty' = typecheck defs ctxt ty' (type_ (UName "")) in
+      let te = typeinfer defs ctxt (set_term_tannotation te ty') in
+      ignore(unification defs ctxt false (get_type te) ty);
+      te 
+    | TypedAnnotation ty' ->
+      let te = typeinfer defs ctxt te in
+      ignore(unification defs ctxt false (get_type te) ty);
+      te 
     | NoAnnotation ->
       let te = typeinfer defs ctxt te in
       ignore(unification defs ctxt false (get_type te) ty);
@@ -259,94 +301,164 @@ and typeinfer
     (te: term) : term =
   match get_term_annotation te with
     | Typed ty -> te
+    | Annotation ty ->
+      let ty = typecheck defs ctxt ty (type_ (UName "")) in
+      typeinfer defs ctxt (set_term_tannotation te ty)
     | _ ->
-      match te with
-	| Universe _ -> te
-	| Cste (n, _, pos, reduced) -> (
-	  try 
-	    match Hashtbl.find defs n with
-	      | Inductive (_, ty) | Axiom ty | Constructor ty -> 
-		Cste (n, Typed ty, pos, reduced)
-	      | Definition te -> 
-		Cste (n, Typed (get_type te), pos, reduced)
-	  with
-	    | Not_found -> raise (PoussinException (UnknownCste n))
-	)
-
-	| Var (i, _, pos) when i < 0 ->
-	  Var (i, Typed (fvar_type ctxt i), pos)
-	| Var (i, _, pos) when i >= 0 ->
-	  Var (i, Typed (bvar_type ctxt i), pos)
-
-	| AVar (_, pos) ->
-	  add_fvar ~pos:pos ctxt
-
-	| TName (n, _, pos) -> (
-	  (* we first look for a variable *)
-	  match var_lookup ctxt n with
-	    | Some i -> 
-	      Var (i, Typed (bvar_type ctxt i), pos)
-	    | None -> 
-	      typeinfer defs ctxt (Cste (n, NoAnnotation, pos, false))		
-	)
-
-	| Forall ((s, ty, n, pq), te, _, p, reduced) ->
-	  (* first let's be sure that ty :: Type *)
-	  let ty = typecheck defs ctxt ty (type_ (UName "")) in
-	  (* we push the quantification *)
-	  push_quantification (s, ty, n, pq) ctxt;
-	  (* we typecheck te :: Type *)
-	  let te = typecheck defs ctxt te (type_ (UName "")) in
-	  (* we pop quantification *)
-	  let q1, [te] = pop_quantification defs ctxt [te] in
-	  (* and we returns the term with type Type *)
-	  Forall ((s, ty, n, pq), te, Typed (type_ (UName "")), p, reduced)
-
-	| Lambda ((s, ty, n, pq), te, _, p, reduced) ->
-	  (* first let's be sure that ty :: Type *)
-	  let ty = typecheck defs ctxt ty (type_ (UName "")) in
-	  (* we push the quantification *)
-	  push_quantification (s, ty, n, pq) ctxt;
-	  (* we typecheck te :: Type *)
-	  let te = typeinfer defs ctxt te in
-	  (* we pop quantification *)
-	  let q1, [te] = pop_quantification defs ctxt [te] in
-	  (* and we returns the term with type Type *)
-	  let res = Forall ((s, ty, n, pq), get_type te, Typed (type_ (UName "")), NoPosition, reduced) in
-	  Lambda ((s, ty, n, pq), te, Typed res, p, reduced)
-
-	| App (hd, [], _, pos, reduced) ->
-	  typeinfer defs ctxt hd 
-
-	| App (hd, (arg, n)::args, _, pos, reduced) ->	  
-	  (* we infer hd and arg *)
-	  let hd = typeinfer defs ctxt hd in
-	  let arg = typeinfer defs ctxt arg in
-	  (* we unify the type of hd with a forall *)
-	  let fty = add_fvar ctxt in
-	  let hd_ty = unification defs ctxt true (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
-	  let Forall ((_, _, n', _), _, _, _, _) = hd_ty in
-	  (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
-	  if n' = Implicit && n = Explicit then (
-	    let new_arg = add_fvar ctxt in
-	    (* and retypeinfer the whole *)
-	    typeinfer defs ctxt (App (hd, (new_arg, n')::(arg, n)::args, NoAnnotation, pos, reduced))
-	  ) else (
-	    (* needs to unify the type properly *)
-	    let ty = unification defs ctxt true fty (get_type arg) in
-	    let Forall ((q, _, n', pq), te, Typed fty, p, reduced) = hd_ty in
-	    (* we build a new head, as the reduction of hd and arg, with the proper type *)
-	    let new_hd_ty = reduction_term defs typeinfer_strat (App (Lambda ((q, ty, n, pq), te, Typed fty, p, reduced), (arg,n)::[], Typed fty, pos, false)) in
-	    let new_hd = reduction_term defs typeinfer_strat (
-	      App (hd, (arg, n)::[], 
-		   Typed (new_hd_ty), pos,
-		   false)
-	    ) in 
-	    typeinfer defs ctxt (App (new_hd, args, NoAnnotation, pos, reduced))
+      let te' = (
+	match te with
+	  | Universe _ -> te
+	  | Cste (n, _, pos, reduced) -> (
+	    try 
+	      match Hashtbl.find defs n with
+		| Inductive (_, ty) | Axiom ty | Constructor ty -> 
+		  Cste (n, Typed ty, pos, reduced)
+		| Definition te -> 
+		  Cste (n, Typed (get_type te), pos, reduced)
+	    with
+	      | Not_found -> raise (PoussinException (UnknownCste n))
 	  )
-	  
-	| _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
-	  
+
+	  | Var (i, _, pos) when i < 0 ->
+	    Var (i, Typed (fvar_type ctxt i), pos)
+	  | Var (i, _, pos) when i >= 0 ->
+	    Var (i, Typed (bvar_type ctxt i), pos)
+
+	  | AVar (_, pos) ->
+	    add_fvar ~pos:pos ctxt
+
+	  | TName (n, _, pos) -> (
+	  (* we first look for a variable *)
+	    match var_lookup ctxt n with
+	      | Some i -> 
+		Var (i, Typed (bvar_type ctxt i), pos)
+	      | None -> 
+		typeinfer defs ctxt (Cste (n, NoAnnotation, pos, false))		
+	  )
+
+	  | Forall ((s, ty, n, pq), te, _, p, reduced) ->
+	  (* first let's be sure that ty :: Type *)
+	    let ty = typecheck defs ctxt ty (type_ (UName "")) in
+	  (* we push the quantification *)
+	    push_quantification (s, ty, n, pq) ctxt;
+	  (* we typecheck te :: Type *)
+	    let te = typecheck defs ctxt te (type_ (UName "")) in
+	  (* we pop quantification *)
+	    let q1, [te] = pop_quantification defs ctxt [te] in
+	  (* and we returns the term with type Type *)
+	    Forall ((s, ty, n, pq), te, Typed (type_ (UName "")), p, reduced)
+
+	  | Lambda ((s, ty, n, pq), te, _, p, reduced) ->
+	  (* first let's be sure that ty :: Type *)
+	    let ty = typecheck defs ctxt ty (type_ (UName "")) in
+	  (* we push the quantification *)
+	    push_quantification (s, ty, n, pq) ctxt;
+	  (* we typecheck te :: Type *)
+	    let te = typeinfer defs ctxt te in
+	  (* we pop quantification *)
+	    let q1, [te] = pop_quantification defs ctxt [te] in
+	  (* and we returns the term with type Type *)
+	    let res = Forall ((s, ty, n, pq), get_type te, Typed (type_ (UName "")), NoPosition, reduced) in
+	    Lambda ((s, ty, n, pq), te, Typed res, p, reduced)
+
+	  | App (hd, [], _, pos, reduced) ->
+	    typeinfer defs ctxt hd 
+
+	  | App (hd, (arg, n)::args, _, pos, reduced) ->	  
+	  (* we infer hd and arg *)
+	    let hd = typeinfer defs ctxt hd in
+	    let arg = typeinfer defs ctxt arg in
+	  (* we unify the type of hd with a forall *)
+	    let fty = add_fvar ctxt in
+	    let hd_ty = unification defs ctxt true (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
+	    let Forall ((_, _, n', _), _, _, _, _) = hd_ty in
+	  (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
+	    if n' = Implicit && n = Explicit then (
+	      let new_arg = add_fvar ctxt in
+	    (* and retypeinfer the whole *)
+	      typeinfer defs ctxt (App (hd, (new_arg, n')::(arg, n)::args, NoAnnotation, pos, reduced))
+	    ) else (
+	    (* needs to unify the type properly *)
+	      let ty = unification defs ctxt true fty (get_type arg) in
+	      let Forall ((q, _, n', pq), te, Typed fty, p, reduced) = hd_ty in
+	      (* we build a new head, as the reduction of hd and arg, with the proper type *)
+	      let new_hd_ty = (App (Lambda ((q, ty, n, pq), te, Typed fty, p, reduced), (arg,n)::[], Typed fty, pos, false)) in
+	      (*printf "Unification, App new_hd_ty:\n%s\n\n" (term2string ctxt new_hd_ty);*)
+	      let new_hd_ty = reduction_term defs simplification_strat new_hd_ty in
+	      let new_hd = App (hd, (arg, n)::[], 
+				Typed (new_hd_ty), pos,
+				false) in
+	      (*printf "Unification, App new_hd:\n%s\n\n" (term2string ctxt new_hd);*)
+	      let new_hd = reduction_term defs simplification_strat (
+		new_hd
+	      ) in 
+	      typeinfer defs ctxt (App (new_hd, args, NoAnnotation, pos, reduced))
+	    )
+
+	  | Match (te, des, aty, pos, reduced) ->
+	  (* first we typecheck the destructed term *)
+	    let te = typeinfer defs ctxt te in
+	  (* then we assure ourselves that it is an inductive *)
+	    let tety = reduction_term defs typeinfer_strat (get_type te) in
+	    let _ = 
+	      match head tety with
+		| Cste (n, _, _, _) -> (
+		  try 
+		    match Hashtbl.find defs n with
+		      | Inductive _ as ty -> ty
+		      | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, te)))
+		  with
+		    | Not_found -> raise (PoussinException (UnknownCste n))
+		)
+		| _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, te)))
+	    in 
+	  (* we create a type for the return value *)
+	    let ret_ty = 
+	      match aty with
+		| TypedAnnotation ty -> ty
+		| _ -> add_fvar ctxt
+	    in
+	  (* then we traverse the destructors *)
+	    let des = List.map (fun (ps, des) ->
+	    (* first grab the vars of the patterns *)
+	      let vars = patterns_vars ps in
+	    (* we push quantification corresponding to the pattern vars *)
+	      List.iter (fun v -> 
+		let ty = add_fvar ctxt in
+		push_quantification (v, ty, Explicit (*dummy*), NoPosition) ctxt
+	      ) vars;
+	    (* we need to shift ret_ty, te, and tety to be at the same level *)
+	      let ret_ty = shift_term ret_ty (List.length vars) in
+	      let tety = shift_term tety (List.length vars) in
+	      let te = shift_term te (List.length vars) in
+	    (* then we create the terms corresponding to the patterns *)
+	      let tes = List.map (fun p -> pattern_to_term p) ps in
+	    (* then, for each patterns, we typecheck against tety *)
+	      let tes = List.map (fun te -> typecheck defs ctxt te tety) tes in
+	    (* then, for each pattern *)
+	      let des = List.map (fun hd ->
+	      (* we unify it (with negative polarity) with te *)
+		let _ = unification defs ctxt false hd te in
+	      (* and typecheck des against ret_ty *)
+		typecheck defs ctxt des ret_ty
+	      ) tes in
+	    (* we pop all quantifiers *)
+	      let _, des = pop_quantifications defs ctxt des (List.length vars) in
+	    (* and finally returns all the constructors *)
+	      List.map2 (fun hd1 hd2 -> [hd1], hd2) ps des
+	    ) des in
+	    let ret_ty = typecheck defs ctxt ret_ty (type_ (UName "")) in
+	    Match (te, List.concat des, Typed ret_ty, pos, reduced)
+	      
+	      
+	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
+      ) in (*
+      match get_term_annotation te with
+	| TypedAnnotation ty ->
+	  let ty = unification defs ctxt true (get_type te') ty in
+	  set_term_type te' ty
+	| _ ->*) te'
+
 and unification 
     (defs: defs)
     (ctxt: context ref)
@@ -475,12 +587,14 @@ and unification
       (* and we return the term *)
       Let ((s, ty, pq), te, Typed lty, p1, false)
 
+	(*
     (* TODO: App case *)
     (* some higher order unification *)
     | App (Var (i, _, _), _::args, _, _, true), t2 when i < 0 ->
       raise (Failure "unification: NYI")
     | t1, App (Var (i, _, _), _::args, _, _, true) when i < 0  ->
       raise (Failure "unification: NYI")
+	*)
     (* the case of two application: with the same arity *)
     | App (hd1, args1, Typed ty1, pos1, true), App (hd2, args2, Typed ty2, pos2, true) when List.length args1 = List.length args2 ->
       let ty = unification defs ctxt polarity ty1 ty2 in
@@ -493,6 +607,8 @@ and unification
 	    n1, hd1, hd2
 	 ) args1 args2) in
       App (hd, args, Typed ty, pos1, false)
+
+    (* *)
 
     (* maybe we can reduce the term *)
     | _ when not (is_reduced te1) ->

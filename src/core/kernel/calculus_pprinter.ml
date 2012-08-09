@@ -23,18 +23,46 @@ type pp_option = {
   show_indices : bool;
   show_position : bool;
   show_univ : bool;
+  show_type: bool;
 }
 
 let pp_option = ref {show_implicit = true; 
 		     show_indices = true; 
 		     show_position = false; 
 		     show_univ = false;
+		     show_type = false;
 		    }
 
 let verbatims (l: name list) = Verbatim (String.concat "" l)
 
 (* transform a term into a box *)
 let rec term2token (vars: name list) (te: term) (p: place): token =
+  match get_term_annotation te with 
+    | Typed ty when !pp_option.show_type ->
+      Box [Verbatim "(";
+	   term2token vars (set_term_noannotation te) Alone; Space 1;
+	   Verbatim "::"; Space 1;
+	   term2token vars ty Alone;
+	   Verbatim ")"
+	  ]
+
+    | Annotation ty when !pp_option.show_type ->
+      Box [Verbatim "(";
+	   term2token vars (set_term_noannotation te) Alone; Space 1;
+	   Verbatim ":?:"; Space 1;
+	   term2token vars ty Alone;
+	   Verbatim ")"
+	  ]
+
+    | TypedAnnotation ty when !pp_option.show_type ->
+      Box [Verbatim "(";
+	   term2token vars (set_term_noannotation te) Alone; Space 1;
+	   Verbatim ":?:"; Space 1;
+	   term2token vars ty Alone;
+	   Verbatim ")"
+	  ]
+
+    | _ ->
   match te with
 
     | Universe (Type, _, _) -> Verbatim "Type"
@@ -252,7 +280,7 @@ let substitution2string (ctxt: context ref) (s: substitution) : string =
 
 let poussin_error2token (err: poussin_error) : token =
   match err with
-    | FreeError s -> Verbatim "FreeError"
+    | FreeError s -> Verbatim s
     | Unshiftable_term _ -> Verbatim "Unshiftable_term"
     | UnknownCste s -> verbatims ["UnknownCste: "; s]
     | NoUnification (ctxt, te1, te2) -> 
@@ -261,10 +289,14 @@ let poussin_error2token (err: poussin_error) : token =
 	   term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
 
     | NoNatureUnification  _ -> Verbatim "NoNatureUnification"
-    | UnknownUnification  _ -> Verbatim "UnknownUnification"
+    | UnknownUnification (ctxt, te1, te2) -> 
+      Box [Verbatim "UnknownUnification between"; Newline; 
+	   term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
+	   term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
     | NegativeIndexBVar  _ -> Verbatim "NegativeIndexBVar"
     | UnknownBVar  _ -> Verbatim "UnknownBVar"
     | UnknownFVar _ -> Verbatim "UnknownFVar"
+    | NotInductiveDestruction _ -> Verbatim "NotInductiveDestruction"
 	
 let poussin_error2string (err: poussin_error) : string =
   let token = poussin_error2token err in

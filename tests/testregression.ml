@@ -70,12 +70,18 @@ let parse_and_typecheck_from_string (str: string) : unit  =
 	let ty = typeinfer defs ctxt ty in
 	let [ty] = flush_fvars defs ctxt [ty] in 
 	Hashtbl.add defs n (Inductive ([], ty));
-	printf "%s: %s\n" n (term2string ctxt ty)
+	printf "-------------------------------------------\n%s: %s\n\n" n (term2string ctxt ty)
       | DefConstructor (n, ty) -> 
 	let ty = typeinfer defs ctxt ty in
 	let [ty] = flush_fvars defs ctxt [ty] in 
 	Hashtbl.add defs n (Constructor ty);
-	printf "%s: %s\n" n (term2string ctxt ty)
+	printf "-------------------------------------------\n%s: %s\n\n" n (term2string ctxt ty)
+      | DefDefinition (n, te) -> 
+	printf "-------------------------------------------\n%s:= %s\n\n" n (term2string ctxt te);
+	let te = typeinfer defs ctxt te in
+	let [te] = flush_fvars defs ctxt [te] in 
+	Hashtbl.add defs n (Definition te);
+	printf "-------------------------------------------\n%s:= %s : %s \n\n" n (term2string ctxt te) (term2string ctxt (get_type te))
       | _ -> raise (Failure "parse_and_typecheck_from_string: NYI")
 
   with
@@ -104,5 +110,8 @@ let defs = ["Inductive True : Prop";
 	    "Constructor eq_refl {A} (a: A): eq a a";
 	    "Inductive ReflexiveRel : Set";
 	    "Constructor build_ReflexiveRel: (A: Set) -> (rel: A -> A -> Prop) -> (refl: (x: A) -> rel x x) -> ReflexiveRel";
-	    "Definition ReflexiveRel_t {rel: ReflexiveRel} : Set :=  match rel with | build_ReflexiveRel A _ _ := A end"
+	    "Definition ReflexiveRel_t {rel: ReflexiveRel} : Set :=  match rel with | build_ReflexiveRel A _ _ := A end";
+	    "Definition ReflexiveRel_rel {rel: ReflexiveRel} : ReflexiveRel_t {rel} -> ReflexiveRel_t {rel} -> Prop := match rel with  | build_ReflexiveRel _ rel _ := rel end";
+	    "Definition ReflexiveRel_refl {rel: ReflexiveRel} : (x: ReflexiveRel_t {rel}) -> ReflexiveRel_rel x x := match rel with  | build_ReflexiveRel _ _ refl := refl  end"
+
 	   ] in List.map (fun def -> parse_and_typecheck_from_string def) defs;;
