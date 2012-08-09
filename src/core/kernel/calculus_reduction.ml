@@ -144,7 +144,7 @@ let rec reduction_term (defs: defs) (strat: reduction_strategy) (te: term) : ter
 	set_reduced (reduction_term defs strat f)
 
       | App (f, args, ty, pos, _) when not (is_reduced f) -> (
-	let f = reduction_term defs strat f in
+	let f = reduction_term defs { strat with delta = match strat.delta with | Some DeltaWeak -> Some DeltaStrong | _ -> strat.delta }  f in
 	set_reduced (reduction_term defs strat (App (f, args, ty, pos, false)))
       )
 
