@@ -77,7 +77,7 @@ let parse_and_typecheck_from_string (str: string) : unit  =
 	Hashtbl.add defs n (Constructor ty);
 	printf "-------------------------------------------\n%s: %s\n\n" n (term2string ctxt ty)
       | DefDefinition (n, te) -> 
-	printf "-------------------------------------------\n%s:= %s\n\n" n (term2string ctxt te);
+	(*printf "-------------------------------------------\n%s:= %s\n\n" n (term2string ctxt te);*)
 	let te = typeinfer defs ctxt te in
 	let [te] = flush_fvars defs ctxt [te] in 
 	Hashtbl.add defs n (Definition te);
