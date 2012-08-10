@@ -22,19 +22,30 @@ Inductive ReflexiveRel : Set
 Constructor build_ReflexiveRel: (A: Set) -> (rel: Relation A) -> (refl: (x: A) -> rel x x) -> ReflexiveRel
 
 Definition ReflexiveRel_t {rel: ReflexiveRel} : Set :=
-   match rel with
-      | build_ReflexiveRel A _ _ := A
-   end
+   match rel with | build_ReflexiveRel A _ _ := A end
 
 Definition ReflexiveRel_rel {rel: ReflexiveRel} : ReflexiveRel_t {rel} -> ReflexiveRel_t {rel} -> Prop:=
    match rel with
       | build_ReflexiveRel _ rel _ := rel      
    end
 
-Definition ReflexiveRel_refl {rel: ReflexiveRel} : (x: ReflexiveRel_t {rel}) -> ReflexiveRel_rel x x :=
+Definition ReflexiveRel_refl {rel: ReflexiveRel} : (x: ReflexiveRel_t {rel}) -> ReflexiveRel_rel {rel} x x :=
    match rel with
       | build_ReflexiveRel _ _ refl := refl      
    end
 
-				 
+Inductive Nat: Set
+Constructor O: Nat
+Constructor S: Nat -> Nat
 
+Inductive Vector (A: Set): Nat -> Set
+Constructor nil {A: Set}: Vector A O
+Constructor cons {A: Set} {n}: A -> Vector A n -> Vector A (S n)
+
+Signature map {A B: Set} {n}: (f: A -> B) -> Vector A n -> Vector B n
+
+Definition map {A B: Set} {n} (f: A -> B) (v: Vector A n) : Vector B n :=
+  match v with
+     | nil := nil
+     | cons hd tl := cons (f hd) (map f tl)
+  end

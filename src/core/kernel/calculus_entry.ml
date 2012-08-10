@@ -29,7 +29,7 @@ let process_definition (def: definition) : unit =
       let ty = typecheck defs ctxt ty (type_ (UName "")) in
       let [ty] = flush_fvars defs ctxt [ty] in 
       Hashtbl.add defs n (Axiom ty);
-      printf "Inductive %s: %s\n\n" n (term2string ctxt ty)
+      printf "Signature %s: %s\n\n" n (term2string ctxt ty)
     | DefInductive (n, ty) -> 	
       let ty = (
 	try 

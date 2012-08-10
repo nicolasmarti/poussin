@@ -32,7 +32,7 @@ let with_pos (p: 'a parsingrule) : ('a * pos) parsingrule =
     let endp = cur_pos pb in
     (res, (startp, endp))
 
-let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Definition"]
+let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Signature"]
 
 let parse_reserved : unit parsingrule =
   foldp (List.map (fun x -> keyword x ()) keywords)
@@ -377,7 +377,7 @@ let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsing
     let () = at_start_pos leftmost (word ":") pb in
     let startpos = cur_pos pb in
     let () = whitespaces pb in
-    let ty = parse_term defs startpos pb in
+    let ty = parse_term defs leftmost pb in
     let endpos = cur_pos pb in
     DefInductive (s, set_term_pos (build_impls qs ty) (pos_to_position (startpos, endpos)))
   )
@@ -393,7 +393,7 @@ let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsing
     let () = at_start_pos leftmost (word ":") pb in
     let startpos = cur_pos pb in
     let () = whitespaces pb in
-    let ty = parse_term defs startpos pb in
+    let ty = parse_term defs leftmost pb in
     let endpos = cur_pos pb in
     DefConstructor (s, set_term_pos (build_impls qs ty) (pos_to_position (startpos, endpos)))
   )
@@ -409,7 +409,7 @@ let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsing
     let () = at_start_pos leftmost (word ":") pb in
     let startpos = cur_pos pb in
     let () = whitespaces pb in
-    let ty = parse_term defs startpos pb in
+    let ty = parse_term defs leftmost pb in
     let endpos = cur_pos pb in
     DefSignature (s, set_term_pos (build_impls qs ty) (pos_to_position (startpos, endpos)))
   )
@@ -425,13 +425,13 @@ let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsing
     let () = at_start_pos leftmost (word ":") pb in
     let startpos = cur_pos pb in
     let () = whitespaces pb in
-    let ty = parse_term defs startpos pb in
+    let ty = parse_term defs leftmost pb in
     let endpos = cur_pos pb in
     let () = whitespaces pb in
     let () = at_start_pos leftmost (word ":=") pb in
     let startpos2 = cur_pos pb in
     let () = whitespaces pb in
-    let te = parse_term defs startpos pb in
+    let te = parse_term defs leftmost pb in
     let endpos2 = cur_pos pb in
     DefDefinition (s, 
 		  (set_term_annotation 

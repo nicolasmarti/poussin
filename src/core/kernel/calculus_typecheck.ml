@@ -327,7 +327,7 @@ and typeinfer
 	    add_fvar ~pos:pos ctxt
 
 	  | TName (n, _, pos) -> (
-	  (* we first look for a variable *)
+	    (* we first look for a variable *)
 	    match var_lookup ctxt n with
 	      | Some i -> 
 		Var (i, Typed (bvar_type ctxt i), pos)
@@ -336,27 +336,27 @@ and typeinfer
 	  )
 
 	  | Forall ((s, ty, n, pq), te, _, p, reduced) ->
-	  (* first let's be sure that ty :: Type *)
+	    (* first let's be sure that ty :: Type *)
 	    let ty = typecheck defs ctxt ty (type_ (UName "")) in
-	  (* we push the quantification *)
+	    (* we push the quantification *)
 	    push_quantification (s, ty, n, pq) ctxt;
-	  (* we typecheck te :: Type *)
+	    (* we typecheck te :: Type *)
 	    let te = typecheck defs ctxt te (type_ (UName "")) in
-	  (* we pop quantification *)
+	    (* we pop quantification *)
 	    let q1, [te] = pop_quantification defs ctxt [te] in
-	  (* and we returns the term with type Type *)
+	    (* and we returns the term with type Type *)
 	    Forall ((s, ty, n, pq), te, Typed (type_ (UName "")), p, reduced)
 
 	  | Lambda ((s, ty, n, pq), te, _, p, reduced) ->
-	  (* first let's be sure that ty :: Type *)
+	    (* first let's be sure that ty :: Type *)
 	    let ty = typecheck defs ctxt ty (type_ (UName "")) in
-	  (* we push the quantification *)
+	    (* we push the quantification *)
 	    push_quantification (s, ty, n, pq) ctxt;
-	  (* we typecheck te :: Type *)
+	    (* we typecheck te :: Type *)
 	    let te = typeinfer defs ctxt te in
-	  (* we pop quantification *)
+	    (* we pop quantification *)
 	    let q1, [te] = pop_quantification defs ctxt [te] in
-	  (* and we returns the term with type Type *)
+	    (* and we returns the term with type Type *)
 	    let res = Forall ((s, ty, n, pq), get_type te, Typed (type_ (UName "")), NoPosition, reduced) in
 	    Lambda ((s, ty, n, pq), te, Typed res, p, reduced)
 
@@ -364,20 +364,20 @@ and typeinfer
 	    typeinfer defs ctxt hd 
 
 	  | App (hd, (arg, n)::args, _, pos, reduced) ->	  
-	  (* we infer hd and arg *)
+	    (* we infer hd and arg *)
 	    let hd = typeinfer defs ctxt hd in
 	    let arg = typeinfer defs ctxt arg in
-	  (* we unify the type of hd with a forall *)
+	    (* we unify the type of hd with a forall *)
 	    let fty = add_fvar ctxt in
 	    let hd_ty = unification defs ctxt true (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
 	    let Forall ((_, _, n', _), _, _, _, _) = hd_ty in
-	  (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
+	    (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
 	    if n' = Implicit && n = Explicit then (
 	      let new_arg = add_fvar ctxt in
-	    (* and retypeinfer the whole *)
+	      (* and retypeinfer the whole *)
 	      typeinfer defs ctxt (App (hd, (new_arg, n')::(arg, n)::args, NoAnnotation, pos, reduced))
 	    ) else (
-	    (* needs to unify the type properly *)
+	      (* needs to unify the type properly *)
 	      let ty = unification defs ctxt true fty (get_type arg) in
 	      let Forall ((q, _, n', pq), te, Typed fty, p, reduced) = hd_ty in
 	      (* we build a new head, as the reduction of hd and arg, with the proper type *)
@@ -395,12 +395,12 @@ and typeinfer
 	    )
 
 	  | Match (te, des, aty, pos, reduced) ->
-	  (* first we typecheck the destructed term *)
+	    (* first we typecheck the destructed term *)
 	    let te = typeinfer defs ctxt te in
 	    (* then we assure ourselves that it is an inductive *)
-	    let tety = reduction_term defs ctxt typeinfer_strat (get_type te) in
+	    let tety = (get_type te) in
 	    let _ = 
-	      match head tety with
+	      match head (reduction_term defs ctxt typeinfer_strat tety) with
 		| Cste (n, _, _, _) -> (
 		  try 
 		    match Hashtbl.find defs n with
@@ -411,39 +411,39 @@ and typeinfer
 		)
 		| _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, te)))
 	    in 
-	  (* we create a type for the return value *)
+	    (* we create a type for the return value *)
 	    let ret_ty = 
 	      match aty with
 		| TypedAnnotation ty -> ty
 		| _ -> add_fvar ctxt
 	    in
-	  (* then we traverse the destructors *)
+	    (* then we traverse the destructors *)
 	    let des = List.map (fun (ps, des) ->
-	    (* first grab the vars of the patterns *)
+	      (* first grab the vars of the patterns *)
 	      let vars = patterns_vars ps in
-	    (* we push quantification corresponding to the pattern vars *)
+	      (* we push quantification corresponding to the pattern vars *)
 	      List.iter (fun v -> 
 		let ty = add_fvar ctxt in
 		push_quantification (v, ty, Explicit (*dummy*), NoPosition) ctxt
 	      ) vars;
-	    (* we need to shift ret_ty, te, and tety to be at the same level *)
+	      (* we need to shift ret_ty, te, and tety to be at the same level *)
 	      let ret_ty = shift_term ret_ty (List.length vars) in
 	      let tety = shift_term tety (List.length vars) in
 	      let te = shift_term te (List.length vars) in
-	    (* then we create the terms corresponding to the patterns *)
+	      (* then we create the terms corresponding to the patterns *)
 	      let tes = List.map (fun p -> pattern_to_term p) ps in
-	    (* then, for each patterns, we typecheck against tety *)
+	      (* then, for each patterns, we typecheck against tety *)
 	      let tes = List.map (fun te -> typecheck defs ctxt te tety) tes in
-	    (* then, for each pattern *)
+	      (* then, for each pattern *)
 	      let des = List.map (fun hd ->
-	      (* we unify it (with negative polarity) with te *)
+		(* we unify it (with negative polarity) with te *)
 		let _ = unification defs ctxt false hd te in
-	      (* and typecheck des against ret_ty *)
+		(* and typecheck des against ret_ty *)
 		typecheck defs ctxt des ret_ty
 	      ) tes in
-	    (* we pop all quantifiers *)
+	      (* we pop all quantifiers *)
 	      let _, des = pop_quantifications defs ctxt des (List.length vars) in
-	    (* and finally returns all the constructors *)
+	      (* and finally returns all the constructors *)
 	      List.map2 (fun hd1 hd2 -> [hd1], hd2) ps des
 	    ) des in
 	    let ret_ty = typecheck defs ctxt ret_ty (type_ (UName "")) in
@@ -452,11 +452,11 @@ and typeinfer
 	      
 	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
       ) in (*
-      match get_term_annotation te with
-	| TypedAnnotation ty ->
-	  let ty = unification defs ctxt true (get_type te') ty in
-	  set_term_type te' ty
-	| _ ->*) te'
+	     match get_term_annotation te with
+	     | TypedAnnotation ty ->
+	     let ty = unification defs ctxt true (get_type te') ty in
+	     set_term_type te' ty
+	     | _ ->*) te'
 
 and unification 
     (defs: defs)
@@ -595,7 +595,7 @@ and unification
       raise (Failure "unification: NYI")
 	*)
     (* the case of two application: with the same arity *)
-    | App (hd1, args1, Typed ty1, pos1, true), App (hd2, args2, Typed ty2, pos2, true) when List.length args1 = List.length args2 ->
+    | App (hd1, args1, Typed ty1, pos1, _), App (hd2, args2, Typed ty2, pos2, _) when List.length args1 = List.length args2 ->
       let ty = unification defs ctxt polarity ty1 ty2 in
       let hd = unification defs ctxt polarity hd1 hd2 in
       let args = List.map (fun (n, hd1, hd2) -> unification defs ctxt polarity hd1 hd2, n) 
@@ -607,14 +607,32 @@ and unification
 	 ) args1 args2) in
       App (hd, args, Typed ty, pos1, false)
 
-    (* *)
+    (* this is really conservatives ... *)
+    | Match (t1, des1, Typed ty1, pos1, _), Match (t2, des2, Typed ty2, pos2, _) when List.length des1 = List.length des2 ->
+      (* unify the destructed term and the returned type *)
+      let t = unification defs ctxt polarity t1 t2 in
+      let ty = unification defs ctxt polarity ty1 ty2 in
+      (* then proceeds with the destructor *)
+      let des = List.map2 (fun (ps1, t1) (ps2, t2) ->
+	if ps1 <> ps2 then raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
+	(* first grab the vars of the patterns *)
+	let vars = patterns_vars ps1 in	      
+	(* we push quantification corresponding to the pattern vars *)
+	List.iter (fun v -> 
+	  let ty = add_fvar ctxt in
+	  push_quantification (v, ty, Explicit (*dummy*), NoPosition) ctxt
+	) vars;
+	let t = unification defs ctxt polarity t1 t2 in
+	let _, [t] = pop_quantifications defs ctxt [t] (List.length vars) in
+	ps1, t	  
+      ) des1 des2 in
+      Match (t, des, Typed ty, pos1, false)      
+
 
     (* maybe we can reduce the term *)
     | _ when not (is_reduced te1) ->
-      printf "red(4)\n";
       unification defs ctxt polarity (set_term_reduced (reduction_term defs ctxt unification_strat te1)) te2
     | _ when not (is_reduced te2) ->
-      printf "red(5)\n";
       unification defs ctxt polarity te1 (set_term_reduced (reduction_term defs ctxt unification_strat te2))
 
     (* nothing so far, if the polarity is negative, we add the unification as a converion hypothesis *)
