@@ -422,28 +422,36 @@ let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsing
     let () = whitespaces pb in
     let qs = many (parse_lambda_lhs defs leftmost) pb in
     let () = whitespaces pb in
-    let () = at_start_pos leftmost (word ":") pb in
-    let startpos = cur_pos pb in
-    let () = whitespaces pb in
-    let ty = parse_term defs leftmost pb in
-    let endpos = cur_pos pb in
+    let ty = mayberule (fun pb ->
+      let () = at_start_pos leftmost (word ":") pb in
+      let startpos = cur_pos pb in
+      let () = whitespaces pb in
+      let ty = parse_term defs leftmost pb in
+      let endpos = cur_pos pb in
+      (set_term_pos ty (pos_to_position (startpos, endpos)))
+    ) pb in
     let () = whitespaces pb in
     let () = at_start_pos leftmost (word ":=") pb in
     let startpos2 = cur_pos pb in
     let () = whitespaces pb in
     let te = parse_term defs leftmost pb in
     let endpos2 = cur_pos pb in
-    DefDefinition (s, 
-		  (set_term_annotation 
-		     (set_term_pos 
-			(build_lambdas qs (set_term_annotation te ty)) 
-			(pos_to_position (startpos2, endpos2))
-		     )
-		     (set_term_pos 
-			(build_impls qs ty) 
-			(pos_to_position (startpos, endpos))
-		     )
-		  )
-    )
+
+    let te = match ty with
+      | None -> 
+	   (set_term_pos 
+	      (build_lambdas qs te) 
+	      (pos_to_position (startpos2, endpos2))
+	   )
+      | Some ty -> 
+	(set_term_annotation 
+	   (set_term_pos 
+	      (build_lambdas qs (set_term_annotation te ty)) 
+	      (pos_to_position (startpos2, endpos2))
+	   )
+	   (build_lambdas qs ty)
+	) in
+
+    DefDefinition (s, te)
   )
       
