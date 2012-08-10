@@ -134,3 +134,14 @@ type poussin_error = FreeError of string
 
 
 exception PoussinException of poussin_error
+
+type ty_action =
+  | TC of context * term * term
+  | TI of context * term
+  | U of context * term * term
+  | Free of string
+  | Reduction of context * term
+
+let trace : ty_action list ref = ref []
+
+let mk_trace : bool ref = ref false

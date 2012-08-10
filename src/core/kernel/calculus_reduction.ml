@@ -62,12 +62,10 @@ let rec pattern_match (p: pattern) (te: term) : (term list) option =
 let debug_reduction = ref false
 
 let rec reduction_term (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (te: term) : term = 
-  if !debug_reduction then   printf "reduction: ";
   let te' = reduction_term_loop defs ctxt strat (unset_term_reduced ~r:true te) in
-  if !debug_reduction then   printf "\n";
   (unset_term_reduced ~r:true te')
 and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (te: term) : term = 
-  if !debug_reduction then   printf "{ %s }" (term2string ctxt te);
+  if !mk_trace then trace := (Reduction (!ctxt, te)) :: !trace;
   let te' = (
     match te with
       | Universe _ | Var _ | AVar _ | TName _ -> te
@@ -170,7 +168,7 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
       | Some DeltaStrong -> set_term_reduced te'
       | _ -> set_term_reduced te      
   in
-  if !debug_reduction then printf "{ %s }" (term2string ctxt te');
+  if !mk_trace then trace := List.tl !trace;
   te'
   
 

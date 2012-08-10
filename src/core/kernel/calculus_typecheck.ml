@@ -59,7 +59,7 @@ let push_quantification (q: (name * term * nature * position)) (ctxt: context re
   ctxt := { !ctxt with
     bvs = {name = s; ty = shift_term ty 1; nature = n; pos = p}::!ctxt.bvs;
     fvs = []::!ctxt.fvs;
-    conversion_hyps = (List.map (fun (hd1, hd2) -> (shift_term hd1 1, shift_term hd2 1))  (List.hd !ctxt.conversion_hyps))::!ctxt.conversion_hyps
+    conversion_hyps = (List.map (fun (hd1, hd2) -> (shift_term hd1 1, shift_term hd2 1)) (List.hd !ctxt.conversion_hyps))::!ctxt.conversion_hyps
   }
 
 
@@ -275,6 +275,8 @@ let rec typecheck
     (ctxt: context ref)
     (te: term)
     (ty: term) : term =
+  if !mk_trace then trace := (TC (!ctxt, te, ty))::!trace;
+  let res = 
   match get_term_annotation te with
     | Typed ty' ->
       ignore(unification defs ctxt true ty' ty);
@@ -293,12 +295,17 @@ let rec typecheck
       let te = typeinfer defs ctxt te in
       ignore(unification defs ctxt true (get_type te) ty);
       te
+  in
+  if !mk_trace then trace := List.tl !trace;
+  res
 
 
 and typeinfer 
     (defs: defs)
     (ctxt: context ref)
     (te: term) : term =
+  if !mk_trace then trace := (TI (!ctxt, te))::!trace;
+  let res = 
   match get_term_annotation te with
     | Typed ty -> te
     | Annotation ty ->
@@ -463,12 +470,18 @@ and typeinfer
 	     let ty = unification defs ctxt true (get_type te') ty in
 	     set_term_type te' ty
 	     | _ ->*) te'
+  in
+  if !mk_trace then trace := List.tl !trace;
+  res
 
 and unification 
     (defs: defs)
     (ctxt: context ref)
     (polarity: bool)
     (te1: term) (te2: term) : term =
+  if !mk_trace then trace := (U (!ctxt, te1, te2))::!trace;
+  let res = 
+  (*printf "%s Vs %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
   match te1, te2 with
 
     (* AVar is just a wildcard for unification *)
@@ -600,6 +613,14 @@ and unification
     | t1, App (Var (i, _, _), _::args, _, _, true) when i < 0  ->
       raise (Failure "unification: NYI")
 	*)
+
+    (* Normalizing App *)
+    | App (App(hd1, args1, Typed ty1, pos1, _), args2, Typed ty2, pos2, _), _ -> 
+      unification defs ctxt polarity (App(hd1, args1 @ args2, Typed ty2, pos2, false)) te2
+
+    |  _, App(App(hd1, args1, Typed ty1, pos1, _), args2, Typed ty2, pos2, _) -> 
+      unification defs ctxt polarity te1 (App(hd1, args1 @ args2, Typed ty2, pos2, false))
+
     (* the case of two application: with the same arity *)
     | App (hd1, args1, Typed ty1, pos1, _), App (hd2, args2, Typed ty2, pos2, _) when List.length args1 = List.length args2 ->
       let ty = unification defs ctxt polarity ty1 ty2 in
@@ -634,7 +655,6 @@ and unification
       ) des1 des2 in
       Match (t, des, Typed ty, pos1, false)      
 
-
     (* maybe we can reduce the term *)
     | _ when not (is_reduced te1) ->
       unification defs ctxt polarity (set_term_reduced (reduction_term defs ctxt unification_strat te1)) te2
@@ -647,11 +667,31 @@ and unification
       te1
 
     (* we try a simple use of conversions *)
-    | _ when are_convertible defs ctxt te1 te2 or are_convertible defs ctxt te2 te1 ->
-      te1
+	
+    | _ ->
+	let s, l = conversion_hyps2subst (List.hd !ctxt.conversion_hyps) in
+	(*printf "s := %s\n" (substitution2string ctxt s);*)
+	if not (IndexMap.is_empty s) && polarity then (
+	  if !mk_trace then trace := (Free (substitution2string ctxt s)):: !trace;
+	  let te1' = term_substitution s te1 in
+	  let te2' = term_substitution s te2 in
+	  (*printf "(%s, %s) --> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt te1') (term2string ctxt te2');*)
+	  try 
+	    let res = unification defs (ref {!ctxt with conversion_hyps = l::[] }) polarity te1' te2' in
+	    if !mk_trace then trace := List.tl !trace;
+	    res
+	  with
+	    | _ -> 
+	      if are_convertible defs (ref {!ctxt with conversion_hyps = l::[] }) te1 te2 or are_convertible defs (ref {!ctxt with conversion_hyps = l::[] }) te2 te1 then te1 else
+		raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
+	) else
+	  raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
+	
+  in
+  if !mk_trace then trace := List.tl !trace;
+  res
 
-    | _ -> raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
-
+(* these stuffs are quite ... *)
 and are_convertible 
     (defs: defs)
     (ctxt: context ref)
@@ -660,13 +700,31 @@ and are_convertible
     fold_stop (fun () (hd1, hd2) ->
       (*printf "(%s, %s) <--> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt hd1) (term2string ctxt hd2);*)
       try 
+	if !mk_trace then trace := (Free (String.concat "" ["try conversion: "; (term2string ctxt hd1); " <-> "; (term2string ctxt hd2)])):: !trace;
 	let ctxt' = ref {!ctxt with conversion_hyps =  (List.tl (List.hd !ctxt.conversion_hyps)) :: [] } in
+	let _ = unification defs ctxt' true (get_type te1) (get_type hd1) in
 	let _ = unification defs ctxt' true te1 hd1 in
 	let _ = unification defs ctxt' true te2 hd2 in
 	ctxt := { !ctxt' with conversion_hyps = !ctxt.conversion_hyps };
+	if !mk_trace then trace := List.tl !trace;
 	Right ()
       with
-	| _ -> Left ()
+	| _ -> 	if !mk_trace then trace := List.tl !trace; Left ()
     ) () (List.hd !ctxt.conversion_hyps) with
       | Left () -> false
       | Right () -> true
+
+(* transform a conversion_hyps list into a substitution *)
+and conversion_hyps2subst (cv: (term * term) list) : (substitution * (term * term) list) =
+  match cv with
+    | [] -> IndexMap.empty,  []
+    | (Var (i, _, _), te2)::tl when i >= 0 && IndexSet.is_empty (IndexSet.filter (fun i' -> i < i') (bv_term te2)) ->
+      let s, l = conversion_hyps2subst tl in
+      IndexMap.add i te2 s, l 
+    | (te1, Var (i, _, _))::tl when i >= 0  && IndexSet.is_empty (IndexSet.filter (fun i' -> i < i') (bv_term te1)) ->
+      let s, l = conversion_hyps2subst tl in
+      IndexMap.add i te1 s, l 
+    | hd::tl -> 
+      let s, l = conversion_hyps2subst tl in
+      s, hd::tl
+

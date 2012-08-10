@@ -48,4 +48,20 @@ Definition map {A B: Set} {n} (f: A -> B) (v: Vector A n) : Vector B n :=
   match v with
      | nil {A} := nil {B}
      | cons {A} {n} hd tl := cons (f hd) (map f tl)
+end
+
+Signature plus: Nat -> Nat -> Nat
+
+Definition plus (n m: Nat) : Nat :=
+  match n with
+     | O := m
+     | S n := S (plus n m) 
+  end
+
+Signature append {A} {n1 n2} (v1: Vector A n1) (v2: Vector A n2): Vector A (plus n1 n2)
+
+Definition append {A} {n1 n2} (v1: Vector A n1) (v2: Vector A n2): Vector A (plus n1 n2) :=
+  match v1 with
+     | nil {A} := v2
+     | cons {A} {n1} hd tl := cons hd (append tl v2)
   end

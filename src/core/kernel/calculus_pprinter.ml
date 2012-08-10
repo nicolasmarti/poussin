@@ -268,7 +268,7 @@ let substitution2token (ctxt: context ref) (s: substitution) : token =
   Box ([Verbatim "{"] @
        intercalates [Verbatim ","; Space 1]
        (List.map ( fun (i, te) ->
-	 Box [verbatims [string_of_int i; " |-> "];
+	 Box [verbatims [string_of_int i; "("; term2string ctxt (var_ i); ") |-> "];
 	      term2token (context2namelist ctxt) te Alone]
 	) (IndexMap.bindings s)) @
        [Verbatim "}"])
@@ -292,6 +292,7 @@ let poussin_error2token (err: poussin_error) : token =
     | UnknownUnification (ctxt, te1, te2) -> 
       Box [Verbatim "UnknownUnification between"; Newline; 
 	   term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
+	   Verbatim " And "; Newline;
 	   term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
     | NegativeIndexBVar  _ -> Verbatim "NegativeIndexBVar"
     | UnknownBVar  _ -> Verbatim "UnknownBVar"
@@ -301,4 +302,39 @@ let poussin_error2token (err: poussin_error) : token =
 let poussin_error2string (err: poussin_error) : string =
   let token = poussin_error2token err in
   let box = token2box token 80 2 in
+  box2string box
+
+let trace2token (trace: ty_action list) : token =
+  Box (
+    intercalates
+      [Newline;Verbatim "-----------------------"; Newline]
+      (List.map (fun hd -> 
+	match hd with
+	  | TC (ctxt, te, ty) ->
+	    Box [ term2token (context2namelist (ref ctxt)) te Alone; Space 1;
+		  Verbatim ":?"; Space 1;
+		  term2token (context2namelist (ref ctxt)) ty Alone
+	    ]
+	  | TI (ctxt, te) ->
+	    Box [ term2token (context2namelist (ref ctxt)) te Alone; Space 1;
+		  Verbatim ": ???"
+	    ]
+	  | U (ctxt, te, ty) ->
+	    Box [ term2token (context2namelist (ref ctxt)) te Alone; Space 1;
+		  Verbatim "=?="; Space 1;
+		  term2token (context2namelist (ref ctxt)) ty Alone
+	    ]
+	  | Free s -> Verbatim s
+	  | Reduction (ctxt, te) ->
+	    Box [ term2token (context2namelist (ref ctxt)) te Alone; Space 1;
+		  Verbatim " ===> ???"
+	    ]
+
+       ) (List.rev trace)
+      )     
+  )
+
+let trace2string (trace: ty_action list) : string =
+  let token = trace2token trace in
+  let box = token2box token 150 2 in
   box2string box
