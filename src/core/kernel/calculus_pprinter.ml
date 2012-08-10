@@ -84,7 +84,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
       *)
       (
 	match p with
-	  | InArg Explicit -> withParen
+	  | InArg Explicit | InApp -> withParen
 	  | _ -> fun x -> x
       )
 	(

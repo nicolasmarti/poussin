@@ -374,17 +374,85 @@ let is_reduced (te: term) : reduced =
     | Match (te, des, ty, pos, reduced) -> reduced
 
 (* set a term as reduced *)
-let set_reduced (te: term) : term =
+let rec set_term_reduced ?(r: bool = false) (te: term) : term =
   match te with
-    | _ when is_reduced te -> te
+    | _ when is_reduced te && r -> te
 
     | Universe _ | Var _ | AVar _ | TName _ -> te
-    | Cste (n, ty, pos, _) -> Cste (n, ty, pos, true)
-    | Lambda (q, te, ty, pos, reduced) -> Lambda (q, te, ty, pos, true)
-    | Forall (q, te, ty, pos, reduced) -> Forall (q, te, ty, pos, true)
-    | Let (q, te, ty, pos, reduced) -> Let (q, te, ty, pos, true)
-    | App (f, args, ty, pos, reduced) -> App (f, args, ty, pos, true)
-    | Match (te, des, ty, pos, reduced) -> Match (te, des, ty, pos, true)
+    | Cste (n, ty, pos, _) -> Cste (n, (if r then set_typeannotation_reduced ~r:r ty else ty), pos, true)
+    | Lambda (q, te, ty, pos, reduced) -> 
+      Lambda (q, 
+	      (if r then set_term_reduced ~r:r te else te), 
+	      (if r then set_typeannotation_reduced ~r:r ty else ty), 
+	      pos, true)
+    | Forall (q, te, ty, pos, reduced) -> 
+      Forall (q, 
+	      (if r then set_term_reduced ~r:r te else te), 
+	      (if r then set_typeannotation_reduced ~r:r ty else ty), 
+	      pos, true)
+    | Let (q, te, ty, pos, reduced) -> 
+      Let (q, 
+	   (if r then set_term_reduced ~r:r te else te), 
+	   (if r then set_typeannotation_reduced ~r:r ty else ty), 
+	   pos, true)
+    | App (f, args, ty, pos, reduced) -> 
+      App ((if r then set_term_reduced ~r:r f else f),  
+	   (if r then (List.map (fun (te, n) -> set_term_reduced ~r:r te,n) args) else args), 
+	   (if r then set_typeannotation_reduced ~r:r ty else ty), 
+	   pos, true)
+    | Match (te, des, ty, pos, reduced) -> 
+      Match ((if r then set_term_reduced ~r:r te else te), 
+	     (if r then (List.map (fun (ps, te) -> ps, set_term_reduced ~r:r te) des) else des), 
+	     (if r then set_typeannotation_reduced ~r:r ty else ty), 
+	     pos, true)
+
+and set_typeannotation_reduced ?(r: bool = false) (ty: typeannotation): typeannotation =
+  match ty with
+    | NoAnnotation -> NoAnnotation
+    | Annotation te -> Annotation (set_term_reduced ~r:r te)
+    | TypedAnnotation te -> TypedAnnotation (set_term_reduced ~r:r te)
+    | Typed te -> Typed (set_term_reduced ~r:r te)
+
+(* unset a term as reduced *)
+let rec unset_term_reduced ?(r: bool = false) (te: term) : term =
+  match te with
+    | _ when is_reduced te && r -> te
+
+    | Universe _ | Var _ | AVar _ | TName _ -> te
+    | Cste (n, ty, pos, _) -> Cste (n, (if r then unset_typeannotation_reduced ~r:r ty else ty), pos, false)
+    | Lambda (q, te, ty, pos, reduced) -> 
+      Lambda (q, 
+	      (if r then unset_term_reduced ~r:r te else te), 
+	      (if r then unset_typeannotation_reduced ~r:r ty else ty), 
+	      pos, false)
+    | Forall (q, te, ty, pos, reduced) -> 
+      Forall (q, 
+	      (if r then unset_term_reduced ~r:r te else te), 
+	      (if r then unset_typeannotation_reduced ~r:r ty else ty), 
+	      pos, false)
+    | Let (q, te, ty, pos, reduced) -> 
+      Let (q, 
+	   (if r then unset_term_reduced ~r:r te else te), 
+	   (if r then unset_typeannotation_reduced ~r:r ty else ty), 
+	   pos, false)
+    | App (f, args, ty, pos, reduced) -> 
+      App ((if r then unset_term_reduced ~r:r f else f),  
+	   (if r then (List.map (fun (te, n) -> unset_term_reduced ~r:r te,n) args) else args), 
+	   (if r then unset_typeannotation_reduced ~r:r ty else ty), 
+	   pos, false)
+    | Match (te, des, ty, pos, reduced) -> 
+      Match ((if r then unset_term_reduced ~r:r te else te), 
+	     (if r then (List.map (fun (ps, te) -> ps, unset_term_reduced ~r:r te) des) else des), 
+	     (if r then unset_typeannotation_reduced ~r:r ty else ty), 
+	     pos, false)
+
+and unset_typeannotation_reduced ?(r: bool = false) (ty: typeannotation): typeannotation =
+  match ty with
+    | NoAnnotation -> NoAnnotation
+    | Annotation te -> Annotation (unset_term_reduced ~r:r te)
+    | TypedAnnotation te -> TypedAnnotation (unset_term_reduced ~r:r te)
+    | Typed te -> Typed (unset_term_reduced ~r:r te)
+  
 
 (* get the typeannotation of a typed term *)
 let get_type (te: term) : term =

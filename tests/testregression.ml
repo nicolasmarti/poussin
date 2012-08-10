@@ -2,116 +2,37 @@ open Printf
 open Libpprinter
 open Libparser
 
-open Calculus_def
-open Calculus_misc
-open Calculus_substitution
-open Calculus_reduction
-open Calculus_typecheck
-
-open Calculus_pprinter
-open Calculus_parser
+open Calculus_entry
 
 let () = printf "calculus regression tests\n";;
 
-let ctxt = ref empty_context;;
+let def = 
+"
+Inductive True : Prop
+Constructor I: True
 
-let te1 : term = lambda_ "x" (var_ (-1));;
-printf "%s\n" (term2string ctxt te1);;
+Inductive False : Prop
+Inductive Not (P: Prop) : Prop
+Constructor Contradiction  {P}: (P -> False) -> Not P
 
-let te2 : term = forall_ "x" ~ty:(type_ (UName "")) (forall_ "x" ~ty:(var_ 0) (var_ 0));;
-printf "%s\n" (term2string ctxt te2);;
+Inductive And (A B: Prop) : Prop
+Constructor conj {A} {B}: A -> B -> And A B
 
-let parse_definition_from_string (str: string) : definition  =
-  let lines = stream_of_string str in
-  let pb = build_parserbuffer lines in
-  let leftmost = cur_pos pb in
-  try 
-    let result = parse_definition (Hashtbl.create 100) leftmost pb in
-    result
-  with
-    | NoMatch -> 
-      printf "parsing error: '%s'\n%s\n" (Buffer.contents pb.bufferstr) (errors2string pb); flush Pervasives.stdout;
-      raise Pervasives.Exit
-    | Failure s -> 
-      printf "error:\n%s\n" s;
-      raise Pervasives.Exit
-;;
+Inductive Or (A B: Prop) : Prop
+Constructor left {A} {B}: A -> Or A B
+Constructor right {A} {B}: B -> Or A B
 
-let defs = ["Inductive True : Prop";
-	    "Constructor I: True";
-	    "Inductive False : Prop";
-	    "Inductive Not (P: Prop) : Prop";
-	    "Constructor Contradiction  {P}: (P -> False) -> Not P";
-	    "Inductive And (A B: Prop) : Prop";
-	    "Constructor conj {A} {B}: A -> B -> And A B";
-	    "Inductive Or (A B: Prop) : Prop";
-	    "Constructor left {A} {B}: A -> Or A B";
-	    "Constructor right {A} {B}: B -> Or A B";
-	    "Inductive eq {A: Set} (a: A): A -> Prop";
-	    "Constructor eq_refl {A} a: eq a a";
-	    "Definition Relation (A: Set) : Type := A -> A -> Prop";
-	    "Inductive ReflexiveRel : Set";
-	    "Constructor build_ReflexiveRel: (A: Set) -> (rel: Relation A) -> (refl: (x: A) -> rel x x) -> ReflexiveRel";
-	    "Definition ReflexiveRel_t {rel: ReflexiveRel} : Set :=  match rel with | build_ReflexiveRel A _ _ := A end";
-	   ] in List.map (fun def -> let def = parse_definition_from_string def in
-				     printf "%s\n" (definition2string def ctxt)) defs;;
+Inductive eq {A: Set} (a: A): A -> Prop
+Constructor eq_refl {A} (a: A): eq a a
 
-let defs = Hashtbl.create 100;;
+Inductive ReflexiveRel : Set
+Constructor build_ReflexiveRel: (A: Set) -> (rel: A -> A -> Prop) -> (refl: (x: A) -> rel x x) -> ReflexiveRel
 
-let parse_and_typecheck_from_string (str: string) : unit  =
-  let lines = stream_of_string str in
-  let pb = build_parserbuffer lines in
-  let leftmost = cur_pos pb in
-  try 
-    let result = parse_definition (Hashtbl.create 100) leftmost pb in
-    let ctxt = ref empty_context in
-    match result with
-      | DefInductive (n, ty) -> 
-	let ty = typeinfer defs ctxt ty in
-	let [ty] = flush_fvars defs ctxt [ty] in 
-	Hashtbl.add defs n (Inductive ([], ty));
-	printf "-------------------------------------------\n%s: %s\n\n" n (term2string ctxt ty)
-      | DefConstructor (n, ty) -> 
-	let ty = typeinfer defs ctxt ty in
-	let [ty] = flush_fvars defs ctxt [ty] in 
-	Hashtbl.add defs n (Constructor ty);
-	printf "-------------------------------------------\n%s: %s\n\n" n (term2string ctxt ty)
-      | DefDefinition (n, te) -> 
-	(*printf "-------------------------------------------\n%s:= %s\n\n" n (term2string ctxt te);*)
-	let te = typeinfer defs ctxt te in
-	let [te] = flush_fvars defs ctxt [te] in 
-	Hashtbl.add defs n (Definition te);
-	printf "-------------------------------------------\n%s:= %s : %s \n\n" n (term2string ctxt te) (term2string ctxt (get_type te))
-      | _ -> raise (Failure "parse_and_typecheck_from_string: NYI")
+Definition ReflexiveRel_t {rel: ReflexiveRel} : Set :=  match rel with | build_ReflexiveRel A _ _ := A end
 
-  with
-    | NoMatch -> 
-      printf "parsing error: '%s'\n%s\n" (Buffer.contents pb.bufferstr) (errors2string pb); flush Pervasives.stdout;
-      raise Pervasives.Exit
-    | Failure s -> 
-      printf "error:\n%s\n" s;
-      raise Pervasives.Exit
-    | PoussinException err ->
-      printf "poussin_error:\n%s\n" (poussin_error2string err);
-      raise Pervasives.Exit
-;;
+Definition ReflexiveRel_rel {rel: ReflexiveRel} : ReflexiveRel_t {rel} -> ReflexiveRel_t {rel} -> Prop := match rel with  | build_ReflexiveRel _ rel _ := rel end
 
-let defs = ["Inductive True : Prop";
-	    "Constructor I: True";
-	    "Inductive False : Prop";
-	    "Inductive Not (P: Prop) : Prop";
-	    "Constructor Contradiction  {P}: (P -> False) -> Not P";
-	    "Inductive And (A B: Prop) : Prop";
-	    "Constructor conj {A} {B}: A -> B -> And A B";
-	    "Inductive Or (A B: Prop) : Prop";
-	    "Constructor left {A} {B}: A -> Or A B";
-	    "Constructor right {A} {B}: B -> Or A B";
-	    "Inductive eq {A: Set} (a: A): A -> Prop";
-	    "Constructor eq_refl {A} (a: A): eq a a";
-	    "Inductive ReflexiveRel : Set";
-	    "Constructor build_ReflexiveRel: (A: Set) -> (rel: A -> A -> Prop) -> (refl: (x: A) -> rel x x) -> ReflexiveRel";
-	    "Definition ReflexiveRel_t {rel: ReflexiveRel} : Set :=  match rel with | build_ReflexiveRel A _ _ := A end";
-	    "Definition ReflexiveRel_rel {rel: ReflexiveRel} : ReflexiveRel_t {rel} -> ReflexiveRel_t {rel} -> Prop := match rel with  | build_ReflexiveRel _ rel _ := rel end";
-	    "Definition ReflexiveRel_refl {rel: ReflexiveRel} : (x: ReflexiveRel_t {rel}) -> ReflexiveRel_rel x x := match rel with  | build_ReflexiveRel _ _ refl := refl  end"
+Definition ReflexiveRel_refl {rel: ReflexiveRel} : (x: ReflexiveRel_t {rel}) -> ReflexiveRel_rel x x := match rel with  | build_ReflexiveRel _ _ refl := refl  end"
 
-	   ] in List.map (fun def -> parse_and_typecheck_from_string def) defs;;
+in 
+process_string def;;

@@ -14,7 +14,7 @@ Constructor left {A} {B}: A -> Or A B
 Constructor right {A} {B}: B -> Or A B
 
 Inductive eq {A: Set} (a: A): A -> Prop
-Constructor eq_refl {A} a: eq a a
+Constructor eq_refl {A} (a: A): eq a a
 
 Definition Relation (A: Set) : Type := A -> A -> Prop
 

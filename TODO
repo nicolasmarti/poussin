@@ -1,11 +1,5 @@
-(* calculus_misc should populate himself during the process *)
-0) pprinter / parser
-1) calculus_substitution
-2) reduction
-3) unification
-   - need to add flushing of terms 
-   - higher order unification
-4) terminfer
-   - add using conversion when not solvable
-5) termcheck
+- change terms rep, with an general and extendable infofields
+  containing: positions, redeuced flags, ...
+- higher order unification
+- add using conversion when not solvable
 

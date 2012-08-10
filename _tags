@@ -19,3 +19,4 @@
 
 
 <tests/testregression.native>: pkg_str
+<tests/kernel.native>: pkg_str

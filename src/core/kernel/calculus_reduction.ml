@@ -1,7 +1,10 @@
 open Calculus_def
 open Calculus_misc
 open Calculus_substitution
+open Calculus_pprinter
+
 open Extlist
+open Printf
 
 type beta_strength =
   | BetaStrong (* reduction under the quantifier*)
@@ -56,7 +59,15 @@ let rec pattern_match (p: pattern) (te: term) : (term list) option =
    stating the term is reduced
 *)
 
-let rec reduction_term (defs: defs) (strat: reduction_strategy) (te: term) : term = 
+let debug_reduction = ref false
+
+let rec reduction_term (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (te: term) : term = 
+  if !debug_reduction then   printf "reduction: ";
+  let te' = reduction_term_loop defs ctxt strat (unset_term_reduced ~r:true te) in
+  if !debug_reduction then   printf "\n";
+  (unset_term_reduced ~r:true te')
+and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (te: term) : term = 
+  if !debug_reduction then   printf "{ %s }" (term2string ctxt te);
   let te' = (
     match te with
       | Universe _ | Var _ | AVar _ | TName _ -> te
@@ -72,46 +83,44 @@ let rec reduction_term (defs: defs) (strat: reduction_strategy) (te: term) : ter
 	    | Definition te -> (
 	      match strat.delta with
 		| Some _ -> 
-		  let te' = reduction_term defs strat te in
+		  let te' = reduction_term_loop defs ctxt strat te in
 		  te'
-		| None -> set_reduced te
+		| None -> set_term_reduced te
 	    )
-	    | _ -> set_reduced te
+	    | _ -> set_term_reduced te
 	with
 	  | Not_found -> raise (PoussinException (UnknownCste n))
 	    
       )
-	
-      | Lambda _ | Forall _ when strat.beta != Some BetaStrong -> set_reduced te
 
-      | Lambda ((n, ty, nature, pos), te, ty2, pos2, _) ->
+      | Lambda ((n, ty, nature, pos), te, ty2, pos2, _) when strat.beta = Some BetaStrong ->
 	(
-	  let te = reduction_term defs strat te in
+	  let te = reduction_term_loop defs ctxt strat te in
 	  Lambda ((n, ty, nature, pos), te, ty2, pos2, true)
 	)
 
-      | Forall ((n, ty, nature, pos), te, ty2, pos2, _) ->
+      | Forall ((n, ty, nature, pos), te, ty2, pos2, _) when strat.beta = Some BetaStrong ->
 	(
-	  let te = reduction_term defs strat te in
+	  let te = reduction_term_loop defs ctxt strat te in
 	  Forall ((n, ty, nature, pos), te, ty2, pos2, true)
 	)
 
-      | Let _ when strat.zeta = false && strat.beta != Some BetaStrong -> set_reduced te
+      | Let _ when strat.zeta = false && strat.beta != Some BetaStrong -> set_term_reduced te
       | Let ((n, te, pos), te2, ty, pos2, _) when strat.zeta = false && strat.beta = Some BetaStrong ->
-	Let ((n, te, pos), reduction_term defs strat te2, ty, pos2, true)
+	Let ((n, te, pos), reduction_term_loop defs ctxt strat te2, ty, pos2, true)
 
       | Let ((n, te, pos), te2, ty, pos2, _) when strat.zeta = true ->
       (* here we compute the reduction of te and shift it such that it is at the same level as te2 *)
-	let te = shift_term (reduction_term defs strat te) 1 in
+	let te = shift_term (reduction_term_loop defs ctxt strat te) 1 in
       (* we substitute all occurence of n by te *)
 	let te2 = term_substitution (IndexMap.singleton 0 te) te2 in
       (* and we shift back to the proper level *)
 	let te2 = shift_term te2 (-1) in
-	reduction_term defs strat te2
+	reduction_term_loop defs ctxt strat te2
 
-      | Match _ when strat.iota = false -> set_reduced te
+      | Match _ when strat.iota = false -> set_term_reduced te
       | Match (dte, des, ty, pos, _) -> (
-	let dte = reduction_term defs strat dte in
+	let dte = reduction_term_loop defs ctxt strat dte in
 	let res = fold_stop (fun () (ps, body) ->
 	  fold_stop (fun () p ->
 	    match pattern_match p dte with
@@ -131,34 +140,43 @@ let rec reduction_term (defs: defs) (strat: reduction_strategy) (te: term) : ter
 	  ) () ps
 	) () des in
 	match res with
-	  | Left () -> set_reduced te
-	  | Right te -> reduction_term defs strat te
+	  | Left () -> set_term_reduced te
+	  | Right te -> reduction_term_loop defs ctxt strat te
       )
 
-      | App (Lambda ((n, ty, nature, pos), te, ty2, pos2, _), (hd1, hd2)::tl, app_ty, app_pos, _) ->
-	let hd1 = shift_term (reduction_term defs strat hd1) 1 in
-	let f = term_substitution (IndexMap.singleton 0 hd1) te in
-	reduction_term defs strat (App (shift_term f (-1), tl, app_ty, app_pos, false))
+      | App (Lambda ((n, ty, nature, pos), te, ty2, pos2, _), (hd1, hd2)::tl, app_ty, app_pos, _) when strat.beta != None ->
+	let hd1 = shift_term (reduction_term_loop defs ctxt strat hd1) 1 in
+	let f = unset_term_reduced ~r:true (term_substitution (IndexMap.singleton 0 hd1) te) in
+	reduction_term_loop defs ctxt strat (App (shift_term f (-1), tl, app_ty, app_pos, false))
 
       | App (f, [], _, _, _) ->
-	set_reduced (reduction_term defs strat f)
+	set_term_reduced (reduction_term_loop defs ctxt strat f)
 
       | App (f, args, ty, pos, _) when not (is_reduced f) -> (
-	let f = reduction_term defs { strat with delta = match strat.delta with | Some DeltaWeak -> Some DeltaStrong | _ -> strat.delta }  f in
-	set_reduced (reduction_term defs strat (App (f, args, ty, pos, false)))
+	let f = reduction_term_loop defs ctxt { strat with delta = match strat.delta with | Some DeltaWeak -> Some DeltaStrong | _ -> strat.delta } f in
+	set_term_reduced (reduction_term_loop defs ctxt strat (App (f, args, ty, pos, false)))
       )
 
       | App (f, args, ty, pos, _) when is_reduced f ->
-	let args = List.map (fun (te, n) -> reduction_term defs strat te, n) args in
+	let args = List.map (fun (te, n) -> reduction_term_loop defs ctxt strat te, n) args in
 	App (f, args, ty, pos, true)
+
+      | _ -> te
+
   ) in
-  match strat.delta with
-    | Some DeltaWeak when is_clean_term te' -> te'
-    | _ -> set_reduced te      
+  let te' = 
+    match strat.delta with
+      | Some DeltaWeak when is_clean_term te' -> te'
+      | Some DeltaStrong -> set_term_reduced te'
+      | _ -> set_term_reduced te      
+  in
+  if !debug_reduction then printf "{ %s }" (term2string ctxt te');
+  te'
+  
 
 
-and reduction_typeannotation (defs: defs) (strat: reduction_strategy) (ty: typeannotation) : typeannotation =
+and reduction_typeannotation (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (ty: typeannotation) : typeannotation =
   match ty with
     | NoAnnotation -> NoAnnotation
-    | Annotation te -> Annotation (reduction_term defs strat te)
-    | Typed te -> Typed (reduction_term defs strat te)
+    | Annotation te -> Annotation (reduction_term_loop defs ctxt strat te)
+    | Typed te -> Typed (reduction_term_loop defs ctxt strat te)

@@ -117,7 +117,6 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (l: term list) : term list 
 
 
 let pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature * position) * term list =
-  (* we should here flush the bvars, using the conversion_hypothesis *)
   (* we flush the free variables *)
   let tes = flush_fvars defs ctxt tes in
   (* we grab the remaining context and the popped frame *)
@@ -384,12 +383,12 @@ and typeinfer
 	      (* we build a new head, as the reduction of hd and arg, with the proper type *)
 	      let new_hd_ty = (App (Lambda ((q, ty, n, pq), te, Typed fty, p, reduced), (arg,n)::[], Typed fty, pos, false)) in
 	      (*printf "Unification, App new_hd_ty:\n%s\n\n" (term2string ctxt new_hd_ty);*)
-	      let new_hd_ty = reduction_term defs simplification_strat new_hd_ty in
+	      let new_hd_ty = reduction_term defs ctxt simplification_strat new_hd_ty in
 	      let new_hd = App (hd, (arg, n)::[], 
 				Typed (new_hd_ty), pos,
 				false) in
 	      (*printf "Unification, App new_hd:\n%s\n\n" (term2string ctxt new_hd);*)
-	      let new_hd = reduction_term defs simplification_strat (
+	      let new_hd = reduction_term defs ctxt simplification_strat (
 		new_hd
 	      ) in 
 	      typeinfer defs ctxt (App (new_hd, args, NoAnnotation, pos, reduced))
@@ -398,8 +397,8 @@ and typeinfer
 	  | Match (te, des, aty, pos, reduced) ->
 	  (* first we typecheck the destructed term *)
 	    let te = typeinfer defs ctxt te in
-	  (* then we assure ourselves that it is an inductive *)
-	    let tety = reduction_term defs typeinfer_strat (get_type te) in
+	    (* then we assure ourselves that it is an inductive *)
+	    let tety = reduction_term defs ctxt typeinfer_strat (get_type te) in
 	    let _ = 
 	      match head tety with
 		| Cste (n, _, _, _) -> (
@@ -612,9 +611,11 @@ and unification
 
     (* maybe we can reduce the term *)
     | _ when not (is_reduced te1) ->
-      unification defs ctxt polarity (reduction_term defs unification_strat te1) te2
+      printf "red(4)\n";
+      unification defs ctxt polarity (set_term_reduced (reduction_term defs ctxt unification_strat te1)) te2
     | _ when not (is_reduced te2) ->
-      unification defs ctxt polarity te1 (reduction_term defs unification_strat te2)
+      printf "red(5)\n";
+      unification defs ctxt polarity te1 (set_term_reduced (reduction_term defs ctxt unification_strat te2))
 
     (* nothing so far, if the polarity is negative, we add the unification as a converion hypothesis *)
     | _ when not polarity ->
