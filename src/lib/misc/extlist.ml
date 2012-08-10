@@ -104,3 +104,12 @@ let rec intercalates (inter: 'a list) (l: 'a list) : 'a list =
     | hd1::hd2::tl ->
       hd1::inter @ intercalates inter (hd2::tl)
     | _ -> l
+
+(* delete an index *)
+let rec delete (i: int) (l: 'a list) : 'a list =
+  match l with
+    | [] -> []
+    | hd :: tl ->
+      match i with
+	| 0 -> tl
+	| _ -> hd :: delete (i-1) tl

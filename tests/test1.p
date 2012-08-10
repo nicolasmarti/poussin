@@ -46,6 +46,6 @@ Signature map {A B: Set} {n}: (f: A -> B) -> Vector A n -> Vector B n
 
 Definition map {A B: Set} {n} (f: A -> B) (v: Vector A n) : Vector B n :=
   match v with
-     | nil := nil
-     | cons hd tl := cons (f hd) (map f tl)
+     | nil {A} := nil {B}
+     | cons {A} {n} hd tl := cons (f hd) (map f tl)
   end

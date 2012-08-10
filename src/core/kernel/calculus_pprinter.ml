@@ -100,7 +100,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	      let s = 
 		match s with
 		  (* the variable does not appears in the rest -> we skip it *)
-		  | _ when not (IndexSet.mem 0 (bv_term (construct_lambda tl rhs))) -> "_"
+		  | _ when not (IndexSet.mem 0 (bv_term (construct_lambda tl rhs))) -> s
 		  (* it appears, we give it a fresh name if already present *)
 		  | _ -> (fresh_name_list ~basename:s vars)
 	      in

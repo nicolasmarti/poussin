@@ -19,6 +19,7 @@ let context_add_lvl_contraint (ctxt: context ref) (c: uLevel_constraints) : unit
 
 (**)
 let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
+  (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
   ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(List.hd !ctxt.conversion_hyps))::(List.tl !ctxt.conversion_hyps) }
 
 (**)
@@ -233,18 +234,17 @@ let rec head (te: term) : term =
     | _ -> te
 
 let rec pattern_to_term (p: pattern) : term =
-  fst (pattern_to_term_loop p 0)
+  fst (pattern_to_term_loop p (pattern_size p - 1))
 and pattern_to_term_loop (p: pattern) (i: int): term * int =
   match p with
     | PAvar -> (avar_ (), i)
-    | PName s -> (var_ i, i+1)
+    | PName s -> (var_ i, i-1)
     | PCstor (n, args) ->
       let args, i = List.fold_left (fun (hds, i) (p, n) ->
 	let p, i = pattern_to_term_loop p i in
 	((hds @ [p, n]), i)
       ) ([], i) args in
       (app_ (cste_ n) args, i)
-
 
 let unification_strat = {
   beta = Some BetaWeak;
@@ -277,20 +277,21 @@ let rec typecheck
     (ty: term) : term =
   match get_term_annotation te with
     | Typed ty' ->
-      ignore(unification defs ctxt false ty' ty);
+      ignore(unification defs ctxt true ty' ty);
       te
     | Annotation ty' ->
-      let ty' = typecheck defs ctxt ty' (type_ (UName "")) in
+      (*let ty' = typecheck defs ctxt ty' (type_ (UName "")) in*)
+      let ty' = typeinfer defs ctxt ty' in
       let te = typeinfer defs ctxt (set_term_tannotation te ty') in
-      ignore(unification defs ctxt false (get_type te) ty);
+      ignore(unification defs ctxt true (get_type te) ty);
       te 
     | TypedAnnotation ty' ->
       let te = typeinfer defs ctxt te in
-      ignore(unification defs ctxt false (get_type te) ty);
+      ignore(unification defs ctxt true (get_type te) ty);
       te 
     | NoAnnotation ->
       let te = typeinfer defs ctxt te in
-      ignore(unification defs ctxt false (get_type te) ty);
+      ignore(unification defs ctxt true (get_type te) ty);
       te
 
 
@@ -301,7 +302,8 @@ and typeinfer
   match get_term_annotation te with
     | Typed ty -> te
     | Annotation ty ->
-      let ty = typecheck defs ctxt ty (type_ (UName "")) in
+      (*let ty = typecheck defs ctxt ty (type_ (UName "")) in*)
+      let ty = typeinfer defs ctxt ty in
       typeinfer defs ctxt (set_term_tannotation te ty)
     | _ ->
       let te' = (
@@ -433,7 +435,11 @@ and typeinfer
 	      (* then we create the terms corresponding to the patterns *)
 	      let tes = List.map (fun p -> pattern_to_term p) ps in
 	      (* then, for each patterns, we typecheck against tety *)
-	      let tes = List.map (fun te -> typecheck defs ctxt te tety) tes in
+	      let tes = List.map (fun te -> 
+		let te = typeinfer defs ctxt te in
+		let _ = unification defs ctxt false (get_type te) tety in
+		te
+	      ) tes in
 	      (* then, for each pattern *)
 	      let des = List.map (fun hd ->
 		(* we unify it (with negative polarity) with te *)
@@ -640,4 +646,27 @@ and unification
       context_add_conversion ctxt te1 te2;
       te1
 
+    (* we try a simple use of conversions *)
+    | _ when are_convertible defs ctxt te1 te2 or are_convertible defs ctxt te2 te1 ->
+      te1
+
     | _ -> raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
+
+and are_convertible 
+    (defs: defs)
+    (ctxt: context ref)
+    (te1: term) (te2: term) : bool =
+  match 
+    fold_stop (fun () (hd1, hd2) ->
+      (*printf "(%s, %s) <--> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt hd1) (term2string ctxt hd2);*)
+      try 
+	let ctxt' = ref {!ctxt with conversion_hyps =  (List.tl (List.hd !ctxt.conversion_hyps)) :: [] } in
+	let _ = unification defs ctxt' true te1 hd1 in
+	let _ = unification defs ctxt' true te2 hd2 in
+	ctxt := { !ctxt' with conversion_hyps = !ctxt.conversion_hyps };
+	Right ()
+      with
+	| _ -> Left ()
+    ) () (List.hd !ctxt.conversion_hyps) with
+      | Left () -> false
+      | Right () -> true
