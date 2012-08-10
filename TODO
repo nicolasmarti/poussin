@@ -1,5 +1,5 @@
 - change terms rep, with an general and extendable infofields
   containing: positions, redeuced flags, ...
 - higher order unification
-- add using conversion when not solvable
-
+- add using conversion when not solvable. for now we have ad-hoc stuffs
+- add conversion in reduction
