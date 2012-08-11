@@ -145,3 +145,5 @@ type ty_action =
 let trace : ty_action list ref = ref []
 
 let mk_trace : bool ref = ref false
+
+let debug_reduction = ref false

@@ -5,8 +5,7 @@ open Libparser
 open Calculus_def
 open Calculus_misc
 open Calculus_substitution
-open Calculus_reduction
-open Calculus_typecheck
+open Calculus_engine
 
 open Calculus_pprinter
 open Calculus_parser
