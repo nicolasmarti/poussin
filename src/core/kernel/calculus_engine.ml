@@ -529,12 +529,12 @@ and unification
   if !mk_trace then trace := (U (!ctxt, te1, te2))::!trace;
   let res = 
   (*printf "%s Vs %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
+    try (
   match te1, te2 with
 
     (* AVar is just a wildcard for unification *)
     | AVar _, _ -> te2
     | _, AVar _ -> te1
-
 
     (* the error case for AVar *)
     | TName _, _ -> raise (PoussinException (FreeError "unification_term_term catastrophic: TName in te1 "))
@@ -668,8 +668,6 @@ and unification
     |  _, App(App(hd1, args1, Typed ty1, pos1, _), args2, Typed ty2, pos2, _) -> 
       unification defs ctxt polarity te1 (App(hd1, args1 @ args2, Typed ty2, pos2, false))
 
-
-
     (* this is really conservatives ... *)
     | Match (t1, des1, Typed ty1, pos1, _), Match (t2, des2, Typed ty2, pos2, _) when List.length des1 = List.length des2 ->
       (* unify the destructed term and the returned type *)
@@ -691,12 +689,6 @@ and unification
       ) des1 des2 in
       Match (t, des, Typed ty, pos1, false)      
 
-    (* maybe we can reduce the term *)
-    | _ when not (is_reduced te1) ->
-      unification defs ctxt polarity (set_term_reduced (reduction_term defs ctxt unification_strat te1)) te2
-    | _ when not (is_reduced te2) ->
-      unification defs ctxt polarity te1 (set_term_reduced (reduction_term defs ctxt unification_strat te2))
-
     (* the case of two application: with the same arity *)
     | App (hd1, args1, Typed ty1, pos1, _), App (hd2, args2, Typed ty2, pos2, _) when List.length args1 = List.length args2 ->
       let ty = unification defs ctxt polarity ty1 ty2 in
@@ -710,6 +702,11 @@ and unification
 	 ) args1 args2) in
       App (hd, args, Typed ty, pos1, false)
 
+    (* maybe we can reduce the term *)
+    | _ when not (is_reduced te1) ->
+      unification defs ctxt polarity (set_term_reduced (reduction_term defs ctxt unification_strat te1)) te2
+    | _ when not (is_reduced te2) ->
+      unification defs ctxt polarity te1 (set_term_reduced (reduction_term defs ctxt unification_strat te2))
     (* nothing so far, if the polarity is negative, we add the unification as a converion hypothesis *)
     | _ when not polarity ->
       context_add_conversion ctxt te1 te2;
@@ -735,7 +732,11 @@ and unification
 		raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
 	) else
 	  raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
-	
+    ) with
+      | (PoussinException (UnknownUnification (ctxt', te1', te2'))) when not (is_reduced te1) or not (is_reduced te2) ->
+	let te1 = if not (is_reduced te1) then set_term_reduced (reduction_term defs ctxt unification_strat te1) else te1 in
+	let te2 = if not (is_reduced te2) then set_term_reduced (reduction_term defs ctxt unification_strat te2) else te2 in
+	unification defs ctxt polarity te1 te2
   in
   if !mk_trace then trace := List.tl !trace;
   res
@@ -785,13 +786,16 @@ and conversion_hyps2subst (cv: (term * term) list) : (substitution * (term * ter
 
 
 and reduction_term (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (te: term) : term = 
+  if !debug_reduction then   printf "reduction: ";
   let te' = reduction_term_loop defs ctxt strat (unset_term_reduced ~r:true te) in
+  if !debug_reduction then   printf "\n";
   (unset_term_reduced ~r:true te')
 and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (te: term) : term = 
+  if !debug_reduction then   printf "{ %s }" (term2string ctxt te);
   if !mk_trace then trace := (Reduction (!ctxt, te)) :: !trace;
   let te' = (
     match te with
-      | Universe _ | Var _ | AVar _ | TName _ -> te
+      | Universe _ | AVar _ | TName _ -> te
 
       | _ when is_reduced te -> te
 
@@ -882,8 +886,30 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 	let args = List.map (fun (te, n) -> reduction_term_loop defs ctxt strat te, n) args in
 	App (f, args, ty, pos, true)
 
-      (* use conversion *)
-      | _ -> te
+      (* using conversion (adhoc) *)
+      | _ -> 
+	(* create the substitution *)
+	let s, l = conversion_hyps2subst (List.hd !ctxt.conversion_hyps) in
+	(*  if its not empty and the bv_term + fv_term has an intersection with the domain of the substitution -> apply *)
+	if not (IndexMap.is_empty s) then (
+	  (*
+	  printf "reduction of %s\n" (term2string ctxt te);
+	  printf "rewriting s for reduction := %s\n" (substitution2string ctxt s);
+	  *)
+	  let vars = IndexSet.union (bv_term te) (fv_term te) in
+	  let intersect = 
+	    match fold_stop (fun () i -> 
+	      if IndexMap.mem i s then Right () else Left ()
+	    ) () (IndexSet.elements vars) with 
+	      | Left () -> false
+	      | Right () -> true
+	  in
+	  if intersect then
+	    let te = term_substitution s te in
+	    te
+	  else
+	    te
+	) else te	  
 
   ) in
   let te' = 
@@ -892,10 +918,9 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
       | Some DeltaStrong -> set_term_reduced te'
       | _ -> set_term_reduced te      
   in
+  if !debug_reduction then printf "{ %s }" (term2string ctxt te');
   if !mk_trace then trace := List.tl !trace;
   te'
-  
-
 
 and reduction_typeannotation (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (ty: typeannotation) : typeannotation =
   match ty with
