@@ -1,6 +1,8 @@
 open Calculus_def
 open Calculus_misc
 
+open Extlist
+
 (*************************************)
 (*      substitution/rewriting       *)
 (*************************************)
@@ -147,5 +149,36 @@ and destructor_substitution (s: substitution) (des: pattern list * term) : patte
 
 
 
+(**)
+let context_add_substitution (ctxt: context ref) (s: substitution) : unit =
+  (*printf "ctxt + %s\n" (substitution2string ctxt s);*)
+  (* computes the needed shited substitution *)
+  let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.fvs) in
+  (* for bvs, we do not neet the last one *)
+  let ss' = take (List.length ss - 1) ss in
+  ctxt := { !ctxt with
+    bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss';
+
+    fvs = List.map2 (fun hd1 hd2 -> 
+      List.map (fun (i, ty, te, n) -> 
+	if IndexMap.mem i hd2 then (
+	match te with
+	  | None -> (i, term_substitution hd2 ty, Some (IndexMap.find i hd2), n)
+	    (* here we should to the unification between both values (maybe not necessary as addition is always on a singleton ...) *)
+	  | Some te -> (i, term_substitution hd2 ty, Some (term_substitution hd2 te), n)
+	) else (
+	match te with
+	  | None -> (i, term_substitution hd2 ty, None, n)
+	  | Some te -> (i, term_substitution hd2 ty, Some (term_substitution hd2 te), n)
+	)
+      ) hd1
+    ) !ctxt.fvs ss;
+
+    conversion_hyps = List.map2 (fun hd1 hd2 -> 
+      List.map (fun (te1, te2) -> 
+	(term_substitution hd2 te1, term_substitution hd2 te2)
+      ) hd1
+    ) !ctxt.conversion_hyps ss;
+  }
 
     

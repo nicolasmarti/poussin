@@ -263,7 +263,6 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
       let p = at_start_pos leftmost (parse_pattern defs leftmost) pb in
       let () = whitespaces pb in
       let () = at_start_pos leftmost (word ":=") pb in
-      let startpos = cur_pos pb in
       let () = whitespaces pb in
       let te = parse_term defs newleftmost pb in
       (p::[]), te

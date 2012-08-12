@@ -37,7 +37,7 @@ let verbatims (l: name list) = Verbatim (String.concat "" l)
 
 (* transform a term into a box *)
 let rec term2token (vars: name list) (te: term) (p: place): token =
-  match get_term_annotation te with 
+  match get_term_typeannotation te with 
     | Typed ty when !pp_option.show_type ->
       Box [Verbatim "(";
 	   term2token vars (set_term_noannotation te) Alone; Space 1;

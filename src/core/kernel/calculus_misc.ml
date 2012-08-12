@@ -49,7 +49,7 @@ let rec construct_lambda (qs: ((name * term * nature * position) * typeannotatio
     | (hd, annot, pos) :: tl -> Lambda (hd, construct_lambda tl body, annot, pos, false)
 
 (* functions to get/set term annotation *)
-let get_term_annotation (te: term) : typeannotation =
+let get_term_typeannotation (te: term) : typeannotation =
   match te with
     | Universe (ty, lvl, pos) -> NoAnnotation
     | Cste (n, ty, pos, reduced) -> ty
@@ -62,97 +62,40 @@ let get_term_annotation (te: term) : typeannotation =
     | App (f, args, ty, pos, reduced) -> ty
     | Match (te, des, ty, pos, reduced) -> ty
 
+let set_term_typeannotation (te: term) (ty: typeannotation) : term =
+  match te with
+    | Universe (ty, lvl, pos) -> 
+      Universe (ty, lvl, pos)
+    | Cste (n, _, pos, reduced) ->
+      Cste (n, ty, pos, reduced)
+    | Var (i, _, pos) ->
+      Var (i, ty, pos)
+    | AVar (_, pos) ->
+      AVar (ty, pos)
+    | TName (n, _, pos) ->
+      TName (n, ty, pos)
+    | Lambda (q, te, _, pos, reduced) ->
+      Lambda (q, te, ty, pos, reduced)
+    | Forall (q, te, _, pos, reduced) ->
+      Forall (q, te, ty, pos, reduced)
+    | Let (q, te, _, pos, reduced) ->
+      Let (q, te, ty, pos, reduced)
+    | App (f, args, _, pos, reduced) ->
+      App (f, args, ty, pos, reduced)
+    | Match (te, des, _, pos, reduced) ->
+      Match (te, des, ty, pos, reduced)
+
+let set_term_typedannotation (te: term) (ty: term) : term =
+  set_term_typeannotation te (TypedAnnotation ty)
+
 let set_term_annotation (te: term) (ty: term) : term =
-  match te with
-    | Universe (ty, lvl, pos) -> 
-      Universe (ty, lvl, pos)
-    | Cste (n, _, pos, reduced) ->
-      Cste (n, Annotation ty, pos, reduced)
-    | Var (i, _, pos) ->
-      Var (i, Annotation ty, pos)
-    | AVar (_, pos) ->
-      AVar (Annotation ty, pos)
-    | TName (n, _, pos) ->
-      TName (n, Annotation ty, pos)
-    | Lambda (q, te, _, pos, reduced) ->
-      Lambda (q, te, Annotation ty, pos, reduced)
-    | Forall (q, te, _, pos, reduced) ->
-      Forall (q, te, Annotation ty, pos, reduced)
-    | Let (q, te, _, pos, reduced) ->
-      Let (q, te, Annotation ty, pos, reduced)
-    | App (f, args, _, pos, reduced) ->
-      App (f, args, Annotation ty, pos, reduced)
-    | Match (te, des, _, pos, reduced) ->
-      Match (te, des, Annotation ty, pos, reduced)
+  set_term_typeannotation te (Annotation ty)
 
-let set_term_tannotation (te: term) (ty: term) : term =
-  match te with
-    | Universe (ty, lvl, pos) -> 
-      Universe (ty, lvl, pos)
-    | Cste (n, _, pos, reduced) ->
-      Cste (n, TypedAnnotation ty, pos, reduced)
-    | Var (i, _, pos) ->
-      Var (i, TypedAnnotation ty, pos)
-    | AVar (_, pos) ->
-      AVar (TypedAnnotation ty, pos)
-    | TName (n, _, pos) ->
-      TName (n, TypedAnnotation ty, pos)
-    | Lambda (q, te, _, pos, reduced) ->
-      Lambda (q, te, TypedAnnotation ty, pos, reduced)
-    | Forall (q, te, _, pos, reduced) ->
-      Forall (q, te, TypedAnnotation ty, pos, reduced)
-    | Let (q, te, _, pos, reduced) ->
-      Let (q, te, TypedAnnotation ty, pos, reduced)
-    | App (f, args, _, pos, reduced) ->
-      App (f, args, TypedAnnotation ty, pos, reduced)
-    | Match (te, des, _, pos, reduced) ->
-      Match (te, des, TypedAnnotation ty, pos, reduced)
-
-let set_term_type (te: term) (ty: term) : term =
-  match te with
-    | Universe (ty, lvl, pos) -> 
-      Universe (ty, lvl, pos)
-    | Cste (n, _, pos, reduced) ->
-      Cste (n, Typed ty, pos, reduced)
-    | Var (i, _, pos) ->
-      Var (i, Typed ty, pos)
-    | AVar (_, pos) ->
-      AVar (Typed ty, pos)
-    | TName (n, _, pos) ->
-      TName (n, Typed ty, pos)
-    | Lambda (q, te, _, pos, reduced) ->
-      Lambda (q, te, Typed ty, pos, reduced)
-    | Forall (q, te, _, pos, reduced) ->
-      Forall (q, te, Typed ty, pos, reduced)
-    | Let (q, te, _, pos, reduced) ->
-      Let (q, te, Typed ty, pos, reduced)
-    | App (f, args, _, pos, reduced) ->
-      App (f, args, Typed ty, pos, reduced)
-    | Match (te, des, _, pos, reduced) ->
-      Match (te, des, Typed ty, pos, reduced)
+let set_term_typed (te: term) (ty: term) : term =
+  set_term_typeannotation te (Typed ty)
 
 let set_term_noannotation (te: term) : term =
-  match te with
-    | Universe (ty, lvl, pos) -> 
-      Universe (ty, lvl, pos)
-    | Cste (n, _, pos, reduced) ->
-      Cste (n, NoAnnotation, pos, reduced)
-    | Var (i, _, pos) ->
-      Var (i, NoAnnotation, pos)
-    | AVar (_, pos) ->
-      AVar (NoAnnotation, pos)
-    | TName (n, _, pos) ->
-      TName (n, NoAnnotation, pos)
-    | Lambda (q, te, _, pos, reduced) ->
-      Lambda (q, te, NoAnnotation, pos, reduced)
-    | Forall (q, te, _, pos, reduced) ->
-      Forall (q, te, NoAnnotation, pos, reduced)
-    | Let (q, te, _, pos, reduced) ->
-      Let (q, te, NoAnnotation, pos, reduced)
-    | App (f, args, _, pos, reduced) ->
-      App (f, args, NoAnnotation, pos, reduced)
-    | Match (te, des, _, pos, reduced) ->
-      Match (te, des, NoAnnotation, pos, reduced)
+  set_term_typeannotation te NoAnnotation
 
 
 (* the set of free variable in a term *)
@@ -360,7 +303,7 @@ let build_lambdas (qs: ((name * pos) list * term * nature) list) (body: term) : 
   List.fold_right (fun (s, ty, n) acc -> build_lambda s ty n acc) qs body
 
 (* returns if a term is reduced *)
-let is_reduced (te: term) : reduced =
+let get_term_reduced (te: term) : reduced =
   match te with
     | Universe (ty, lvl, pos) -> true
     | Cste (n, ty, pos, reduced) -> reduced
@@ -374,91 +317,51 @@ let is_reduced (te: term) : reduced =
     | Match (te, des, ty, pos, reduced) -> reduced
 
 (* set a term as reduced *)
-let rec set_term_reduced ?(r: bool = false) (te: term) : term =
+let rec set_term_reduced ?(recursive: bool = false) (reduced: bool) (te: term) : term =
   match te with
-    | _ when is_reduced te && r -> te
+    | _ when get_term_reduced te = reduced && not recursive -> te
 
     | Universe _ | Var _ | AVar _ | TName _ -> te
-    | Cste (n, ty, pos, _) -> Cste (n, (if r then set_typeannotation_reduced ~r:r ty else ty), pos, true)
-    | Lambda (q, te, ty, pos, reduced) -> 
+    | Cste (n, ty, pos, _) -> Cste (n, (if recursive then set_typeannotation_reduced ~recursive:recursive reduced ty else ty), pos, reduced)
+    | Lambda (q, te, ty, pos, _) -> 
       Lambda (q, 
-	      (if r then set_term_reduced ~r:r te else te), 
-	      (if r then set_typeannotation_reduced ~r:r ty else ty), 
-	      pos, true)
-    | Forall (q, te, ty, pos, reduced) -> 
+	      (if recursive then set_term_reduced ~recursive:recursive reduced te else te), 
+	      (if recursive then set_typeannotation_reduced ~recursive:recursive reduced ty else ty), 
+	      pos, reduced)
+    | Forall (q, te, ty, pos, _) -> 
       Forall (q, 
-	      (if r then set_term_reduced ~r:r te else te), 
-	      (if r then set_typeannotation_reduced ~r:r ty else ty), 
-	      pos, true)
-    | Let (q, te, ty, pos, reduced) -> 
+	      (if recursive then set_term_reduced ~recursive:recursive reduced te else te), 
+	      (if recursive then set_typeannotation_reduced ~recursive:recursive reduced ty else ty), 
+	      pos, reduced)
+    | Let (q, te, ty, pos, _) -> 
       Let (q, 
-	   (if r then set_term_reduced ~r:r te else te), 
-	   (if r then set_typeannotation_reduced ~r:r ty else ty), 
-	   pos, true)
-    | App (f, args, ty, pos, reduced) -> 
-      App ((if r then set_term_reduced ~r:r f else f),  
-	   (if r then (List.map (fun (te, n) -> set_term_reduced ~r:r te,n) args) else args), 
-	   (if r then set_typeannotation_reduced ~r:r ty else ty), 
-	   pos, true)
-    | Match (te, des, ty, pos, reduced) -> 
-      Match ((if r then set_term_reduced ~r:r te else te), 
-	     (if r then (List.map (fun (ps, te) -> ps, set_term_reduced ~r:r te) des) else des), 
-	     (if r then set_typeannotation_reduced ~r:r ty else ty), 
-	     pos, true)
+	   (if recursive then set_term_reduced ~recursive:recursive reduced te else te), 
+	   (if recursive then set_typeannotation_reduced ~recursive:recursive reduced ty else ty), 
+	   pos, reduced)
+    | App (f, args, ty, pos, _) -> 
+      App ((if recursive then set_term_reduced ~recursive:recursive reduced f else f),  
+	   (if recursive then (List.map (fun (te, n) -> set_term_reduced ~recursive:recursive reduced te,n) args) else args), 
+	   (if recursive then set_typeannotation_reduced ~recursive:recursive reduced ty else ty), 
+	   pos, reduced)
+    | Match (te, des, ty, pos, _) -> 
+      Match ((if recursive then set_term_reduced ~recursive:recursive reduced te else te), 
+	     (if recursive then (List.map (fun (ps, te) -> ps, set_term_reduced ~recursive:recursive reduced te) des) else des), 
+	     (if recursive then set_typeannotation_reduced ~recursive:recursive reduced ty else ty), 
+	     pos, reduced)
 
-and set_typeannotation_reduced ?(r: bool = false) (ty: typeannotation): typeannotation =
+and set_typeannotation_reduced ?(recursive: bool = false) (reduced: bool) (ty: typeannotation): typeannotation =
   match ty with
     | NoAnnotation -> NoAnnotation
-    | Annotation te -> Annotation (set_term_reduced ~r:r te)
-    | TypedAnnotation te -> TypedAnnotation (set_term_reduced ~r:r te)
-    | Typed te -> Typed (set_term_reduced ~r:r te)
-
-(* unset a term as reduced *)
-let rec unset_term_reduced ?(r: bool = false) (te: term) : term =
-  match te with
-    | _ when is_reduced te && r -> te
-
-    | Universe _ | Var _ | AVar _ | TName _ -> te
-    | Cste (n, ty, pos, _) -> Cste (n, (if r then unset_typeannotation_reduced ~r:r ty else ty), pos, false)
-    | Lambda (q, te, ty, pos, reduced) -> 
-      Lambda (q, 
-	      (if r then unset_term_reduced ~r:r te else te), 
-	      (if r then unset_typeannotation_reduced ~r:r ty else ty), 
-	      pos, false)
-    | Forall (q, te, ty, pos, reduced) -> 
-      Forall (q, 
-	      (if r then unset_term_reduced ~r:r te else te), 
-	      (if r then unset_typeannotation_reduced ~r:r ty else ty), 
-	      pos, false)
-    | Let (q, te, ty, pos, reduced) -> 
-      Let (q, 
-	   (if r then unset_term_reduced ~r:r te else te), 
-	   (if r then unset_typeannotation_reduced ~r:r ty else ty), 
-	   pos, false)
-    | App (f, args, ty, pos, reduced) -> 
-      App ((if r then unset_term_reduced ~r:r f else f),  
-	   (if r then (List.map (fun (te, n) -> unset_term_reduced ~r:r te,n) args) else args), 
-	   (if r then unset_typeannotation_reduced ~r:r ty else ty), 
-	   pos, false)
-    | Match (te, des, ty, pos, reduced) -> 
-      Match ((if r then unset_term_reduced ~r:r te else te), 
-	     (if r then (List.map (fun (ps, te) -> ps, unset_term_reduced ~r:r te) des) else des), 
-	     (if r then unset_typeannotation_reduced ~r:r ty else ty), 
-	     pos, false)
-
-and unset_typeannotation_reduced ?(r: bool = false) (ty: typeannotation): typeannotation =
-  match ty with
-    | NoAnnotation -> NoAnnotation
-    | Annotation te -> Annotation (unset_term_reduced ~r:r te)
-    | TypedAnnotation te -> TypedAnnotation (unset_term_reduced ~r:r te)
-    | Typed te -> Typed (unset_term_reduced ~r:r te)
-  
+    | Annotation te -> Annotation (set_term_reduced ~recursive:recursive reduced te)
+    | TypedAnnotation te -> TypedAnnotation (set_term_reduced ~recursive:recursive reduced te)
+    | Typed te -> Typed (set_term_reduced ~recursive:recursive reduced te)
+ 
 
 (* get the typeannotation of a typed term *)
 let get_type (te: term) : term =
   match te with
     | Universe (ty, lvl, pos) -> Universe (Type, USucc lvl, pos)
-    | _ -> let Typed ty = get_term_annotation te in ty
+    | _ -> let Typed ty = get_term_typeannotation te in ty
 
 (* an empty context *)
 let empty_context = {
@@ -468,3 +371,69 @@ let empty_context = {
   lvl_cste = [];
 }
     
+
+(* returns if a definition is irreducible (an inductive or a constructor) *)
+let is_irreducible (defs: defs) (n: name) : bool =
+  match Hashtbl.find defs n with
+    | Inductive _ | Constructor _ | Axiom _ -> true
+    | Definition _ -> false
+
+
+let nature_unify (n1: nature) (n2: nature) : nature option =
+  match n1, n2 with
+    | NJoker, NJoker | Explicit, Implicit | Implicit, Explicit -> None
+    | NJoker, _ -> Some n2
+    | _, NJoker -> Some n1
+    | Explicit, Explicit -> Some Explicit
+    | Implicit, Implicit -> Some Implicit
+
+let rec head (te: term) : term =
+  match te with
+    | App (hd, _, _, _, _) ->
+      head hd
+    | _ -> te
+
+let rec pattern_to_term (p: pattern) : term =
+  fst (pattern_to_term_loop p (pattern_size p - 1))
+and pattern_to_term_loop (p: pattern) (i: int): term * int =
+  match p with
+    | PAvar -> (avar_ (), i)
+    | PName s -> (var_ i, i-1)
+    | PCstor (n, args) ->
+      let args, i = List.fold_left (fun (hds, i) (p, n) ->
+	let p, i = pattern_to_term_loop p i in
+	((hds @ [p, n]), i)
+      ) ([], i) args in
+      (app_ (cste_ n) args, i)
+
+
+(* is clean term:
+   no lambda, no match, ....
+ *)
+let rec is_clean_term (te: term) : bool =
+  match te with
+    | Universe _ | Cste _ | Var _ | AVar _ | TName _ -> true
+    | Let _ | Lambda _ | Match _ -> false
+    | Forall (_, te, _, _, _) -> is_clean_term te
+    | App (f, args, _, _, _) ->
+      List.fold_left (fun acc (hd, _) -> acc && is_clean_term hd) (is_clean_term f) args
+
+(* simpl pattern match *)
+let rec pattern_match (p: pattern) (te: term) : (term list) option =
+  match p with
+    | PAvar -> Some []
+    | PName s -> Some [te]
+    | PCstor (c, args) ->
+      match te with
+	| Cste (c2, _, _, _) when c = c2 && List.length args = 0 -> Some []
+	| App (Cste (c2, _, _, _), args2, _, _, _) when c = c2 && List.length args = List.length args2 ->
+	  List.fold_left (fun acc (hd1, hd2) -> 
+	    match acc with
+	      | None -> None
+	      | Some l ->
+		match pattern_match hd1 hd2 with
+		  | None -> None
+		  | Some l' -> Some (l @ l')
+	  ) (Some []) (List.map2 (fun hd1 hd2 -> (fst hd1, fst hd2)) args args2)
+	| _ -> None
+	  
