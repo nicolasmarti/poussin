@@ -16,6 +16,20 @@ Constructor right {A} {B}: B -> Or A B
 Inductive eq {A: Set} (a: A): A -> Prop
 Constructor eq_refl {A} (a: A): eq a a
 
+Definition eq_symm {A} (x y: A) (Hxy: eq x y) : eq y x :=
+   match Hxy with
+      | eq_refl {A} x := eq_refl {A} x
+   end
+
+Definition eq_trans {A} (x y z: A) (Hxy: eq x y) (Hyz: eq y z) : eq x z :=
+   match Hxy with
+      | eq_refl {A} x :=
+          match Hyz with
+           | eq_refl {A} y := eq_refl {A} z	 
+          end      
+   end
+
+
 Definition Relation (A: Set) : Type := A -> A -> Prop
 
 Inductive ReflexiveRel : Set
@@ -64,4 +78,5 @@ Definition append {A} {n1 n2} (v1: Vector A n1) (v2: Vector A n2): Vector A (plu
   match v1 with
      | nil {A} := v2
      | cons {A} {n1} hd tl := cons hd (append tl v2)
-  end
+end
+
