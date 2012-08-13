@@ -91,7 +91,7 @@ let process_definition (def: definition) : unit =
       let [te] = flush_fvars defs ctxt [te] in 
       printf "Computation %s : %s := " (term2string ctxt te) (term2string ctxt (get_type te)); flush stdout;
       let te' = reduction_term defs ctxt
-	{ beta = Some BetaStrong; delta = Some DeltaStrong; iota = true; zeta = true; eta = true }
+	{ beta = Some BetaWeak; delta = Some DeltaWeak; iota = true; zeta = true; eta = true }
 	te in
       let time_end = Sys.time () in
       printf "%s\n" (term2string ctxt te'); flush stdout;

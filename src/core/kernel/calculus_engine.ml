@@ -774,19 +774,26 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 
       | Lambda ((n, ty, nature, pos), te, ty2, pos2, _) when strat.beta = Some BetaStrong ->
 	(
+	  push_quantification (n, ty, NJoker, pos) ctxt;
 	  let te = reduction_term_loop defs ctxt strat te in
+	  let _ = pop_quantification defs ctxt [] in
 	  Lambda ((n, ty, nature, pos), te, ty2, pos2, true)
 	)
 
       | Forall ((n, ty, nature, pos), te, ty2, pos2, _) when strat.beta = Some BetaStrong ->
 	(
+	  push_quantification (n, ty, NJoker, pos) ctxt;
 	  let te = reduction_term_loop defs ctxt strat te in
+	  let _ = pop_quantification defs ctxt [] in
 	  Forall ((n, ty, nature, pos), te, ty2, pos2, true)
 	)
 
       | Let _ when strat.zeta = false && strat.beta != Some BetaStrong -> set_term_reduced true te
       | Let ((n, te, pos), te2, ty, pos2, _) when strat.zeta = false && strat.beta = Some BetaStrong ->
-	Let ((n, te, pos), reduction_term_loop defs ctxt strat te2, ty, pos2, true)
+	push_quantification (n, te, NJoker, pos) ctxt;
+	let te2 = reduction_term_loop defs ctxt strat te2 in
+	let _ = pop_quantification defs ctxt [] in
+	Let ((n, te, pos), te2, ty, pos2, true)
 
       | Let ((n, te, pos), te2, ty, pos2, _) when strat.zeta = true ->
       (* here we compute the reduction of te and shift it such that it is at the same level as te2 *)
