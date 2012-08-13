@@ -432,11 +432,15 @@ and typeinfer
 	      (* then we create the terms corresponding to the patterns *)
 	      let tes = List.map (fun p -> pattern_to_term defs p) ps in
 	      (* then, for each patterns, we typecheck against tety *)
-	      let tes = List.map (fun te -> 
+	      (* for each pattern that do not unify we remove it *)
+	      let tes = List.fold_right (fun te acc -> 
 		let te = typeinfer defs ctxt te in
-		let _ = unification defs ctxt false (get_type te) tety in
-		te
-	      ) tes in
+		try 
+		  let _ = unification defs ctxt false (get_type te) tety in
+		  te::acc
+		with
+		  | _ -> acc
+	      ) tes [] in
 	      (* then, for each pattern *)
 	      let des = List.map (fun hd ->
 		(* we unify it (with negative polarity) with te *)
@@ -658,9 +662,18 @@ and unification
 
     (* maybe we can reduce the term *)
     | _ when not (get_term_reduced te1) ->
-      unification defs ctxt polarity (set_term_reduced true (reduction_term defs ctxt unification_strat te1)) te2
+      let te1' = set_term_reduced true (reduction_term defs ctxt unification_strat te1) in
+      if !mk_trace then trace := (Reduction (!ctxt, te1, te1'))::!trace;
+      let res = unification defs ctxt polarity te1' te2 in
+      if !mk_trace then trace := List.tl !trace;
+      res
     | _ when not (get_term_reduced te2) ->
-      unification defs ctxt polarity te1 (set_term_reduced true (reduction_term defs ctxt unification_strat te2))
+      let te2' = set_term_reduced true (reduction_term defs ctxt unification_strat te2) in
+      if !mk_trace then trace := (Reduction (!ctxt, te2, te2'))::!trace;
+      let res = unification defs ctxt polarity te1 te2' in
+      if !mk_trace then trace := List.tl !trace;
+      res
+
     (* nothing so far, if the polarity is negative, we add the unification as a converion hypothesis *)
     | _ when not polarity ->
       context_add_conversion ctxt te1 te2;
@@ -688,9 +701,14 @@ and unification
 	  raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
     ) with
       | (PoussinException (UnknownUnification (ctxt', te1', te2'))) when not (get_term_reduced te1) or not (get_term_reduced te2) ->
-	let te1 = if not (get_term_reduced te1) then set_term_reduced true (reduction_term defs ctxt unification_strat te1) else te1 in
-	let te2 = if not (get_term_reduced te2) then set_term_reduced true (reduction_term defs ctxt unification_strat te2) else te2 in
-	unification defs ctxt polarity te1 te2
+	let te1' = if not (get_term_reduced te1) then set_term_reduced true (reduction_term defs ctxt unification_strat te1) else te1 in
+	if !mk_trace then trace := (Reduction (!ctxt, te1, te1'))::!trace;
+	let te2' = if not (get_term_reduced te2) then set_term_reduced true (reduction_term defs ctxt unification_strat te2) else te2 in
+	if !mk_trace then trace := (Reduction (!ctxt, te2, te2'))::!trace;
+	let res = unification defs ctxt polarity te1' te2' in
+	if !mk_trace then trace := List.tl (List.tl !trace);
+	res
+	
   in
   if !mk_trace then trace := List.tl !trace;
   res
@@ -746,7 +764,7 @@ and reduction_term (defs: defs) (ctxt: context ref) (strat: reduction_strategy) 
   (set_term_reduced ~recursive:true false te')
 and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (te: term) : term = 
   if !debug_reduction then (printf "{ %s }\n" (term2string ctxt te); flush stdout);
-  if !mk_trace then trace := (Reduction (!ctxt, te)) :: !trace;
+  (*if !mk_trace then trace := (Reduction (!ctxt, te)) :: !trace;*)
   let te' = (
     match te with
       | Universe _ | AVar _ | TName _ -> te
@@ -790,17 +808,17 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 
       | Let _ when strat.zeta = false && strat.beta != Some BetaStrong -> set_term_reduced true te
       | Let ((n, te, pos), te2, ty, pos2, _) when strat.zeta = false && strat.beta = Some BetaStrong ->
-	push_quantification (n, te, NJoker, pos) ctxt;
+	push_quantification (n, (get_type te), NJoker, pos) ctxt;
 	let te2 = reduction_term_loop defs ctxt strat te2 in
 	let _ = pop_quantification defs ctxt [] in
 	Let ((n, te, pos), te2, ty, pos2, true)
 
       | Let ((n, te, pos), te2, ty, pos2, _) when strat.zeta = true ->
-      (* here we compute the reduction of te and shift it such that it is at the same level as te2 *)
+	(* here we compute the reduction of te and shift it such that it is at the same level as te2 *)
 	let te = shift_term (reduction_term_loop defs ctxt strat te) 1 in
-      (* we substitute all occurence of n by te *)
+	(* we substitute all occurence of n by te *)
 	let te2 = term_substitution (IndexMap.singleton 0 te) te2 in
-      (* and we shift back to the proper level *)
+	(* and we shift back to the proper level *)
 	let te2 = shift_term te2 (-1) in
 	reduction_term_loop defs ctxt strat te2
 
@@ -888,7 +906,7 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
       | _ -> set_term_reduced true te      
   in
   if !debug_reduction then (printf "{ %s }\n" (term2string ctxt te'); flush stdout);
-  if !mk_trace then trace := List.tl !trace;
+  (*if !mk_trace then trace := List.tl !trace;*)
   te'
 
 and reduction_typeannotation (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (ty: typeannotation) : typeannotation =

@@ -335,9 +335,10 @@ let trace2token (trace: ty_action list) : token =
 		  term2token (context2namelist (ref ctxt)) ty Alone
 	    ]
 	  | Free s -> Verbatim s
-	  | Reduction (ctxt, te) ->
+	  | Reduction (ctxt, te, te') ->
 	    Box [ term2token (context2namelist (ref ctxt)) te Alone; Space 1;
-		  Verbatim " ===> ???"
+		  Verbatim " ===> ";
+		  term2token (context2namelist (ref ctxt)) te' Alone
 	    ]
 
        ) (List.rev trace)

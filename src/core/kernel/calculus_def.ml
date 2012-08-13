@@ -140,7 +140,7 @@ type ty_action =
   | TI of context * term
   | U of context * term * term
   | Free of string
-  | Reduction of context * term
+  | Reduction of context * term * term
 
 let trace : ty_action list ref = ref []
 
