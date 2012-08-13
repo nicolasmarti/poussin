@@ -15,6 +15,7 @@ let defs = Hashtbl.create 100;;
 let process_definition (def: definition) : unit =
   let ctxt = ref empty_context in
   if !mk_trace then trace := [];
+  let time_start = Sys.time () in
   match def with
     | DefSignature (n, ty) -> 	
       let ty = (
@@ -29,6 +30,8 @@ let process_definition (def: definition) : unit =
       let ty = typecheck defs ctxt ty (type_ (UName "")) in
       let [ty] = flush_fvars defs ctxt [ty] in 
       Hashtbl.add defs n (Axiom ty);
+      let time_end = Sys.time () in
+      printf "processed in %g sec.\n" (time_end -. time_start);
       printf "Signature %s: %s\n\n" n (term2string ctxt ty)
     | DefInductive (n, ty) -> 	
       let ty = (
@@ -45,6 +48,8 @@ let process_definition (def: definition) : unit =
       ) in
       let [ty] = flush_fvars defs ctxt [ty] in 
       Hashtbl.add defs n (Inductive ([], ty));
+      let time_end = Sys.time () in
+      printf "processed in %g sec.\n" (time_end -. time_start);
       printf "Inductive %s: %s\n\n" n (term2string ctxt ty)
     | DefConstructor (n, ty) -> 
       let ty = (
@@ -61,6 +66,8 @@ let process_definition (def: definition) : unit =
       ) in
       let [ty] = flush_fvars defs ctxt [ty] in 
       Hashtbl.add defs n (Constructor ty);
+      let time_end = Sys.time () in
+      printf "processed in %g sec.\n" (time_end -. time_start);
       printf "Constructor %s: %s\n\n" n (term2string ctxt ty)
     | DefDefinition (n, te) -> 
       let te = (
@@ -76,6 +83,8 @@ let process_definition (def: definition) : unit =
       ) in
       let [te] = flush_fvars defs ctxt [te] in 
       Hashtbl.add defs n (Definition te);
+      let time_end = Sys.time () in
+      printf "processed in %g sec.\n" (time_end -. time_start);
       printf "Definition %s:= %s : %s \n\n" n (term2string ctxt te) (term2string ctxt (get_type te))
     | DefCompute te ->
       let te = typeinfer defs ctxt te in
@@ -84,8 +93,10 @@ let process_definition (def: definition) : unit =
 	{ beta = Some BetaStrong; delta = Some DeltaStrong; iota = true; zeta = true; eta = true }
 	te in
       printf "done\n"; flush stdout; 
+      let time_end = Sys.time () in
+      printf "processed in %g sec.\n" (time_end -. time_start);
       printf "Computation %s := %s\n\n" (term2string ctxt te) (term2string ctxt te')
-	
+
 
 let process_stream (str: string Stream.t) : unit  =
   let pb = build_parserbuffer str in
