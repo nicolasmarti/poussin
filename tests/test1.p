@@ -109,5 +109,40 @@ Compute eqb_bool true false
 Compute eqb_bool false true
 Compute eqb_bool false false
 
+Signature iota : Nat -> (size: Nat) -> Vector Nat size
+Definition iota (start size: Nat) : Vector Nat size :=
+  match size with
+     | O := nil {Nat}
+     | S size := cons start (iota (S start) size)
+  end
 
+Signature mult (n m: Nat) : Nat
+Definition mult (n m: Nat) : Nat :=
+  match n with
+     | O := O
+     | S n := plus m (mult n m)
+  end
+
+Signature exp (n m: Nat) : Nat
+Definition exp (n m: Nat) : Nat :=
+  match n with
+     | O := S O
+     | S n := mult m (exp n m)
+  end
+
+Definition three : Nat := S (S (S O))
+Definition two : Nat := S (S O)
+
+Signature min: Nat -> Nat -> Nat
+Definition min (x y: Nat) : Nat :=
+  match x with
+     | O := O
+     | S n := match y with
+          	| O := x
+        	| S m := min n m 
+              end
+  end
+
+Compute mult three three
+Compute min (S (exp two (exp two three))) (exp two (exp three three))
 

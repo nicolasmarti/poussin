@@ -83,8 +83,9 @@ let process_definition (def: definition) : unit =
       let te' = reduction_term defs ctxt
 	{ beta = Some BetaStrong; delta = Some DeltaStrong; iota = true; zeta = true; eta = true }
 	te in
+      printf "done\n"; flush stdout; 
       printf "Computation %s := %s\n\n" (term2string ctxt te) (term2string ctxt te')
-      
+	
 
 let process_stream (str: string Stream.t) : unit  =
   let pb = build_parserbuffer str in

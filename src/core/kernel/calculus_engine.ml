@@ -733,7 +733,7 @@ and reduction_term (defs: defs) (ctxt: context ref) (strat: reduction_strategy) 
   if !debug_reduction then   printf "\n";
   (set_term_reduced ~recursive:true false te')
 and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (te: term) : term = 
-  if !debug_reduction then   printf "{ %s }" (term2string ctxt te);
+  if !debug_reduction then (printf "{ %s }\n" (term2string ctxt te); flush stdout);
   if !mk_trace then trace := (Reduction (!ctxt, te)) :: !trace;
   let te' = (
     match te with
@@ -868,7 +868,7 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
       | Some DeltaStrong -> set_term_reduced true te'
       | _ -> set_term_reduced true te      
   in
-  if !debug_reduction then printf "{ %s }" (term2string ctxt te');
+  if !debug_reduction then (printf "{ %s }\n" (term2string ctxt te'); flush stdout);
   if !mk_trace then trace := List.tl !trace;
   te'
 
