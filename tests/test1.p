@@ -146,3 +146,5 @@ Definition min (x y: Nat) : Nat :=
 Compute mult three three
 Compute min (S (exp two (exp two three))) (exp two (exp three three))
 
+Compute let x := exp two (exp three three) in min (S x) x
+

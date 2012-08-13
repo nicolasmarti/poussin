@@ -32,7 +32,7 @@ let with_pos (p: 'a parsingrule) : ('a * pos) parsingrule =
     let endp = cur_pos pb in
     (res, (startp, endp))
 
-let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Signature"; "Compute"]
+let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Signature"; "Compute"; "let"; "in"]
 
 let parse_reserved : unit parsingrule =
   foldp (List.map (fun x -> keyword x ()) keywords)
@@ -246,6 +246,24 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
     let () =  whitespaces pb in
     AVar (NoAnnotation, pos_to_position pos)
   ) 
+  <|> tryrule (fun pb ->
+    let () =  whitespaces pb in
+    let startpos = cur_pos pb in    
+    let () = at_start_pos leftmost (word "let") pb in
+    let () =  whitespaces pb in
+    let n = at_start_pos leftmost name_parser pb in
+    let () =  whitespaces pb in
+    let () = at_start_pos leftmost (word ":=") pb in
+    let () =  whitespaces pb in
+    let te = parse_term defs leftmost pb in
+    let () =  whitespaces pb in
+    let () = at_start_pos leftmost (word "in") pb in
+    let () =  whitespaces pb in
+    let te2 = parse_term defs leftmost pb in
+    let endpos = cur_pos pb in    
+    let () =  whitespaces pb in
+    Let ((n, te, NoPosition), te2, NoAnnotation, pos_to_position (startpos, endpos), false)
+  )
   (* parsing of math: TODO extends for having more than one pattern per destructor *)
   <|> tryrule (fun pb ->
     let () =  whitespaces pb in
