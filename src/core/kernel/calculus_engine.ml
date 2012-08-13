@@ -347,6 +347,18 @@ and typeinfer
 	    let res = Forall ((s, ty, n, pq), get_type te, Typed (type_ (UName "")), NoPosition, reduced) in
 	    Lambda ((s, ty, n, pq), te, Typed res, p, reduced)
 
+	  | Let ((n, te, pos), te2, _, pos2, reduced) ->
+	    (* first we infer the value *)
+	    let te = typeinfer defs ctxt te in
+	    (* then we push the quantification *)
+	    push_quantification (n, get_type te, NJoker, pos) ctxt;
+	    (* we infer the body *)
+	    let te2 = typeinfer defs ctxt te2 in
+	    (* we pop the quantification *)
+	    let (n, ty, _, _), [te2] = pop_quantification defs ctxt [te2] in
+	    (* we returns the the let with the type of te2 shifted (god help us all ...) *)
+	    Let ((n, te, pos), te2, Typed (shift_term (get_type te2) (-1)), pos2, reduced)
+
 	  | App (hd, [], _, pos, reduced) ->
 	    typeinfer defs ctxt hd 
 

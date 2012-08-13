@@ -31,8 +31,8 @@ let process_definition (def: definition) : unit =
       let [ty] = flush_fvars defs ctxt [ty] in 
       Hashtbl.add defs n (Axiom ty);
       let time_end = Sys.time () in
-      printf "processed in %g sec.\n" (time_end -. time_start);
-      printf "Signature %s: %s\n\n" n (term2string ctxt ty)
+      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
+      printf "Signature %s: %s\n\n" n (term2string ctxt ty);  flush stdout
     | DefInductive (n, ty) -> 	
       let ty = (
 	try 
@@ -49,8 +49,8 @@ let process_definition (def: definition) : unit =
       let [ty] = flush_fvars defs ctxt [ty] in 
       Hashtbl.add defs n (Inductive ([], ty));
       let time_end = Sys.time () in
-      printf "processed in %g sec.\n" (time_end -. time_start);
-      printf "Inductive %s: %s\n\n" n (term2string ctxt ty)
+      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
+      printf "Inductive %s: %s\n\n" n (term2string ctxt ty); flush stdout 
     | DefConstructor (n, ty) -> 
       let ty = (
 	try 
@@ -67,8 +67,8 @@ let process_definition (def: definition) : unit =
       let [ty] = flush_fvars defs ctxt [ty] in 
       Hashtbl.add defs n (Constructor ty);
       let time_end = Sys.time () in
-      printf "processed in %g sec.\n" (time_end -. time_start);
-      printf "Constructor %s: %s\n\n" n (term2string ctxt ty)
+      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
+      printf "Constructor %s: %s\n\n" n (term2string ctxt ty); flush stdout
     | DefDefinition (n, te) -> 
       let te = (
 	try 
@@ -84,18 +84,18 @@ let process_definition (def: definition) : unit =
       let [te] = flush_fvars defs ctxt [te] in 
       Hashtbl.add defs n (Definition te);
       let time_end = Sys.time () in
-      printf "processed in %g sec.\n" (time_end -. time_start);
-      printf "Definition %s:= %s : %s \n\n" n (term2string ctxt te) (term2string ctxt (get_type te))
+      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
+      printf "Definition %s:= %s : %s \n\n" n (term2string ctxt te) (term2string ctxt (get_type te)); flush stdout
     | DefCompute te ->
       let te = typeinfer defs ctxt te in
       let [te] = flush_fvars defs ctxt [te] in 
+      printf "Computation %s : %s := " (term2string ctxt te) (term2string ctxt (get_type te)); flush stdout;
       let te' = reduction_term defs ctxt
 	{ beta = Some BetaStrong; delta = Some DeltaStrong; iota = true; zeta = true; eta = true }
 	te in
-      printf "done\n"; flush stdout; 
       let time_end = Sys.time () in
-      printf "processed in %g sec.\n" (time_end -. time_start);
-      printf "Computation %s := %s\n\n" (term2string ctxt te) (term2string ctxt te')
+      printf "%s\n" (term2string ctxt te'); flush stdout;
+      printf "processed in %g sec.\n\n" (time_end -. time_start); flush stdout
 
 
 let process_stream (str: string Stream.t) : unit  =
