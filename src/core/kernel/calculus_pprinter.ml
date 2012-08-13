@@ -168,7 +168,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	  let s, lhs = 
 	    (* here we select a fresh name *)
 	    let s = (fresh_name_list ~basename:s vars) in
-	    s , (Box [Verbatim s; Space 1; Verbatim ":= "; Space 1; term2token vars te1 Alone; Space 1; Verbatim "in"])
+	    s , (Box [Verbatim "let"; Space 1; Verbatim s; Space 1; Verbatim ":= "; Space 1; term2token vars te1 Alone; Space 1; Verbatim "in"])
 	  in 
 	  (* for computing the r.h.s, we need to push a new frame *)
 	  let rhs = term2token (s::vars) te2 Alone in
@@ -210,7 +210,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	    Box ([Verbatim "|"; Space 1; patterns2token vars ps Alone; Space 1; Verbatim ":="; Space 1; term2token (List.rev (patterns_vars ps) @ vars) te Alone ])
 	  ) eqs
 	  )
-	  )	  
+	  ); Newline; Verbatim "end"	  
 	]
        )
 
