@@ -46,6 +46,31 @@ let simplification_strat = {
   eta = false;
 }
 
+
+(* simpl pattern match *)
+let rec pattern_match (ctxt: context ref) (p: pattern) (te: term) : (term list) option =
+  match p with
+    | PAvar -> Some []
+    | PName s -> Some [te]
+    | PCste c -> (
+      match te with
+	| Cste (c2, _, _, _) when c = c2 -> Some []
+	| _ -> (*printf "%s <> %s (1)\n" (pattern2string ctxt p) (term2string ctxt te);*) None
+    )
+    | PApp (c, args) ->
+      match te with
+	| Cste (c2, _, _, _) when c = c2 && List.length args = 0 -> Some []
+	| App (Cste (c2, _, _, _), args2, _, _, _) when c = c2 && List.length args = List.length args2 ->
+	  List.fold_left (fun acc (hd1, hd2) -> 
+	    match acc with
+	      | None -> None
+	      | Some l ->
+		match pattern_match ctxt hd1 hd2 with
+		  | None -> None
+		  | Some l' -> Some (l @ l')
+	  ) (Some []) (List.map2 (fun hd1 hd2 -> (fst hd1, fst hd2)) args args2)
+	| _ -> (*printf "%s <> %s (2)\n" (* (term2string ctxt te)*) (pattern2string ctxt p) (term2string ctxt te);*) None
+
 (**)
 let context_add_lvl_contraint (ctxt: context ref) (c: uLevel_constraints) : unit =
   ctxt := { !ctxt with lvl_cste = c::!ctxt.lvl_cste }
@@ -393,7 +418,7 @@ and typeinfer
 	      let tety = shift_term tety (List.length vars) in
 	      let te = shift_term te (List.length vars) in
 	      (* then we create the terms corresponding to the patterns *)
-	      let tes = List.map (fun p -> pattern_to_term p) ps in
+	      let tes = List.map (fun p -> pattern_to_term defs p) ps in
 	      (* then, for each patterns, we typecheck against tety *)
 	      let tes = List.map (fun te -> 
 		let te = typeinfer defs ctxt te in
@@ -462,7 +487,7 @@ and unification
 
     | Universe (Type, u1, pos1), Universe (Type, u2, pos2) ->
       context_add_lvl_contraint ctxt (UEq (u1, u2));
-      Universe (Prop, u1, pos_to_position (best_pos (pos_from_position pos1) (pos_from_position pos2)))
+      Universe (Type, u1, pos_to_position (best_pos (pos_from_position pos1) (pos_from_position pos2)))
 
     (* equality on cste *)
     | Cste (c1, Typed ty1, pos1, reduced1), Cste (c2, Typed ty2, pos2, reduced2) when c1 = c2 ->
@@ -569,10 +594,21 @@ and unification
 
     (* Normalizing App *)
     | App (App(hd1, args1, Typed ty1, pos1, _), args2, Typed ty2, pos2, _), _ -> 
-      unification defs ctxt polarity (App(hd1, args1 @ args2, Typed ty2, pos2, false)) te2
+      let te = unification defs ctxt polarity (App(hd1, args1 @ args2, Typed ty2, pos2, false)) te2 in
+      te
 
     |  _, App(App(hd1, args1, Typed ty1, pos1, _), args2, Typed ty2, pos2, _) -> 
-      unification defs ctxt polarity te1 (App(hd1, args1 @ args2, Typed ty2, pos2, false))
+      let te = unification defs ctxt polarity te1 (App(hd1, args1 @ args2, Typed ty2, pos2, false)) in
+      te
+
+    | App(f, [], _, _, _), _ ->
+      let te = unification defs ctxt polarity f te2 in
+      te
+
+    | _, App(f, [], _, _, _) ->
+      let te = unification defs ctxt polarity te1 f in
+      te
+      
 
     (* this is really conservatives ... *)
     | Match (t1, des1, Typed ty1, pos1, _), Match (t2, des2, Typed ty2, pos2, _) when List.length des1 = List.length des2 ->
@@ -754,7 +790,7 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 	let dte = reduction_term_loop defs ctxt strat dte in
 	let res = fold_stop (fun () (ps, body) ->
 	  fold_stop (fun () p ->
-	    match pattern_match p dte with
+	    match pattern_match ctxt p dte with
 	      | None -> Left ()
 	      | Some l ->
 	      (* we will do the same thing as in let, but on the reversed order of the matching list *)
@@ -775,6 +811,11 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 	  | Right te -> reduction_term_loop defs ctxt strat te
       )
 
+	(*
+      | App (App (f, args1, ty1, pos1, _), args2, ty2, pos2, _) ->
+	reduction_term_loop defs ctxt strat (App (f, args1 @ args2, ty2, pos2, false))
+	*)
+
       | App (Lambda ((n, ty, nature, pos), te, ty2, pos2, _), (hd1, hd2)::tl, app_ty, app_pos, _) when strat.beta != None ->
 	let hd1 = shift_term (reduction_term_loop defs ctxt strat hd1) 1 in
 	let f = set_term_reduced ~recursive:true false (term_substitution (IndexMap.singleton 0 hd1) te) in
@@ -782,6 +823,9 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 
       | App (f, [], _, _, _) ->
 	set_term_reduced true (reduction_term_loop defs ctxt strat f)
+
+      | App (App(f1, args1, ty1, pos1, _), args2, ty2, pos2, _) ->
+	set_term_reduced true (reduction_term_loop defs ctxt strat (App (f1, args1 @ args2, ty2, pos2, false)))
 
       | App (f, args, ty, pos, _) when not (get_term_reduced f) -> (
 	let f = reduction_term_loop defs ctxt { strat with delta = match strat.delta with | Some DeltaWeak -> Some DeltaStrong | _ -> strat.delta } f in

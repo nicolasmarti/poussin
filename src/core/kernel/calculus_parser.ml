@@ -32,7 +32,7 @@ let with_pos (p: 'a parsingrule) : ('a * pos) parsingrule =
     let endp = cur_pos pb in
     (res, (startp, endp))
 
-let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Signature"]
+let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Signature"; "Compute"]
 
 let parse_reserved : unit parsingrule =
   foldp (List.map (fun x -> keyword x ()) keywords)
@@ -291,11 +291,11 @@ and parse_pattern (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : patt
     let () = whitespaces pb in
     (* then we parse the arguments *)
     let args = List.flatten (
-      many (
+      many1 (
 	fun pb ->
 	  parse_pattern_arguments defs leftmost pb
       ) pb) in
-    PCstor (s, args)	  
+    PApp (s, args)	  
   )
   <|> tryrule (parse_pattern_lvl1 defs leftmost)
 end pb
@@ -350,7 +350,12 @@ and parse_pattern_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) :
     let () =  whitespaces pb in
     let name = at_start_pos leftmost name_parser pb in
     let () =  whitespaces pb in    
-    PName name
+    try 
+      match Hashtbl.find defs name with
+	| Constructor _ | Inductive _ -> PCste name
+	| _ -> PName name
+    with
+      | Not_found -> PName name
   )
   <|> tryrule (fun pb ->
     let () =  whitespaces pb in    
@@ -362,6 +367,7 @@ type definition = DefSignature of name * term
 		  | DefDefinition of name * term
 		  | DefInductive of name * term
 		  | DefConstructor of name * term
+		  | DefCompute of term
 
 
 let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsingrule =
@@ -453,5 +459,15 @@ let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsing
 	) in
 
     DefDefinition (s, te)
+  )
+  (* a computation *)
+  <|> tryrule (fun pb ->
+    let () = whitespaces pb in
+    let _ = at_start_pos leftmost (word "Compute") pb in
+    let () = whitespaces pb in
+    let te = parse_term defs leftmost pb in
+    let () = whitespaces pb in
+
+    DefCompute te
   )
       

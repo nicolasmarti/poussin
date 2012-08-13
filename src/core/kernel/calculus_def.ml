@@ -76,8 +76,8 @@ type term = Universe of uType * uLevel * position
 	    (* destruction *)
 	    | Match of term * (pattern list * term) list * typeannotation * position * reduced
 
-and pattern = PAvar | PName of string
-	      | PCstor of name * (pattern * nature) list
+and pattern = PAvar | PName of string | PCste of name
+	      | PApp of name * (pattern * nature) list
 
 and typeannotation = NoAnnotation
 		     | Annotation of term

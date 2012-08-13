@@ -80,3 +80,34 @@ Definition append {A} {n1 n2} (v1: Vector A n1) (v2: Vector A n2): Vector A (plu
      | cons {A} {n1} hd tl := cons hd (append tl v2)
 end
 
+Inductive bool: Set
+Constructor true: bool
+Constructor false: bool
+
+Inductive Eq: Set -> Set
+Constructor build_eq {A}: (eqb: A -> A -> bool) -> Eq A
+
+Definition eqb {A: Set} {eqA: Eq A}: A -> A -> bool :=
+  match eqA with
+     | build_eq {A} eqb := eqb
+  end
+
+
+Inductive pair: Set -> Set -> Set
+Constructor prod {A B: Set} (a: A) (b: B): pair A B
+
+Definition eqb_bool (b1 b2: bool) : bool :=
+  match prod b1 b2 with
+     | prod {_} {_} true true := true
+     | prod {_} {_} false false := true
+     | prod {_} {_} true false := false
+     | prod {_} {_} false true := false
+  end
+
+Compute eqb_bool true true
+Compute eqb_bool true false
+Compute eqb_bool false true
+Compute eqb_bool false false
+
+
+

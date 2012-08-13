@@ -77,7 +77,14 @@ let process_definition (def: definition) : unit =
       let [te] = flush_fvars defs ctxt [te] in 
       Hashtbl.add defs n (Definition te);
       printf "Definition %s:= %s : %s \n\n" n (term2string ctxt te) (term2string ctxt (get_type te))
-
+    | DefCompute te ->
+      let te = typeinfer defs ctxt te in
+      let [te] = flush_fvars defs ctxt [te] in 
+      let te' = reduction_term defs ctxt
+	{ beta = Some BetaStrong; delta = Some DeltaStrong; iota = true; zeta = true; eta = true }
+	te in
+      printf "Computation %s := %s\n\n" (term2string ctxt te) (term2string ctxt te')
+      
 
 let process_stream (str: string Stream.t) : unit  =
   let pb = build_parserbuffer str in
@@ -85,7 +92,7 @@ let process_stream (str: string Stream.t) : unit  =
   try 
     ignore (
       many (fun pb ->
-	let def = parse_definition (Hashtbl.create 100) leftmost pb in
+	let def = parse_definition defs leftmost pb in
 	(*
 	let () = 
 	  match def with
@@ -94,7 +101,7 @@ let process_stream (str: string Stream.t) : unit  =
 	    | DefConstructor (n, ty) -> printf "Constructor %s: %s\n\n" n (term2string (ref empty_context) ty)
 	    | DefDefinition (n, te) -> printf "Definition %s:= %s \n\n" n (term2string (ref empty_context) te)
 	in
-	*)
+	*)	
 	process_definition def
       ) pb
     )

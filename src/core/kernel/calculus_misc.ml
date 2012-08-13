@@ -1,6 +1,7 @@
 open Calculus_def
 open Extlist
 open Libparser
+open Printf
 
 (* Some general constante *)
 
@@ -135,7 +136,8 @@ let rec pattern_size (p: pattern) : int =
   match p with
     | PAvar -> 0
     | PName s -> 1
-    | PCstor (_, args) ->
+    | PCste _ -> 0
+    | PApp (_, args) ->
       List.fold_left (fun acc arg -> acc + pattern_size (fst arg)) 0 args
 
 let rec patterns_size (ps: pattern list) : int =
@@ -149,7 +151,8 @@ let rec pattern_vars (p: pattern) : name list =
   match p with
     | PAvar -> []
     | PName s -> [s]
-    | PCstor (_, args) ->
+    | PCste _ -> []
+    | PApp (_, args) ->
       List.fold_left (fun acc arg -> acc @ pattern_vars (fst arg)) [] args
 
 let rec patterns_vars (ps: pattern list) : name list =
@@ -393,15 +396,16 @@ let rec head (te: term) : term =
       head hd
     | _ -> te
 
-let rec pattern_to_term (p: pattern) : term =
-  fst (pattern_to_term_loop p (pattern_size p - 1))
-and pattern_to_term_loop (p: pattern) (i: int): term * int =
+let rec pattern_to_term (defs: defs) (p: pattern) : term =
+  fst (pattern_to_term_loop defs p (pattern_size p - 1))
+and pattern_to_term_loop (defs: defs) (p: pattern) (i: int): term * int =
   match p with
     | PAvar -> (avar_ (), i)
     | PName s -> (var_ i, i-1)
-    | PCstor (n, args) ->
+    | PCste c -> (cste_ c, i)
+    | PApp (n, args) ->
       let args, i = List.fold_left (fun (hds, i) (p, n) ->
-	let p, i = pattern_to_term_loop p i in
+	let p, i = pattern_to_term_loop defs p i in
 	((hds @ [p, n]), i)
       ) ([], i) args in
       (app_ (cste_ n) args, i)
@@ -417,23 +421,4 @@ let rec is_clean_term (te: term) : bool =
     | Forall (_, te, _, _, _) -> is_clean_term te
     | App (f, args, _, _, _) ->
       List.fold_left (fun acc (hd, _) -> acc && is_clean_term hd) (is_clean_term f) args
-
-(* simpl pattern match *)
-let rec pattern_match (p: pattern) (te: term) : (term list) option =
-  match p with
-    | PAvar -> Some []
-    | PName s -> Some [te]
-    | PCstor (c, args) ->
-      match te with
-	| Cste (c2, _, _, _) when c = c2 && List.length args = 0 -> Some []
-	| App (Cste (c2, _, _, _), args2, _, _, _) when c = c2 && List.length args = List.length args2 ->
-	  List.fold_left (fun acc (hd1, hd2) -> 
-	    match acc with
-	      | None -> None
-	      | Some l ->
-		match pattern_match hd1 hd2 with
-		  | None -> None
-		  | Some l' -> Some (l @ l')
-	  ) (Some []) (List.map2 (fun hd1 hd2 -> (fst hd1, fst hd2)) args args2)
-	| _ -> None
 	  

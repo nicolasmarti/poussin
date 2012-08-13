@@ -69,9 +69,13 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
     | Universe (Set, _, _) -> Verbatim "Set"
     | Universe (Prop, _, _) -> Verbatim "Prop"
 
-    | Cste (name, _, _, _) -> Verbatim name
+    | Cste (name, _, _, _) -> verbatims [name]
 
-    | Var (i, _, _) when i >= 0 -> Verbatim (List.nth vars i)
+    | Var (i, _, _) when i >= 0 -> (
+      try
+	Verbatim (List.nth vars i)
+      with | _ -> verbatims ["!"; string_of_int i]
+    )
     | Var (i, _, _) when i < 0 -> verbatims ["?"; string_of_int (-i)]
 
     | AVar _ -> Verbatim "_"
@@ -187,7 +191,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	(* the token for the function *)
 	let te = term2token vars te InApp in
 	(* put it all together *)
-	Box (intercalate (Space 1) (te::args))
+	Box ((*[Verbatim "["] @*) (intercalate (Space 1) (te::args))(* @ [Verbatim "]"]*))
        )
 
     | Match (te, eqs, _, _, _) ->
@@ -222,7 +226,8 @@ and pattern2token (vars: name list) (pattern: pattern) (p: place) : token =
   match pattern with
     | PAvar _ -> Verbatim "_"
     | PName s -> Verbatim s
-    | PCstor (n, args) ->
+    | PCste c -> verbatims [(*"Cste@";*) c]
+    | PApp (n, args) ->
       (match p with
 	| InArg Explicit -> withParen
 	| _ -> fun x -> x
@@ -235,7 +240,7 @@ and pattern2token (vars: name list) (pattern: pattern) (p: place) : token =
 	(* the token for the function *)
 	let te = term2token vars (Cste (n, NoAnnotation, NoPosition, true)) InApp in
 	(* put it all together *)
-	Box (intercalate (Space 1) (te::args))
+	Box ((*[Verbatim "["] @*) (intercalate (Space 1) (te::args))(* @ [Verbatim "]"]*))
        )
 	    
 
@@ -245,6 +250,11 @@ let context2namelist (ctxt: context ref): name list =
 (* make a string from a term *)
 let term2string (ctxt: context ref) (te: term) : string =
   let token = term2token (context2namelist ctxt) te Alone in
+  let box = token2box token 80 2 in
+  box2string box
+
+let pattern2string (ctxt: context ref) (p: pattern) : string =
+  let token = pattern2token (context2namelist ctxt) p Alone in
   let box = token2box token 80 2 in
   box2string box
 
