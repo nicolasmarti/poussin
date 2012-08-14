@@ -165,13 +165,14 @@ let rec conversion_hyps2subst ?(dec_order: bool = false) (cv: (term * term) list
 (**)
 let context_add_substitution (ctxt: context ref) (s: substitution) : unit =
   (* we list the substitution using conversion_hypothesis *)
-  (*
+  
   let s', _ = conversion_hyps2subst ~dec_order:true (List.hd !ctxt.conversion_hyps) in
   printf "conversion := %s\n " (substitution2string ctxt s');
+  
   printf "ctxt + %s ===> " (substitution2string ctxt s);
-  let s = IndexMap.map (fun te -> term_substitution s' te) s in
+  (*let s = IndexMap.map (fun te -> term_substitution s' te) s in*)
   printf "ctxt + %s\n" (substitution2string ctxt s);
-  *)
+  
   (* computes the needed shited substitution *)
   let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.fvs) in
   (* for bvs, we do not neet the last one *)
@@ -202,3 +203,5 @@ let context_add_substitution (ctxt: context ref) (s: substitution) : unit =
   }
 
     
+let substitution_vars (s: substitution) =
+  IndexMap.fold (fun k _ acc -> IndexSet.add k acc) s IndexSet.empty
