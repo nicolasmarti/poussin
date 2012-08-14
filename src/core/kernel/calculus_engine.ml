@@ -259,7 +259,7 @@ let rec typecheck
       te 
     | NoAnnotation ->
       let te = typeinfer defs ctxt (set_term_typedannotation te ty) in
-      let ty = unification defs ctxt true (get_type te) ty in
+      ignore(unification defs ctxt true (get_type te) ty);
       te
   in
   if !mk_trace then trace := List.tl !trace;
@@ -674,7 +674,6 @@ and unification
 	
     | _ when polarity ->
 	let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
-	let s',_ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
 	(*printf "s := %s\n" (substitution2string ctxt s);*)
 	if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) && polarity then (
 	  (*if !mk_trace then trace := (Free (String.concat "" [substitution2string ctxt s'; " /\ "; substitution2string ctxt s])):: !trace;*)
