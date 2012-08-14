@@ -378,8 +378,8 @@ let empty_context = {
 (* returns if a definition is irreducible (an inductive or a constructor) *)
 let is_irreducible (defs: defs) (n: name) : bool =
   match Hashtbl.find defs n with
-    | Inductive _ | Constructor _ | Axiom _ -> true
-    | Definition _ -> false
+    | Inductive _ | Constructor _ -> true
+    | Axiom _ | Definition _ -> false
 
 
 let nature_unify (n1: nature) (n2: nature) : nature option =

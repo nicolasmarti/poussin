@@ -151,4 +151,23 @@ Compute let x := exp two three in min (S x) x
 Definition and_comm {P Q} (H: And P Q) :=
   match H with
      | conj {P} {Q} p q := conj q p
+end
+
+Inductive expr: Set -> Set
+Constructor Cste {A: Set}: A -> expr A
+Constructor App {A B: Set}: expr (A -> B) -> expr A -> expr B
+Constructor Ifte {A: Set}: expr bool -> expr A -> expr A -> expr A
+
+Signature expr_sem {A: Set}: expr A -> A
+Definition expr_sem {A: Set} (e: expr A) :=
+  match e with
+     | Cste {A} c := c
+     | App {A} {B} f a := (expr_sem f) (expr_sem a)
+     | Ifte {A} b e1 e2 := 
+        match expr_sem b with
+          | true := expr_sem e1
+          | false := expr_sem e2
+        end
   end
+
+
