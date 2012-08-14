@@ -502,7 +502,10 @@ and unification
       Cste (c1, Typed ty, pos_to_position (best_pos (pos_from_position pos1) (pos_from_position pos2)), reduced1 && reduced2)
       
 
-    | Cste (c1, Typed ty1, _, _), Cste (c2, Typed ty2, _, _) when c1 != c2 && is_irreducible defs c1 && is_irreducible defs c2 ->
+    | Cste (c1, Typed ty1, _, _), Cste (c2, Typed ty2, _, _) when String.compare c1 c2 != 0 && is_irreducible defs c1 && is_irreducible defs c2 ->
+      raise (PoussinException (NoUnification (!ctxt, te1, te2)))
+    (* a bit better *)
+    | _ when (match maybe_constante te1, maybe_constante te2 with | Some c1, Some c2 -> is_irreducible defs c1 && is_irreducible defs c2 && String.compare c1 c2 != 0 | _ -> false) ->
       raise (PoussinException (NoUnification (!ctxt, te1, te2)))
 
     (* equality over variables *)

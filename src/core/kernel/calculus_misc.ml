@@ -396,6 +396,11 @@ let rec head (te: term) : term =
       head hd
     | _ -> te
 
+let maybe_constante (te: term): name option =
+  match head te with
+    | Cste (c, _, _, _) -> Some c
+    | _ -> None
+
 let rec pattern_to_term (defs: defs) (p: pattern) : term =
   fst (pattern_to_term_loop defs p (pattern_size p - 1))
 and pattern_to_term_loop (defs: defs) (p: pattern) (i: int): term * int =

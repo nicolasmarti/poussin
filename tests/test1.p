@@ -116,15 +116,15 @@ Definition iota (start size: Nat) : Vector Nat size :=
      | S size := cons start (iota (S start) size)
   end
 
-Signature mult (n m: Nat) : Nat
-Definition mult (n m: Nat) : Nat :=
+Signature mult : Nat -> Nat -> Nat
+Definition mult (n m: Nat) :=
   match n with
      | O := O
      | S n := plus m (mult n m)
   end
 
-Signature exp (n m: Nat) : Nat
-Definition exp (n m: Nat) : Nat :=
+Signature exp : Nat -> Nat -> Nat
+Definition exp (n m: Nat) :=
   match n with
      | O := S O
      | S n := mult m (exp n m)
@@ -134,7 +134,7 @@ Definition three : Nat := S (S (S O))
 Definition two : Nat := S (S O)
 
 Signature min: Nat -> Nat -> Nat
-Definition min (x y: Nat) : Nat :=
+Definition min (x y: Nat) :=
   match x with
      | O := O
      | S n := match y with
