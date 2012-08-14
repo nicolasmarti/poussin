@@ -73,7 +73,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 
     | Var (i, _, _) when i >= 0 -> (
       try
-	verbatims [List.nth vars i; "("; string_of_int i ;")"]
+	verbatims [List.nth vars i(*; "("; string_of_int i ;")"*)]
       with | _ -> verbatims ["!"; string_of_int i]
     )
     | Var (i, _, _) when i < 0 -> verbatims ["?"; string_of_int (-i)]
@@ -334,6 +334,13 @@ let trace2token (trace: ty_action list) : token =
 		  Verbatim "=?="; Space 1;
 		  term2token (context2namelist (ref ctxt)) ty Alone
 	    ]
+
+	  | UNeg (ctxt, te, ty) ->
+	    Box [ term2token (context2namelist (ref ctxt)) te Alone; Space 1;
+		  Verbatim "=!="; Space 1;
+		  term2token (context2namelist (ref ctxt)) ty Alone
+	    ]
+
 	  | Free s -> Verbatim s
 	  | Reduction (ctxt, te, te') ->
 	    Box [ term2token (context2namelist (ref ctxt)) te Alone; Space 1;
@@ -347,5 +354,21 @@ let trace2token (trace: ty_action list) : token =
 
 let trace2string (trace: ty_action list) : string =
   let token = trace2token trace in
+  let box = token2box token 150 2 in
+  box2string box
+
+let conversion_hyps2token (ctxt: context ref) (conv: (term * term) list) : token =
+    Box (intercalates [Space 1; Verbatim "/\\"; Space 1]
+	   (List.map (fun (hd1, hd2) ->
+	     Box [ term2token (context2namelist ctxt) hd1 Alone; Space 1;
+	       Verbatim "==="; Space 1;
+	       term2token (context2namelist ctxt) hd2 Alone
+	     ]
+	    ) conv
+	   )
+    )
+
+let conversion_hyps2string (ctxt: context ref) (conv: (term * term) list) : string =
+  let token = conversion_hyps2token ctxt conv in
   let box = token2box token 150 2 in
   box2string box

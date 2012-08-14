@@ -369,8 +369,8 @@ let get_type (te: term) : term =
 (* an empty context *)
 let empty_context = {
   bvs = [];
-  fvs = []::[];
-  conversion_hyps = []::[];
+  fvs = [];
+  conversion_hyps = [];
   lvl_cste = [];
 }
     

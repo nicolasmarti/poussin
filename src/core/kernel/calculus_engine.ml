@@ -77,84 +77,93 @@ let context_add_lvl_contraint (ctxt: context ref) (c: uLevel_constraints) : unit
 
 (**)
 let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
-  printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);
-  ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(List.hd !ctxt.conversion_hyps))::(List.tl !ctxt.conversion_hyps) }
+  (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
+  ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
 
 
 let push_quantification (q: (name * term * nature * position)) (ctxt: context ref) : unit =
   let s, ty, n, p = q in
   ctxt := { !ctxt with
     bvs = {name = s; ty = shift_term ty 1; nature = n; pos = p}::!ctxt.bvs;
-    fvs = []::!ctxt.fvs;
-    conversion_hyps = (List.map (fun (hd1, hd2) -> (shift_term hd1 1, shift_term hd2 1)) (List.hd !ctxt.conversion_hyps))::!ctxt.conversion_hyps
+    fvs = List.map (fun (i, ty, te, n) -> (i, shift_term ty 1, (match te with | None -> None | Some te -> Some (shift_term te 1)), n)) !ctxt.fvs;
+    conversion_hyps = List.map (fun (hd1, hd2) -> (shift_term hd1 1, shift_term hd2 1)) !ctxt.conversion_hyps
   }
 
-
-(* this function rewrite all free vars that have a real value in the upper frame of a context into a list of terms, and removes them *)
-let rec flush_fvars (defs: defs) (ctxt: context ref) (l: term list) : term list =
-  (*if !debug then printf "before flush_vars: %s\n" (context2string !ctxt);*)
-  (* we compute the fvars of the terms *)
-  let lfvs = List.fold_left (fun acc te -> IndexSet.union acc (fv_term te)) IndexSet.empty l in
-  (* and traverse the free variables *)
-  let (terms, fvs) = fold_cont (fun (terms, fvs) ((i, ty, te, name)::tl) ->
+let rec flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
+  (* we rewrite the conversion hypothesis in increasing order in the free vars *)
+  let s, _ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
+  let fvs = List.map (fun (i, ty, te, n) ->
+    (i,
+     term_substitution s ty,
+     (match te with | None -> None | Some te -> Some (term_substitution s te)),
+     n)
+  ) !ctxt.fvs in  
+  (* we rewrite all the terms *)
+  let tes = List.fold_left (fun acc (i, ty, te, n) ->
     match te with
-      | None when not (IndexSet.mem i lfvs) ->
-	(* there is no value for this free variable, and it does not appear in the terms --> remove it *)
-	(*printf "removed: %s\n" (string_of_int i);*)
-	tl, (terms, fvs)
-      | None when IndexSet.mem i lfvs ->
-	(* there is no value for this free variable, but it does appear in the terms --> keep it *)
-	(*printf "kept: (%s)\n" (string_of_int i);*)
-	tl, (terms, fvs @ [i, ty, te, name])
-      | Some te -> 
-      (* there is a value, we can get rid of the free var *)
-	(*printf "flush_vars, rewrite %s --> %s\n" (term2string ctxt (var_ i)) (term2string ctxt te);*)
-	let s = (IndexMap.singleton i te) in
-	let terms = List.map (fun hd -> term_substitution s hd) terms in
-	let tl = List.map (fun (i, ty, te, name) -> i, term_substitution s ty, (match te with | None -> None | Some te -> Some (term_substitution s te)), name) tl in
-	tl, (terms, fvs)
-  ) (l, []) (List.hd !ctxt.fvs) in
-  (* here we are removing the free vars and putting them bellow only if they have no TVar 0 in their term/type *)
-  (* first we shift them *)
-  let terms, fvs = List.fold_left (fun (terms, acc) (i, ty, te, name) ->
+      | None -> acc
+      | Some te -> List.map (fun te' -> term_substitution (IndexMap.singleton i te) te') acc
+  ) tes fvs in
+  (* we compute the fvars of the terms *)
+  let lfvs = List.fold_left (fun acc te -> IndexSet.union acc (fv_term te)) IndexSet.empty tes in  
+  (* we shift the freevars, and allow removing does who does not appears *)
+  let fvs = List.fold_left (fun acc (i, ty, te, n) ->
     try 
-      terms, (acc @ [i, shift_term ty (-1), 
-		     (match te with
-		       | None -> None
-		       | Some te -> Some (shift_term te (-1))), 
-		     name])
+      acc @ [i, shift_term ty (-1), 
+	     (match te with
+	       | None -> None
+	       | Some te -> Some (shift_term te (-1))), 
+	     n]
     with
       | PoussinException (Unshiftable_term _) ->
-	(* we have a free variable that has a type / value containing the symbol in hd -> 
-	   we try to ask an oracle if it can guess the term
-	*)
-	raise (PoussinException (FreeError "we failed to infer a free variable that cannot be out-scoped"))
-  ) (terms, []) fvs in
-  (* pushing the freevariables on the upper frame *)
-  (if List.length !ctxt.bvs != 0 then
-      ctxt := { !ctxt with
-	fvs = (fvs @ (List.hd !ctxt.fvs))::(List.tl !ctxt.fvs)
-      } else 
-      List.iter (fun te -> 
-	if not (IndexSet.is_empty (fv_term te)) then
-	  let msg = String.concat "" ["there are free variables in the remaining term: \n"; term2string ctxt te] in
-	  raise (PoussinException (FreeError msg))
-  
-      ) terms
-  );
-  terms
+	(* if the free variable does not appears in the terms we can remove it *)
+	if not (IndexSet.mem i lfvs) then (
+	  (*printf "remove %s\n" (string_of_int i);*)
+	  acc
+	) else
+	  (* otherwise there is something wrong here, for now we make it an error *)
+	  raise (PoussinException (FreeError "we failed to infer a free variable that cannot be out-scoped"))
+  ) [] fvs in
+	(* we replace the new free var set *)
+	(if List.length !ctxt.bvs != 0 then
+	    ctxt := { !ctxt with
+	      fvs = fvs
+	    } else 
+	    List.iter (fun te -> 
+	      if not (IndexSet.is_empty (fv_term te)) then
+		let msg = String.concat "" ["there are free variables in the remaining term: \n"; term2string ctxt te] in
+		raise (PoussinException (FreeError msg))
+	    ) tes
+	);
+  tes
 
 
 let pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature * position) * term list =
-  (* we flush the free variables *)
+  (* we flush the vars *)
   let tes = flush_fvars defs ctxt tes in
   (* we grab the remaining context and the popped frame *)
   let frame = List.hd (!ctxt.bvs) in
   (* we set the context *)
   ctxt := { !ctxt with 
     bvs = List.tl !ctxt.bvs;
-    fvs = List.tl !ctxt.fvs;    
-    conversion_hyps = List.tl !ctxt.conversion_hyps;    
+    (* we shift the update version of the conversion_hyps *)
+    conversion_hyps = 
+      List.fold_left (fun acc (hd1, hd2) ->
+	try 
+	  acc @ (shift_term hd1 (-1), shift_term hd2 (-1))::[]
+	with
+	  | PoussinException (Unshiftable_term _) ->
+	    (*printf "removing from conversion: %s === %s\n" (term2string ctxt hd1) (term2string ctxt hd2);*)
+	    acc
+	      
+      ) [] (
+	let s, l = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
+	(*printf "%s for %s\n" (substitution2string ctxt s) (conversion_hyps2string ctxt !ctxt.conversion_hyps); flush stdout;*)
+	if IndexMap.mem 0 s then (
+	  let s = IndexMap.singleton 0 (IndexMap.find 0 s) in
+	  List.map (fun (hd1, hd2) -> term_substitution s hd1, term_substitution s hd2) !ctxt.conversion_hyps
+	) else !ctxt.conversion_hyps
+      );    
   };
   (* and returns the quantifier *)
   (frame.name, shift_term frame.ty (-1), frame.nature, frame.pos), tes  
@@ -176,12 +185,10 @@ let var_lookup (ctxt: context ref) (n: name) : index option =
   ) 0 !ctxt.bvs in
   match res with
     | Left _ -> (
-      let res = fold_stop (fun () frame ->
-	fold_stop (fun () (i, _, _, n') ->
-	  match n' with
-	    | Some n' when n' = n -> Right i
-	    | _ -> Left ()
-	) () frame
+      let res = fold_stop (fun () (i, _, _, n') ->
+	match n' with
+	  | Some n' when n' = n -> Right i
+	  | _ -> Left ()
       ) () !ctxt.fvs in
       match res with
 	| Left () -> None
@@ -191,32 +198,22 @@ let var_lookup (ctxt: context ref) (n: name) : index option =
 
 
 let fvar_subst (ctxt: context ref) (i: index) : term option =
-  let lookup = fold_stop (fun level frame ->
-    let lookup = fold_stop (fun () (index, ty, value, name) -> 
-      if index = i then Right value else Left ()
-    ) () frame in
-    match lookup with
-      | Left () -> Left (level + 1)
-      | Right res -> Right (match res with | None -> None | Some res -> Some (shift_term res level))
-  ) 0 !ctxt.fvs in
+  let lookup = fold_stop (fun () (index, ty, value, name) -> 
+    if index = i then Right value else Left ()
+  ) () !ctxt.fvs in
   match lookup with
     | Left _ -> raise (PoussinException (UnknownFVar (!ctxt, i)))
     | Right res -> res
-
 
 (* grab the type of a free var *)
 let fvar_type (ctxt: context ref) (i: index) : term =
-  let lookup = fold_stop (fun level frame ->
-    let lookup = fold_stop (fun () (index, ty, value, name) -> 
-      if index = i then Right ty else Left ()
-    ) () frame in
-    match lookup with
-      | Left () -> Left (level + 1)
-      | Right res -> Right (shift_term res level)
-  ) 0 !ctxt.fvs in
+  let lookup = fold_stop (fun () (index, ty, value, name) -> 
+    if index = i then Right ty else Left ()
+  ) () !ctxt.fvs in
   match lookup with
     | Left _ -> raise (PoussinException (UnknownFVar (!ctxt, i)))
     | Right res -> res
+
 
 (* grab the type of a bound var *)
 let bvar_type (ctxt: context ref) (i: index) : term =
@@ -235,17 +232,12 @@ let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te:
     | Some ty -> ty 
       in
   let next_fvar_index = 
-    match (fold_stop (fun acc frame ->
-      match frame with
-	| [] -> Left acc
-	| (i, _, _, _)::_ -> Right (i - 1)
-    ) (-1) !ctxt.fvs)
-    with
-      | Left i -> i
-      | Right i -> i
+      match !ctxt.fvs with
+	| [] -> (-1)
+	| (i, _, _, _)::_ -> (i - 1)
   in
   ctxt := { !ctxt with 
-    fvs = ((next_fvar_index, ty, te, name)::(List.hd !ctxt.fvs))::(List.tl !ctxt.fvs)
+    fvs = ((next_fvar_index, ty, te, name)::!ctxt.fvs)
   };
   (*printf "adding %s\n" (string_of_int next_fvar_index);
   ignore(fvar_subst ctxt next_fvar_index);*)
@@ -479,7 +471,7 @@ and unification
     (ctxt: context ref)
     (polarity: bool)
     (te1: term) (te2: term) : term =
-  if !mk_trace then trace := (U (!ctxt, te1, te2))::!trace;
+  if !mk_trace then trace := (if polarity then (U (!ctxt, te1, te2)) else (UNeg (!ctxt, te1, te2)))::!trace;
   let res = 
   (*printf "%s Vs %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
     try (
@@ -687,11 +679,13 @@ and unification
 
     (* we try a simple use of conversions *)
 	
-    | _ ->
-	let s, l = conversion_hyps2subst (List.hd !ctxt.conversion_hyps) in
+    | _ when polarity ->
+	let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
+	let s',_ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
 	(*printf "s := %s\n" (substitution2string ctxt s);*)
 	if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) && polarity then (
-	  if !mk_trace then trace := (Free (substitution2string ctxt s)):: !trace;
+	  (*if !mk_trace then trace := (Free (String.concat "" [substitution2string ctxt s'; " /\ "; substitution2string ctxt s])):: !trace;*)
+          if !mk_trace then trace := (Free (conversion_hyps2string ctxt !ctxt.conversion_hyps)) :: !trace;
 	  let te1' = term_substitution s te1 in
 	  let te2' = term_substitution s te2 in
 	  (*printf "(%s, %s) --> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt te1') (term2string ctxt te2');*)
@@ -701,8 +695,9 @@ and unification
 	    res
 	  with
 	    | _ -> 
-	      if are_convertible defs ctxt te1 te2 or are_convertible defs ctxt te2 te1 then te1 else
-		raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
+	      if !mk_trace then trace := List.tl !trace;
+	      if are_convertible defs ctxt te1' te2' or are_convertible defs ctxt te2' te1' then te1' else
+		raise (PoussinException (UnknownUnification (!ctxt, te1', te2')));
 	) else
 	  raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
     ) with
@@ -725,11 +720,11 @@ and are_convertible
     (ctxt: context ref)
     (te1: term) (te2: term) : bool =
   match 
-    fold_stop (fun () (hd1, hd2) ->
+    fold_stop (fun i (hd1, hd2) ->
       (*printf "(%s, %s) <--> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt hd1) (term2string ctxt hd2);*)
       try 
 	if !mk_trace then trace := (Free (String.concat "" ["try conversion: "; (term2string ctxt hd1); " <-> "; (term2string ctxt hd2)])):: !trace;
-	let ctxt' = ref {!ctxt with conversion_hyps =  (List.tl (List.hd !ctxt.conversion_hyps)) :: [] } in
+	let ctxt' = ref {!ctxt with conversion_hyps = delete i !ctxt.conversion_hyps } in
 	let _ = unification defs ctxt' true (get_type te1) (get_type hd1) in
 	let _ = unification defs ctxt' true te1 hd1 in
 	let _ = unification defs ctxt' true te2 hd2 in
@@ -737,9 +732,9 @@ and are_convertible
 	if !mk_trace then trace := List.tl !trace;
 	Right ()
       with
-	| _ -> 	if !mk_trace then trace := List.tl !trace; Left ()
-    ) () (List.hd !ctxt.conversion_hyps) with
-      | Left () -> false
+	| _ -> 	if !mk_trace then trace := List.tl !trace; Left (i + 1)
+    ) 0 !ctxt.conversion_hyps with
+      | Left _ -> false
       | Right () -> true
 
 
@@ -874,7 +869,7 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
       (* using conversion (adhoc) *)
       | _ -> 
 	(* create the substitution *)
-	let s, l = conversion_hyps2subst (List.hd !ctxt.conversion_hyps) in
+	let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
 	(*  if its not empty and the bv_term + fv_term has an intersection with the domain of the substitution -> apply *)
 	if not (IndexMap.is_empty s) then (
 	  (*

@@ -151,55 +151,44 @@ and destructor_substitution (s: substitution) (des: pattern list * term) : patte
 let rec conversion_hyps2subst ?(dec_order: bool = false) (cv: (term * term) list) : (substitution * (term * term) list) =
   match cv with
     | [] -> IndexMap.empty,  []
-    | (Var (i, _, _), te2)::tl when i >= 0 && IndexSet.is_empty (IndexSet.filter 
-								   (fun i' -> if dec_order then i > i' else i < i') (bv_term te2)) ->
+    | (Var (i, _, _), te2)::tl when i >= 0 && IndexSet.is_empty 
+	(IndexSet.filter 
+	   (fun i' -> if dec_order then i >= i' else i <= i') (bv_term te2)) ->
       let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
       IndexMap.add i te2 s, l 
-    | (te1, Var (i, _, _))::tl when i >= 0  && IndexSet.is_empty (IndexSet.filter (fun i' -> if dec_order then i > i' else i < i') (bv_term te1)) ->
+    | (te1, Var (i, _, _))::tl when i >= 0  && IndexSet.is_empty (IndexSet.filter (fun i' -> if dec_order then i >= i' else i <= i') (bv_term te1)) ->
       let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
       IndexMap.add i te1 s, l 
     | hd::tl -> 
       let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
       s, hd::tl
 
+
 (**)
 let context_add_substitution (ctxt: context ref) (s: substitution) : unit =
-  (* we list the substitution using conversion_hypothesis *)
-  
-  let s', _ = conversion_hyps2subst ~dec_order:true (List.hd !ctxt.conversion_hyps) in
-  printf "conversion := %s\n " (substitution2string ctxt s');
-  
-  printf "ctxt + %s ===> " (substitution2string ctxt s);
-  (*let s = IndexMap.map (fun te -> term_substitution s' te) s in*)
-  printf "ctxt + %s\n" (substitution2string ctxt s);
-  
   (* computes the needed shited substitution *)
-  let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.fvs) in
-  (* for bvs, we do not neet the last one *)
-  let ss' = take (List.length ss - 1) ss in
+  let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.bvs) in
   ctxt := { !ctxt with
-    bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss';
+    bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss;
 
-    fvs = List.map2 (fun hd1 hd2 -> 
+    fvs = 
       List.map (fun (i, ty, te, n) -> 
-	if IndexMap.mem i hd2 then (
+	if IndexMap.mem i s then (
 	match te with
-	  | None -> (i, term_substitution hd2 ty, Some (IndexMap.find i hd2), n)
+	  | None -> (i, term_substitution s ty, Some (IndexMap.find i s), n)
 	    (* here we should to the unification between both values (maybe not necessary as addition is always on a singleton ...) *)
-	  | Some te -> (i, term_substitution hd2 ty, Some (term_substitution hd2 te), n)
+	  | Some te -> (i, term_substitution s ty, Some (term_substitution s te), n)
 	) else (
 	match te with
-	  | None -> (i, term_substitution hd2 ty, None, n)
-	  | Some te -> (i, term_substitution hd2 ty, Some (term_substitution hd2 te), n)
+	  | None -> (i, term_substitution s ty, None, n)
+	  | Some te -> (i, term_substitution s ty, Some (term_substitution s te), n)
 	)
-      ) hd1
-    ) !ctxt.fvs ss;
+      ) !ctxt.fvs;
 
-    conversion_hyps = List.map2 (fun hd1 hd2 -> 
+    conversion_hyps = 
       List.map (fun (te1, te2) -> 
-	(term_substitution hd2 te1, term_substitution hd2 te2)
-      ) hd1
-    ) !ctxt.conversion_hyps ss;
+	(term_substitution s te1, term_substitution s te2)
+      ) !ctxt.conversion_hyps;
   }
 
     

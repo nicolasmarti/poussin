@@ -148,7 +148,6 @@ Compute min (S (exp two three)) (exp two three)
 
 Compute let x := exp two three in min (S x) x
 
-Signature and_comm {P Q}: And P Q -> And Q P
 Definition and_comm {P Q} (H: And P Q) :=
   match H with
      | conj {P} {Q} p q := conj q p
