@@ -77,7 +77,7 @@ let context_add_lvl_contraint (ctxt: context ref) (c: uLevel_constraints) : unit
 
 (**)
 let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
-  (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
+  printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);
   ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(List.hd !ctxt.conversion_hyps))::(List.tl !ctxt.conversion_hyps) }
 
 
@@ -690,18 +690,18 @@ and unification
     | _ ->
 	let s, l = conversion_hyps2subst (List.hd !ctxt.conversion_hyps) in
 	(*printf "s := %s\n" (substitution2string ctxt s);*)
-	if not (IndexMap.is_empty s) && polarity then (
+	if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) && polarity then (
 	  if !mk_trace then trace := (Free (substitution2string ctxt s)):: !trace;
 	  let te1' = term_substitution s te1 in
 	  let te2' = term_substitution s te2 in
 	  (*printf "(%s, %s) --> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt te1') (term2string ctxt te2');*)
 	  try 
-	    let res = unification defs (ref {!ctxt with conversion_hyps = l::[] }) polarity te1' te2' in
+	    let res = unification defs ctxt polarity te1' te2' in
 	    if !mk_trace then trace := List.tl !trace;
 	    res
 	  with
 	    | _ -> 
-	      if are_convertible defs (ref {!ctxt with conversion_hyps = l::[] }) te1 te2 or are_convertible defs (ref {!ctxt with conversion_hyps = l::[] }) te2 te1 then te1 else
+	      if are_convertible defs ctxt te1 te2 or are_convertible defs ctxt te2 te1 then te1 else
 		raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
 	) else
 	  raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
