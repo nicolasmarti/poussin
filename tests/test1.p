@@ -23,9 +23,9 @@ Definition eq_symm {A} (x y: A) (Hxy: eq x y) : eq y x :=
 
 Definition eq_trans {A} (x y z: A) (Hxy: eq x y) (Hyz: eq y z) : eq x z :=
    match Hxy with
-      | eq_refl {A} x :=
+      | eq_refl {A} xy :=
           match Hyz with
-           | eq_refl {A} y := eq_refl {A} z	 
+           | eq_refl {A} yz := eq_refl {A} z
           end      
    end
 

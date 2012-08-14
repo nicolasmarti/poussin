@@ -130,9 +130,9 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term lis
 	      fvs = fvs
 	    } else 
 	    List.iter (fun te -> 
-	      if not (IndexSet.is_empty (fv_term te)) then
-		let msg = String.concat "" ["there are free variables in the remaining term: \n"; term2string ctxt te] in
-		raise (PoussinException (FreeError msg))
+	      if not (IndexSet.is_empty (fv_term te)) then (
+		let msg = String.concat "" ["there are free variables in the remaining term: \n"; term2string ctxt te; "\n :: \n"; term2string ctxt (get_type te) ] in
+		raise (PoussinException (FreeError msg)))
 	    ) tes
 	);
   tes
@@ -156,14 +156,7 @@ let pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name
 	    (*printf "removing from conversion: %s === %s\n" (term2string ctxt hd1) (term2string ctxt hd2);*)
 	    acc
 	      
-      ) [] (
-	let s, l = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
-	(*printf "%s for %s\n" (substitution2string ctxt s) (conversion_hyps2string ctxt !ctxt.conversion_hyps); flush stdout;*)
-	if IndexMap.mem 0 s then (
-	  let s = IndexMap.singleton 0 (IndexMap.find 0 s) in
-	  List.map (fun (hd1, hd2) -> term_substitution s hd1, term_substitution s hd2) !ctxt.conversion_hyps
-	) else !ctxt.conversion_hyps
-      );    
+      ) [] !ctxt.conversion_hyps;    
   };
   (* and returns the quantifier *)
   (frame.name, shift_term frame.ty (-1), frame.nature, frame.pos), tes  
@@ -261,12 +254,12 @@ let rec typecheck
       ignore(unification defs ctxt true (get_type te) ty);
       te 
     | TypedAnnotation ty' ->
-      let te = typeinfer defs ctxt te in
+      let te = typeinfer defs ctxt (set_term_typedannotation te ty') in
       ignore(unification defs ctxt true (get_type te) ty);
       te 
     | NoAnnotation ->
-      let te = typeinfer defs ctxt te in
-      ignore(unification defs ctxt true (get_type te) ty);
+      let te = typeinfer defs ctxt (set_term_typedannotation te ty) in
+      let ty = unification defs ctxt true (get_type te) ty in
       te
   in
   if !mk_trace then trace := List.tl !trace;
