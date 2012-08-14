@@ -1,8 +1,8 @@
 open Calculus_def
 open Calculus_misc
-
+open Calculus_pprinter
 open Extlist
-
+open Printf
 (*************************************)
 (*      substitution/rewriting       *)
 (*************************************)
@@ -147,11 +147,31 @@ and destructor_substitution (s: substitution) (des: pattern list * term) : patte
   let sz = patterns_size ps in
   (ps, term_substitution (shift_substitution s sz) te)
 
-
+(* transform a conversion_hyps list into a substitution *)
+let rec conversion_hyps2subst ?(dec_order: bool = false) (cv: (term * term) list) : (substitution * (term * term) list) =
+  match cv with
+    | [] -> IndexMap.empty,  []
+    | (Var (i, _, _), te2)::tl when i >= 0 && IndexSet.is_empty (IndexSet.filter 
+								   (fun i' -> if dec_order then i > i' else i < i') (bv_term te2)) ->
+      let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
+      IndexMap.add i te2 s, l 
+    | (te1, Var (i, _, _))::tl when i >= 0  && IndexSet.is_empty (IndexSet.filter (fun i' -> if dec_order then i > i' else i < i') (bv_term te1)) ->
+      let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
+      IndexMap.add i te1 s, l 
+    | hd::tl -> 
+      let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
+      s, hd::tl
 
 (**)
 let context_add_substitution (ctxt: context ref) (s: substitution) : unit =
-  (*printf "ctxt + %s\n" (substitution2string ctxt s);*)
+  (* we list the substitution using conversion_hypothesis *)
+  (*
+  let s', _ = conversion_hyps2subst ~dec_order:true (List.hd !ctxt.conversion_hyps) in
+  printf "conversion := %s\n " (substitution2string ctxt s');
+  printf "ctxt + %s ===> " (substitution2string ctxt s);
+  let s = IndexMap.map (fun te -> term_substitution s' te) s in
+  printf "ctxt + %s\n" (substitution2string ctxt s);
+  *)
   (* computes the needed shited substitution *)
   let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.fvs) in
   (* for bvs, we do not neet the last one *)

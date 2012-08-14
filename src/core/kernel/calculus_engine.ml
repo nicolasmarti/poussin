@@ -104,10 +104,11 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (l: term list) : term list 
 	tl, (terms, fvs)
       | None when IndexSet.mem i lfvs ->
 	(* there is no value for this free variable, but it does appear in the terms --> keep it *)
+	(*printf "kept: (%s)\n" (string_of_int i);*)
 	tl, (terms, fvs @ [i, ty, te, name])
       | Some te -> 
       (* there is a value, we can get rid of the free var *)
-	(*if !debug then printf "flush_vars, rewrite %s --> %s\n" (term2string !ctxt (TVar (i, nopos))) (term2string !ctxt te);*)
+	(*printf "flush_vars, rewrite %s --> %s\n" (term2string ctxt (var_ i)) (term2string ctxt te);*)
 	let s = (IndexMap.singleton i te) in
 	let terms = List.map (fun hd -> term_substitution s hd) terms in
 	let tl = List.map (fun (i, ty, te, name) -> i, term_substitution s ty, (match te with | None -> None | Some te -> Some (term_substitution s te)), name) tl in
@@ -246,6 +247,8 @@ let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te:
   ctxt := { !ctxt with 
     fvs = ((next_fvar_index, ty, te, name)::(List.hd !ctxt.fvs))::(List.tl !ctxt.fvs)
   };
+  (*printf "adding %s\n" (string_of_int next_fvar_index);
+  ignore(fvar_subst ctxt next_fvar_index);*)
   Var (next_fvar_index, Typed ty, pos)
 
 let rec typecheck 
@@ -305,8 +308,11 @@ and typeinfer
 	      | Not_found -> raise (PoussinException (UnknownCste n))
 	  )
 
-	  | Var (i, _, pos) when i < 0 ->
-	    Var (i, Typed (fvar_type ctxt i), pos)
+	  | Var (i, _, pos) when i < 0 -> (
+	    match fvar_subst ctxt i with
+	      | None -> Var (i, Typed (fvar_type ctxt i), pos)
+	      | Some te -> te
+	  )
 	  | Var (i, _, pos) when i >= 0 ->
 	    Var (i, Typed (bvar_type ctxt i), pos)
 
@@ -736,20 +742,6 @@ and are_convertible
       | Left () -> false
       | Right () -> true
 
-(* transform a conversion_hyps list into a substitution *)
-and conversion_hyps2subst (cv: (term * term) list) : (substitution * (term * term) list) =
-  match cv with
-    | [] -> IndexMap.empty,  []
-    | (Var (i, _, _), te2)::tl when i >= 0 && IndexSet.is_empty (IndexSet.filter (fun i' -> i < i') (bv_term te2)) ->
-      let s, l = conversion_hyps2subst tl in
-      IndexMap.add i te2 s, l 
-    | (te1, Var (i, _, _))::tl when i >= 0  && IndexSet.is_empty (IndexSet.filter (fun i' -> i < i') (bv_term te1)) ->
-      let s, l = conversion_hyps2subst tl in
-      IndexMap.add i te1 s, l 
-    | hd::tl -> 
-      let s, l = conversion_hyps2subst tl in
-      s, hd::tl
-
 
 (* reduction *)
 (* NB: in order to enhanced reduction, it might be proper have a marker on terms 
@@ -768,6 +760,12 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
   let te' = (
     match te with
       | Universe _ | AVar _ | TName _ -> te
+	
+      | Var (i, _, _) when i < 0 -> (
+	match fvar_subst ctxt i with
+	  | None -> te
+	  | Some te -> reduction_term_loop defs ctxt strat te
+      )
 
       | _ when get_term_reduced te -> te
 

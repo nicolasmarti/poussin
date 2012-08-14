@@ -73,7 +73,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 
     | Var (i, _, _) when i >= 0 -> (
       try
-	Verbatim (List.nth vars i)
+	verbatims [List.nth vars i; "("; string_of_int i ;")"]
       with | _ -> verbatims ["!"; string_of_int i]
     )
     | Var (i, _, _) when i < 0 -> verbatims ["?"; string_of_int (-i)]
