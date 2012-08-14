@@ -325,13 +325,25 @@ and typeinfer
 	    (* and we returns the term with type Type *)
 	    Forall ((s, ty, n, pq), te, Typed (type_ (UName "")), p, reduced)
 
-	  | Lambda ((s, ty, n, pq), te, _, p, reduced) ->
+	  | Lambda ((s, ty, n, pq), te, aty, p, reduced) ->
 	    (* first let's be sure that ty :: Type *)
 	    let ty = typecheck defs ctxt ty (type_ (UName "")) in
+	    (* if we have some type we use it *)
+	    let ty = 
+	      (* we typecheck te :: Type *)
+	      match aty with
+		| TypedAnnotation (Forall ((_, ty', _, _), te', _, _, _)) -> unification defs ctxt true ty ty'
+		| _ -> ty
+	    in
 	    (* we push the quantification *)
 	    push_quantification (s, ty, n, pq) ctxt;
-	    (* we typecheck te :: Type *)
-	    let te = typeinfer defs ctxt te in
+	    (* and we typecheck te *)
+	    let te = 
+	      (* we typecheck te :: Type *)
+	      match aty with
+		| TypedAnnotation (Forall ((_, ty', _, _), te', _, _, _)) -> typecheck defs ctxt te te'
+		| _ -> typeinfer defs ctxt te
+	    in    	    
 	    (* we pop quantification *)
 	    let q1, [te] = pop_quantification defs ctxt [te] in
 	    (* and we returns the term with type Type *)

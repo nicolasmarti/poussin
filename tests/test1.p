@@ -110,7 +110,7 @@ Compute eqb_bool false true
 Compute eqb_bool false false
 
 Signature iota : Nat -> (size: Nat) -> Vector Nat size
-Definition iota (start size: Nat) : Vector Nat size :=
+Definition iota (start size: Nat) :=
   match size with
      | O := nil {Nat}
      | S size := cons start (iota (S start) size)
