@@ -52,6 +52,7 @@ let process_definition (def: definition) : unit =
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "Inductive %s: %s\n\n" n (term2string ctxt ty); flush stdout 
     | DefConstructor (n, ty) -> 
+      (* typecheck the constructor type *)
       let ty = (
 	try 
 	  match Hashtbl.find defs n with
@@ -64,8 +65,22 @@ let process_definition (def: definition) : unit =
 	with
 	  | Not_found -> typeinfer defs ctxt ty
       ) in
+      (* flush free vars *)
       let [ty] = flush_fvars defs ctxt [ty] in 
-      Hashtbl.add defs n (Constructor ty);
+      (* ensure that conclusion head is an Inductive *)
+      let hd = head (snd (destruct_forall ty)) in
+      let ind = 
+	match hd with
+	  | Cste (n, _, _, _) -> ignore(get_inductive defs n); n
+	  | _ -> raise (PoussinException (FreeError (
+	      String.concat "" ["constructor conclusion head is not an Inductive"]
+	    ))) in
+      (* next ensure that the inductive does not appear negatively *)
+      if neg_occur_cste ty ind then raise (PoussinException (FreeError (
+	String.concat "" ["constructor type has a negative occurence of the Inductive"]
+      )));
+      (* everything is ok *)
+      Hashtbl.add defs n (Constructor (ind, ty));
       let time_end = Sys.time () in
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "Constructor %s: %s\n\n" n (term2string ctxt ty); flush stdout

@@ -103,8 +103,6 @@ and context = {
   conversion_hyps: (term * term) list; (* *)
   lvl_cste: uLevel_constraints list; (* *)
 }
-  
-  
 
 (* for notation *)
 type op = Nofix
@@ -117,7 +115,7 @@ type op = Nofix
 type value = Inductive of name list * term
 	    | Axiom of term
 	    | Definition of term
-	    | Constructor of term
+	    | Constructor of name * term
 
 and defs = (name, value) Hashtbl.t;;
 
@@ -127,11 +125,14 @@ type poussin_error = FreeError of string
 		    | NoUnification of context * term * term
 		    | NoNatureUnification of context * term * term
 		    | UnknownUnification of context * term * term
+		    | CsteNotConstructor of name
+		    | CsteNotInductive of name
 		    | NegativeIndexBVar of int
 		    | UnknownBVar of context * int
 		    | UnknownFVar of context * int
 		    | NotInductiveDestruction of context * term
 
+		    (*| ConstructorCclHeadNotInductive of term*)
 
 exception PoussinException of poussin_error
 

@@ -283,14 +283,11 @@ and typeinfer
 	match te with
 	  | Universe _ -> te
 	  | Cste (n, _, pos, reduced) -> (
-	    try 
-	      match Hashtbl.find defs n with
-		| Inductive (_, ty) | Axiom ty | Constructor ty -> 
+	      match get_cste defs n with
+		| Inductive (_, ty) | Axiom ty | Constructor (_, ty) -> 
 		  Cste (n, Typed ty, pos, reduced)
 		| Definition te -> 
 		  Cste (n, Typed (get_type te), pos, reduced)
-	    with
-	      | Not_found -> raise (PoussinException (UnknownCste n))
 	  )
 
 	  | Var (i, _, pos) when i < 0 -> (
@@ -404,12 +401,9 @@ and typeinfer
 	    let _ = 
 	      match head (reduction_term defs ctxt typeinfer_strat tety) with
 		| Cste (n, _, _, _) -> (
-		  try 
-		    match Hashtbl.find defs n with
+		    match get_cste defs n with
 		      | Inductive _ as ty -> ty
 		      | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, te)))
-		  with
-		    | Not_found -> raise (PoussinException (UnknownCste n))
 		)
 		| _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, te)))
 	    in 
@@ -772,8 +766,7 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
       | _ when get_term_reduced te -> te
 
       | Cste (n, ty, position, _) -> (
-	try 
-	  match Hashtbl.find defs n with
+	  match get_cste defs n with
 		(* delta strong -> we return it 
 		   delta_weak -> we make sure the resulting term is 'clean'
 		*)
@@ -785,8 +778,6 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 		| None -> set_term_reduced true te
 	    )
 	    | _ -> set_term_reduced true te
-	with
-	  | Not_found -> raise (PoussinException (UnknownCste n))
 	    
       )
 

@@ -44,6 +44,13 @@ let rec destruct_lambda (te: term) : ((name * term * nature * position) * typean
       ((q, annot, pos) :: l, te)
     | _ -> ([], te)
 
+let rec destruct_forall (te: term) : ((name * term * nature * position) * typeannotation * position) list * term =
+  match te with
+    | Forall (q, body, annot, pos, reduced) ->
+      let l, te = destruct_forall body in
+      ((q, annot, pos) :: l, te)
+    | _ -> ([], te)
+
 let rec construct_lambda (qs: ((name * term * nature * position) * typeannotation * position) list) (body: term) : term =
   match qs with
     | [] -> body
@@ -401,19 +408,35 @@ let maybe_constante (te: term): name option =
     | Cste (c, _, _, _) -> Some c
     | _ -> None
 
+let get_cste (defs: defs) (n: name) : value =
+  try 
+    Hashtbl.find defs n
+  with
+    | Not_found -> raise (PoussinException (UnknownCste n))
+
+let get_constructor (defs: defs) (n: name) : term =
+  match get_cste defs n with
+    | Constructor _ -> cste_ n
+    | _ -> raise (PoussinException (CsteNotConstructor n))
+
+let get_inductive (defs: defs) (n: name) : term =
+  match get_cste defs n with
+    | Inductive _ -> cste_ n
+    | _ -> raise (PoussinException (CsteNotInductive n))
+
 let rec pattern_to_term (defs: defs) (p: pattern) : term =
   fst (pattern_to_term_loop defs p (pattern_size p - 1))
 and pattern_to_term_loop (defs: defs) (p: pattern) (i: int): term * int =
   match p with
     | PAvar -> (avar_ (), i)
     | PName s -> (var_ i, i-1)
-    | PCste c -> (cste_ c, i)
+    | PCste c -> (get_constructor defs c, i)
     | PApp (n, args) ->
       let args, i = List.fold_left (fun (hds, i) (p, n) ->
 	let p, i = pattern_to_term_loop defs p i in
 	((hds @ [p, n]), i)
       ) ([], i) args in
-      (app_ (cste_ n) args, i)
+      (app_ (get_constructor defs n) args, i)
 
 
 (* is clean term:
@@ -426,4 +449,6 @@ let rec is_clean_term (te: term) : bool =
     | Forall (_, te, _, _, _) -> is_clean_term te
     | App (f, args, _, _, _) ->
       List.fold_left (fun acc (hd, _) -> acc && is_clean_term hd) (is_clean_term f) args
-	  
+
+(* does a constante appears negatively *)	  
+let rec neg_occur_cste (te: term) (n: name) : bool = false
