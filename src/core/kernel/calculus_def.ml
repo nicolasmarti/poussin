@@ -122,6 +122,8 @@ and defs = (name, value) Hashtbl.t;;
 
 type env = {
   defs: defs;
+  (* dependencies *)
+  deps: (name, NameSet.t) Hashtbl.t;
 }
 
 type poussin_error = FreeError of string

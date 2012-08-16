@@ -12,6 +12,7 @@ open Calculus_parser
 
 let env : env = {
   defs = Hashtbl.create 100;
+  deps = Hashtbl.create 100;
 };;
 
 let process_definition (def: definition) : unit =

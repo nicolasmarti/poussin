@@ -195,6 +195,28 @@ and bv_typeannotation (ty: typeannotation) : IndexSet.t =
     | TypedAnnotation te -> bv_term te
     | Typed te -> bv_term te
 
+(* the set of cste in a term *)
+let rec cste_term (te: term) : NameSet.t =
+  match te with
+    | Universe _ | AVar _ | TName _ -> NameSet.empty
+    | Cste (_, aty, _, _) ->  cste_typeannotation aty
+    | Var (i, aty, _) -> cste_typeannotation aty
+    | Lambda ((_, ty, _, _), te, aty, _, _) ->
+      NameSet.union (cste_typeannotation aty) (NameSet.union (cste_term ty) (cste_term te))
+    | Forall ((_, ty, _, _), te, aty, _, _) ->
+      NameSet.union (cste_typeannotation aty) (NameSet.union (cste_term ty) (cste_term te))
+    | Let ((_, te1, _), te2, aty, _, _) ->
+      NameSet.union (cste_typeannotation aty) (NameSet.union (cste_term te1) (cste_term te2))
+    | App (te, args, aty, _, _) -> List.fold_left (fun acc (te, _) -> NameSet.union acc (cste_term te)) (NameSet.union (cste_typeannotation aty) (cste_term te)) args
+    | Match (te, des, _, _, _) ->
+      List.fold_left (fun acc eq -> NameSet.union acc (cste_term (snd eq))) (cste_term te) des
+
+and cste_typeannotation (ty: typeannotation) : NameSet.t =
+  match ty with
+    | NoAnnotation -> NameSet.empty
+    | Annotation te -> cste_term te
+    | TypedAnnotation te -> cste_term te
+    | Typed te -> cste_term te
 
 (* function that map symbol into string *)
 let notation2string (name: string) (op: op) =
