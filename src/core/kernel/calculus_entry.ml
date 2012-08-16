@@ -17,8 +17,6 @@ let process_definition (def: definition) : unit =
   if !mk_trace then trace := [];
   let time_start = Sys.time () in
   (* initialization of a few globals *)
-  
-  
   (* *)
   match def with
     | DefSignature (n, ty) -> 	
@@ -72,7 +70,7 @@ let process_definition (def: definition) : unit =
       (* flush free vars *)
       let [ty] = flush_fvars defs ctxt [ty] in 
       (* ensure that conclusion head is an Inductive *)
-      let hd = head (snd (destruct_forall ty)) in
+      let hd = app_head (snd (destruct_forall ty)) in
       let ind = 
 	match hd with
 	  | Cste (n, _, _, _) -> ignore(get_inductive defs n); n

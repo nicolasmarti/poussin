@@ -397,14 +397,20 @@ let nature_unify (n1: nature) (n2: nature) : nature option =
     | Explicit, Explicit -> Some Explicit
     | Implicit, Implicit -> Some Implicit
 
-let rec head (te: term) : term =
+let rec app_head (te: term) : term =
   match te with
     | App (hd, _, _, _, _) ->
-      head hd
+      app_head hd
     | _ -> te
 
+let rec app_args (te: term) : (term * nature) list =
+  match te with
+    | App (hd, args, _, _, _) ->
+      (app_args hd) @ args
+    | _ -> []
+
 let maybe_constante (te: term): name option =
-  match head te with
+  match app_head te with
     | Cste (c, _, _, _) -> Some c
     | _ -> None
 

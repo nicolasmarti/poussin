@@ -6,7 +6,7 @@ open Extlist
 open Libparser
 open Printf
 
-
+open Fm
 
 type beta_strength =
   | BetaStrong (* reduction under the quantifier*)
@@ -236,12 +236,6 @@ let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te:
   ignore(fvar_subst ctxt next_fvar_index);*)
   Var (next_fvar_index, Typed ty, pos)
 
-(* some globals that tracks equations for the terminaison *)
-(*
-let rec_cste : name ref = ref ""
-let rec_equations: bexpr option ref = ref None
-*)
-
 (* typechecking, inference and reduction *)
 
 let rec typecheck 
@@ -369,8 +363,13 @@ and typeinfer
 	    (* we returns the the let with the type of te2 shifted (god help us all ...) *)
 	    Let ((n, te, pos), te2, Typed (shift_term (get_type te2) (-1)), pos2, reduced)
 
-	  | App (hd, [], _, pos, reduced) ->
-	    typeinfer defs ctxt hd 
+	  | App (hd, [], _, pos, reduced) -> (
+	    let te = typeinfer defs ctxt hd in
+	    match app_args te with
+	      | [] -> te
+	      | args ->
+		App (app_head te, args, Typed (get_type te), pos, get_term_reduced te)
+	  )
 
 	  | App (hd, (arg, n)::args, _, pos, reduced) ->	  
 	    (* we infer hd and arg *)
@@ -409,7 +408,7 @@ and typeinfer
 	    (* then we assure ourselves that it is an inductive *)
 	    let tety = (get_type te) in
 	    let _ = 
-	      match head (reduction_term defs ctxt typeinfer_strat tety) with
+	      match app_head (reduction_term defs ctxt typeinfer_strat tety) with
 		| Cste (n, _, _, _) -> (
 		    match get_cste defs n with
 		      | Inductive _ as ty -> ty
