@@ -27,7 +27,7 @@ type pp_option = {
 }
 
 let pp_option = ref {show_implicit = true; 
-		     show_indices = true; 
+		     show_indices = false; 
 		     show_position = false; 
 		     show_univ = false;
 		     show_type = false;
@@ -73,7 +73,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 
     | Var (i, _, _) when i >= 0 -> (
       try
-	verbatims [List.nth vars i(*; "("; string_of_int i ;")"*)]
+	verbatims ([List.nth vars i] @ (if !pp_option.show_indices then ["("; string_of_int i ;")"] else []))
       with | _ -> verbatims ["!"; string_of_int i]
     )
     | Var (i, _, _) when i < 0 -> verbatims ["?"; string_of_int (-i)]
