@@ -111,13 +111,18 @@ type op = Nofix
 	  | Postfix of int
 
 
-(* values contains in module *)
+(* values for constante *)
 type value = Inductive of name list * term
 	    | Axiom of term
 	    | Definition of term
 	    | Constructor of name * term
 
 and defs = (name, value) Hashtbl.t;;
+
+
+type env = {
+  defs: defs;
+}
 
 type poussin_error = FreeError of string
 		    | Unshiftable_term of term * int * int

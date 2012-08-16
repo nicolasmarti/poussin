@@ -10,7 +10,9 @@ open Calculus_engine
 open Calculus_pprinter
 open Calculus_parser
 
-let defs = Hashtbl.create 100;;
+let env : env = {
+  defs = Hashtbl.create 100;
+};;
 
 let process_definition (def: definition) : unit =
   let ctxt = ref empty_context in
@@ -22,34 +24,34 @@ let process_definition (def: definition) : unit =
     | DefSignature (n, ty) -> 	
       let ty = (
 	try 
-	  match Hashtbl.find defs n with
+	  match Hashtbl.find env.defs n with
 	    | _ -> raise (PoussinException (FreeError (
 	      String.concat "" ["term "; n; " is already defined"]
 	    )))
 	with
-	  | Not_found -> typeinfer defs ctxt ty
+	  | Not_found -> typeinfer env.defs ctxt ty
       ) in
-      let ty = typecheck defs ctxt ty (type_ (UName "")) in
-      let [ty] = flush_fvars defs ctxt [ty] in 
-      Hashtbl.add defs n (Axiom ty);
+      let ty = typecheck env.defs ctxt ty (type_ (UName "")) in
+      let [ty] = flush_fvars env.defs ctxt [ty] in 
+      Hashtbl.add env.defs n (Axiom ty);
       let time_end = Sys.time () in
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "Signature %s: %s\n\n" n (term2string ctxt ty);  flush stdout
     | DefInductive (n, ty) -> 	
       let ty = (
 	try 
-	  match Hashtbl.find defs n with
+	  match Hashtbl.find env.defs n with
 	    | Axiom ty' -> 
-	      let ty = typecheck defs ctxt ty (type_ (UName "")) in
-	      unification defs ctxt true ty ty' 
+	      let ty = typecheck env.defs ctxt ty (type_ (UName "")) in
+	      unification env.defs ctxt true ty ty' 
 	    | _ -> raise (PoussinException (FreeError (
 	      String.concat "" ["term "; n; " is already defined"]
 	    )))
 	with
-	  | Not_found -> typeinfer defs ctxt ty
+	  | Not_found -> typeinfer env.defs ctxt ty
       ) in
-      let [ty] = flush_fvars defs ctxt [ty] in 
-      Hashtbl.add defs n (Inductive ([], ty));
+      let [ty] = flush_fvars env.defs ctxt [ty] in 
+      Hashtbl.add env.defs n (Inductive ([], ty));
       let time_end = Sys.time () in
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "Inductive %s: %s\n\n" n (term2string ctxt ty); flush stdout 
@@ -57,23 +59,23 @@ let process_definition (def: definition) : unit =
       (* typecheck the constructor type *)
       let ty = (
 	try 
-	  match Hashtbl.find defs n with
+	  match Hashtbl.find env.defs n with
 	    | Axiom ty' -> 
-	      let ty = typecheck defs ctxt ty (type_ (UName "")) in
-	      unification defs ctxt true ty ty' 
+	      let ty = typecheck env.defs ctxt ty (type_ (UName "")) in
+	      unification env.defs ctxt true ty ty' 
 	    | _ -> raise (PoussinException (FreeError (
 	      String.concat "" ["term "; n; " is already defined"]
 	    )))
 	with
-	  | Not_found -> typeinfer defs ctxt ty
+	  | Not_found -> typeinfer env.defs ctxt ty
       ) in
       (* flush free vars *)
-      let [ty] = flush_fvars defs ctxt [ty] in 
+      let [ty] = flush_fvars env.defs ctxt [ty] in 
       (* ensure that conclusion head is an Inductive *)
       let hd = app_head (snd (destruct_forall ty)) in
       let ind = 
 	match hd with
-	  | Cste (n, _, _, _) -> ignore(get_inductive defs n); n
+	  | Cste (n, _, _, _) -> ignore(get_inductive env.defs n); n
 	  | _ -> raise (PoussinException (FreeError (
 	      String.concat "" ["constructor conclusion head is not an Inductive"]
 	    ))) in
@@ -82,32 +84,32 @@ let process_definition (def: definition) : unit =
 	String.concat "" ["constructor type has a negative occurence of the Inductive"]
       )));
       (* everything is ok *)
-      Hashtbl.add defs n (Constructor (ind, ty));
+      Hashtbl.add env.defs n (Constructor (ind, ty));
       let time_end = Sys.time () in
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "Constructor %s: %s\n\n" n (term2string ctxt ty); flush stdout
     | DefDefinition (n, te) -> 
       let te = (
 	try 
-	  match Hashtbl.find defs n with
+	  match Hashtbl.find env.defs n with
 	    | Axiom ty -> 
-	      typecheck defs ctxt te ty		
+	      typecheck env.defs ctxt te ty		
 	    | _ -> raise (PoussinException (FreeError (
 	      String.concat "" ["term "; n; " is already defined"]
 	    )))
 	with
-	  | Not_found -> typeinfer defs ctxt te
+	  | Not_found -> typeinfer env.defs ctxt te
       ) in
-      let [te] = flush_fvars defs ctxt [te] in 
-      Hashtbl.add defs n (Definition te);
+      let [te] = flush_fvars env.defs ctxt [te] in 
+      Hashtbl.add env.defs n (Definition te);
       let time_end = Sys.time () in
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "Definition %s:= %s : %s \n\n" n (term2string ctxt te) (term2string ctxt (get_type te)); flush stdout
     | DefCompute te ->
-      let te = typeinfer defs ctxt te in
-      let [te] = flush_fvars defs ctxt [te] in 
+      let te = typeinfer env.defs ctxt te in
+      let [te] = flush_fvars env.defs ctxt [te] in 
       printf "Computation %s : %s := " (term2string ctxt te) (term2string ctxt (get_type te)); flush stdout;
-      let te' = reduction_term defs ctxt
+      let te' = reduction_term env.defs ctxt
 	{ beta = Some BetaWeak; delta = Some DeltaWeak; iota = true; zeta = true; eta = true }
 	te in
       let time_end = Sys.time () in
@@ -121,11 +123,11 @@ let process_stream (str: string Stream.t) : unit  =
   try 
     ignore (
       many (fun pb ->
-	let def = parse_definition defs leftmost pb in
+	let def = parse_definition env.defs leftmost pb in
 	(*
 	let () = 
 	  match def with
-	    | DefSignature (n, ty) -> printf "Inductive %s: %s\n\n" n (term2string (ref empty_context) ty)
+	    | env.defsignature (n, ty) -> printf "Inductive %s: %s\n\n" n (term2string (ref empty_context) ty)
 	    | DefInductive (n, ty) -> printf "Inductive %s: %s\n\n" n (term2string (ref empty_context) ty)
 	    | DefConstructor (n, ty) -> printf "Constructor %s: %s\n\n" n (term2string (ref empty_context) ty)
 	    | DefDefinition (n, te) -> printf "Definition %s:= %s \n\n" n (term2string (ref empty_context) te)
