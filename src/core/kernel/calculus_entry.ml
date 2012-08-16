@@ -16,6 +16,10 @@ let process_definition (def: definition) : unit =
   let ctxt = ref empty_context in
   if !mk_trace then trace := [];
   let time_start = Sys.time () in
+  (* initialization of a few globals *)
+  
+  
+  (* *)
   match def with
     | DefSignature (n, ty) -> 	
       let ty = (

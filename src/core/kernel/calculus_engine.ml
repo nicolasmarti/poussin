@@ -6,6 +6,8 @@ open Extlist
 open Libparser
 open Printf
 
+
+
 type beta_strength =
   | BetaStrong (* reduction under the quantifier*)
   | BetaWeak
@@ -189,24 +191,22 @@ let var_lookup (ctxt: context ref) (n: name) : index option =
     )
     | Right level -> Some level
 
-
-let fvar_subst (ctxt: context ref) (i: index) : term option =
+let get_fvar (ctxt: context ref) (i: index) : (term * term option * name option) =
   let lookup = fold_stop (fun () (index, ty, value, name) -> 
-    if index = i then Right value else Left ()
+    if index = i then Right (ty, value, name) else Left ()
   ) () !ctxt.fvs in
   match lookup with
     | Left _ -> raise (PoussinException (UnknownFVar (!ctxt, i)))
     | Right res -> res
+
+let fvar_subst (ctxt: context ref) (i: index) : term option =
+  let (_, te, _) = get_fvar ctxt i in
+  te
 
 (* grab the type of a free var *)
 let fvar_type (ctxt: context ref) (i: index) : term =
-  let lookup = fold_stop (fun () (index, ty, value, name) -> 
-    if index = i then Right ty else Left ()
-  ) () !ctxt.fvs in
-  match lookup with
-    | Left _ -> raise (PoussinException (UnknownFVar (!ctxt, i)))
-    | Right res -> res
-
+  let (ty, _, _) = get_fvar ctxt i in
+  ty
 
 (* grab the type of a bound var *)
 let bvar_type (ctxt: context ref) (i: index) : term =
@@ -235,6 +235,14 @@ let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te:
   (*printf "adding %s\n" (string_of_int next_fvar_index);
   ignore(fvar_subst ctxt next_fvar_index);*)
   Var (next_fvar_index, Typed ty, pos)
+
+(* some globals that tracks equations for the terminaison *)
+(*
+let rec_cste : name ref = ref ""
+let rec_equations: bexpr option ref = ref None
+*)
+
+(* typechecking, inference and reduction *)
 
 let rec typecheck 
     (defs: defs)
@@ -352,6 +360,8 @@ and typeinfer
 	    let te = typeinfer defs ctxt te in
 	    (* then we push the quantification *)
 	    push_quantification (n, get_type te, NJoker, pos) ctxt;
+	    (* here we add a conversion rule between the variable and the value *)
+	    context_add_conversion ctxt (var_ ~annot:(Typed (bvar_type ctxt 0)) 0) te;
 	    (* we infer the body *)
 	    let te2 = typeinfer defs ctxt te2 in
 	    (* we pop the quantification *)
