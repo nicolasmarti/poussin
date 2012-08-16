@@ -1,5 +1,10 @@
+- adding well-formness
+  + Universe stratification
+  + Positivity
+  + Terminaison
+  + Completeness
+  + Proof Irrelevance
+
 - change terms rep, with an general and extendable infofields
   containing: positions, redeuced flags, ...
 - higher order unification
-- add using conversion when not solvable. for now we have ad-hoc stuffs
-- add conversion in reduction
