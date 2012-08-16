@@ -15,12 +15,18 @@
   Copyright (C) 2008 Nicolas Marti
 *)
 
-open Varset;;
-open Output;;
 open Printf;;
-open Parser;;
-open Pprinter;;
+open Libparser;;
+open Libpprinter;;
 open Str;;
+
+module VarSet = Set.Make(
+  struct
+    type t = string
+    let compare x y = compare x y
+  end
+);;
+
 
 type var = String
 ;;
@@ -70,9 +76,9 @@ let opparser : (string * unit) parsingrule = ((spaces) >> (applylexingrule parse
 
 let nexpr_binop_precedence: (string, (int * associativity * (unit -> nexpr -> nexpr -> nexpr))) Hashtbl.t = Hashtbl.create 10;;
 
-Hashtbl.add nexpr_binop_precedence "+" (10, Parser.Left, fun _ x y -> Nplus (x, y));;
-Hashtbl.add nexpr_binop_precedence "-" (10, Parser.Left, fun _ x y -> Nminus (x, y));;
-Hashtbl.add nexpr_binop_precedence "*" (20, Parser.Left, fun _ x y -> Nmult (x, y));;
+Hashtbl.add nexpr_binop_precedence "+" (10, Libparser.LeftAssoc, fun _ x y -> Nplus (x, y));;
+Hashtbl.add nexpr_binop_precedence "-" (10, Libparser.LeftAssoc, fun _ x y -> Nminus (x, y));;
+Hashtbl.add nexpr_binop_precedence "*" (20, Libparser.LeftAssoc, fun _ x y -> Nmult (x, y));;
 
 let rec nexpr_primary = 
   fun pb -> (
@@ -143,9 +149,9 @@ let parseoprule3 : string lexingrule = (regexp ">=\\|<=\\|=\\|<\\|>", fun (s:str
 
 let bexpr_binop_precedence: (string, (int * associativity * (unit -> bexpr -> bexpr -> bexpr))) Hashtbl.t = Hashtbl.create 10;;
 
-Hashtbl.add bexpr_binop_precedence "|" (10, Parser.Left, fun _ x y -> Bor (x, y));;
-Hashtbl.add bexpr_binop_precedence "&" (20, Parser.Left, fun _ x y -> Band (x, y));;
-Hashtbl.add bexpr_binop_precedence "->" (15, Parser.Right, fun _ x y -> Bor (Bneg (x), y));;
+Hashtbl.add bexpr_binop_precedence "|" (10, Libparser.LeftAssoc, fun _ x y -> Bor (x, y));;
+Hashtbl.add bexpr_binop_precedence "&" (20, Libparser.LeftAssoc, fun _ x y -> Band (x, y));;
+Hashtbl.add bexpr_binop_precedence "->" (15, Libparser.RightAssoc, fun _ x y -> Bor (Bneg (x), y));;
 
 let bexpr_cste = (keyword "True" BTrue) <|> (keyword "False" BFalse);;
 
@@ -279,9 +285,9 @@ let rec simpl_bexpr b =
 let rec nexpr_var = function
   | Nvar x -> VarSet.singleton x
   | Ncons z0 -> VarSet.empty
-  | Nplus (e1, e2) -> (nexpr_var e1) +++ (nexpr_var e2)
-  | Nminus (e1, e2) -> (nexpr_var e1) +++ (nexpr_var e2) 
-  | Nmult (e1, e2) -> (nexpr_var e1) +++ (nexpr_var e2)
+  | Nplus (e1, e2) -> VarSet.union (nexpr_var e1) (nexpr_var e2)
+  | Nminus (e1, e2) -> VarSet.union (nexpr_var e1) (nexpr_var e2) 
+  | Nmult (e1, e2) -> VarSet.union (nexpr_var e1) (nexpr_var e2)
 
 let rec neg_propagate b n =
   match b with
@@ -577,7 +583,7 @@ let rec elim_listvar_andlist l = function
 
 let rec andlist_var = function
   | [] -> VarSet.empty
-  | (hd:: tl) -> (nexpr_var hd) +++ (andlist_var tl)
+  | (hd:: tl) -> VarSet.union (nexpr_var hd) (andlist_var tl)
 
 let elim_allvar_andlist l =
   elim_listvar_andlist l (VarSet.elements (andlist_var l))
