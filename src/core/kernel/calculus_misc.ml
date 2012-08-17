@@ -141,7 +141,7 @@ let shift_vars (vars: IndexSet.t) (delta: int) : IndexSet.t =
 (* size in PName of a pattern *)
 let rec pattern_size (p: pattern) : int =
   match p with
-    | PAvar -> 0
+    | PAvar -> 1
     | PName s -> 1
     | PCste _ -> 0
     | PApp (_, args) ->
@@ -156,7 +156,7 @@ let rec patterns_size (ps: pattern list) : int =
 (* list of names in a pattern *)
 let rec pattern_vars (p: pattern) : name list =
   match p with
-    | PAvar -> []
+    | PAvar -> ["_"]
     | PName s -> [s]
     | PCste _ -> []
     | PApp (_, args) ->
@@ -456,7 +456,7 @@ let rec pattern_to_term (defs: defs) (p: pattern) : term =
   fst (pattern_to_term_loop defs p (pattern_size p - 1))
 and pattern_to_term_loop (defs: defs) (p: pattern) (i: int): term * int =
   match p with
-    | PAvar -> (avar_ (), i)
+    | PAvar -> (var_ i, i - 1)
     | PName s -> (var_ i, i-1)
     | PCste c -> (get_constructor defs c, i)
     | PApp (n, args) ->

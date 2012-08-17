@@ -44,7 +44,7 @@ let process_definition (def: definition) : unit =
 	  match Hashtbl.find env.defs n with
 	    | Axiom ty' -> 
 	      let ty = typecheck env.defs ctxt ty (type_ (UName "")) in
-	      unification env.defs ctxt true ty ty' 
+	      unification env.defs ctxt ty ty' 
 	    | _ -> raise (PoussinException (FreeError (
 	      String.concat "" ["term "; n; " is already defined"]
 	    )))
@@ -63,7 +63,7 @@ let process_definition (def: definition) : unit =
 	  match Hashtbl.find env.defs n with
 	    | Axiom ty' -> 
 	      let ty = typecheck env.defs ctxt ty (type_ (UName "")) in
-	      unification env.defs ctxt true ty ty' 
+	      unification env.defs ctxt ty ty' 
 	    | _ -> raise (PoussinException (FreeError (
 	      String.concat "" ["term "; n; " is already defined"]
 	    )))

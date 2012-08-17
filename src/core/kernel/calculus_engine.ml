@@ -52,7 +52,7 @@ let simplification_strat = {
 (* simpl pattern match *)
 let rec pattern_match (ctxt: context ref) (p: pattern) (te: term) : (term list) option =
   match p with
-    | PAvar -> Some []
+    | PAvar -> Some [te]
     | PName s -> Some [te]
     | PCste c -> (
       match te with
@@ -241,27 +241,27 @@ let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te:
 let rec typecheck 
     (defs: defs)
     (ctxt: context ref)
+    ?(polarity: bool = true)
     (te: term)
     (ty: term) : term =
   if !mk_trace then trace := (TC (!ctxt, te, ty))::!trace;
   let res = 
   match get_term_typeannotation te with
     | Typed ty' ->
-      ignore(unification defs ctxt true ty' ty);
+      ignore(unification defs ctxt ~polarity:polarity ty' ty);
       te
     | Annotation ty' ->
-      (*let ty' = typecheck defs ctxt ty' (type_ (UName "")) in*)
-      let ty' = typeinfer defs ctxt ty' in
-      let te = typeinfer defs ctxt (set_term_typedannotation te ty') in
-      ignore(unification defs ctxt true (get_type te) ty);
+      let ty' = typeinfer defs ctxt ~polarity:polarity ty' in
+      let te = typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty') in
+      ignore(unification defs ctxt ~polarity:polarity (get_type te) ty);
       te 
     | TypedAnnotation ty' ->
-      let te = typeinfer defs ctxt (set_term_typedannotation te ty') in
-      ignore(unification defs ctxt true (get_type te) ty);
+      let te = typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty') in
+      ignore(unification defs ctxt ~polarity:polarity (get_type te) ty);
       te 
     | NoAnnotation ->
-      let te = typeinfer defs ctxt (set_term_typedannotation te ty) in
-      ignore(unification defs ctxt true (get_type te) ty);
+      let te = typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty) in
+      ignore(unification defs ctxt ~polarity:polarity (get_type te) ty);
       te
   in
   if !mk_trace then trace := List.tl !trace;
@@ -271,6 +271,7 @@ let rec typecheck
 and typeinfer 
     (defs: defs)
     (ctxt: context ref)
+    ?(polarity: bool = true)
     (te: term) : term =
   if !mk_trace then trace := (TI (!ctxt, te))::!trace;
   let res = 
@@ -278,8 +279,8 @@ and typeinfer
     | Typed ty -> te
     | Annotation ty ->
       (*let ty = typecheck defs ctxt ty (type_ (UName "")) in*)
-      let ty = typeinfer defs ctxt ty in
-      typeinfer defs ctxt (set_term_typedannotation te ty)
+      let ty = typeinfer defs ctxt ~polarity:polarity ty in
+      typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty)
     | _ ->
       let te' = (
 	match te with
@@ -314,11 +315,11 @@ and typeinfer
 
 	  | Forall ((s, ty, n, pq), te, _, p, reduced) ->
 	    (* first let's be sure that ty :: Type *)
-	    let ty = typecheck defs ctxt ty (type_ (UName "")) in
+	    let ty = typecheck defs ctxt ~polarity:polarity ty (type_ (UName "")) in
 	    (* we push the quantification *)
 	    push_quantification (s, ty, n, pq) ctxt;
 	    (* we typecheck te :: Type *)
-	    let te = typecheck defs ctxt te (type_ (UName "")) in
+	    let te = typecheck defs ctxt ~polarity:polarity te (type_ (UName "")) in
 	    (* we pop quantification *)
 	    let q1, [te] = pop_quantification defs ctxt [te] in
 	    (* and we returns the term with type Type *)
@@ -326,12 +327,12 @@ and typeinfer
 
 	  | Lambda ((s, ty, n, pq), te, aty, p, reduced) ->
 	    (* first let's be sure that ty :: Type *)
-	    let ty = typecheck defs ctxt ty (type_ (UName "")) in
+	    let ty = typecheck defs ctxt ~polarity:polarity ty (type_ (UName "")) in
 	    (* if we have some type we use it *)
 	    let ty = 
 	      (* we typecheck te :: Type *)
 	      match aty with
-		| TypedAnnotation (Forall ((_, ty', _, _), te', _, _, _)) -> unification defs ctxt true ty ty'
+		| TypedAnnotation (Forall ((_, ty', _, _), te', _, _, _)) -> unification defs ctxt ~polarity:polarity ty ty'
 		| _ -> ty
 	    in
 	    (* we push the quantification *)
@@ -340,8 +341,8 @@ and typeinfer
 	    let te = 
 	      (* we typecheck te :: Type *)
 	      match aty with
-		| TypedAnnotation (Forall ((_, ty', _, _), te', _, _, _)) -> typecheck defs ctxt te te'
-		| _ -> typeinfer defs ctxt te
+		| TypedAnnotation (Forall ((_, ty', _, _), te', _, _, _)) -> typecheck defs ctxt ~polarity:polarity te te'
+		| _ -> typeinfer defs ctxt ~polarity:polarity te
 	    in    	    
 	    (* we pop quantification *)
 	    let q1, [te] = pop_quantification defs ctxt [te] in
@@ -351,20 +352,20 @@ and typeinfer
 
 	  | Let ((n, te, pos), te2, _, pos2, reduced) ->
 	    (* first we infer the value *)
-	    let te = typeinfer defs ctxt te in
+	    let te = typeinfer defs ctxt ~polarity:polarity te in
 	    (* then we push the quantification *)
 	    push_quantification (n, get_type te, NJoker, pos) ctxt;
 	    (* here we add a conversion rule between the variable and the value *)
 	    context_add_conversion ctxt (var_ ~annot:(Typed (bvar_type ctxt 0)) 0) te;
 	    (* we infer the body *)
-	    let te2 = typeinfer defs ctxt te2 in
+	    let te2 = typeinfer defs ctxt ~polarity:polarity te2 in
 	    (* we pop the quantification *)
 	    let (n, ty, _, _), [te2] = pop_quantification defs ctxt [te2] in
 	    (* we returns the the let with the type of te2 shifted (god help us all ...) *)
 	    Let ((n, te, pos), te2, Typed (shift_term (get_type te2) (-1)), pos2, reduced)
 
 	  | App (hd, [], _, pos, reduced) -> (
-	    let te = typeinfer defs ctxt hd in
+	    let te = typeinfer defs ctxt ~polarity:polarity hd in
 	    match app_args te with
 	      | [] -> te
 	      | args ->
@@ -373,20 +374,20 @@ and typeinfer
 
 	  | App (hd, (arg, n)::args, _, pos, reduced) ->	  
 	    (* we infer hd and arg *)
-	    let hd = typeinfer defs ctxt hd in
-	    let arg = typeinfer defs ctxt arg in
+	    let hd = typeinfer defs ctxt ~polarity:polarity hd in
+	    let arg = typeinfer defs ctxt ~polarity:polarity arg in
 	    (* we unify the type of hd with a forall *)
 	    let fty = add_fvar ctxt in
-	    let hd_ty = unification defs ctxt true (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
+	    let hd_ty = unification defs ctxt ~polarity:polarity (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
 	    let Forall ((_, _, n', _), _, _, _, _) = hd_ty in
 	    (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
 	    if n' = Implicit && n = Explicit then (
 	      let new_arg = add_fvar ctxt in
 	      (* and retypeinfer the whole *)
-	      typeinfer defs ctxt (App (hd, (new_arg, n')::(arg, n)::args, NoAnnotation, pos, reduced))
+	      typeinfer defs ctxt ~polarity:polarity (App (hd, (new_arg, n')::(arg, n)::args, NoAnnotation, pos, reduced))
 	    ) else (
 	      (* needs to unify the type properly *)
-	      let ty = unification defs ctxt true fty (get_type arg) in
+	      let ty = unification defs ctxt ~polarity:polarity fty (get_type arg) in
 	      let Forall ((q, _, n', pq), te, Typed fty, p, reduced) = hd_ty in
 	      (* we build a new head, as the reduction of hd and arg, with the proper type *)
 	      let new_hd_ty = (App (Lambda ((q, ty, n, pq), te, Typed fty, p, reduced), (arg,n)::[], Typed fty, pos, false)) in
@@ -399,7 +400,7 @@ and typeinfer
 	      let new_hd = reduction_term defs ctxt simplification_strat (
 		new_hd
 	      ) in 
-	      typeinfer defs ctxt (App (new_hd, args, NoAnnotation, pos, reduced))
+	      typeinfer defs ctxt ~polarity:polarity (App (new_hd, args, NoAnnotation, pos, reduced))
 	    )
 
 	  | Match (te, des, aty, pos, reduced) ->
@@ -440,9 +441,9 @@ and typeinfer
 	      (* then, for each patterns, we typecheck against tety *)
 	      (* for each pattern that do not unify we remove it *)
 	      let tes = List.fold_right (fun te acc -> 
-		let te = typeinfer defs ctxt te in
+		let te = typeinfer defs ctxt ~polarity:false te in
 		try 
-		  let _ = unification defs ctxt false (get_type te) tety in
+		  let _ = unification defs ctxt ~polarity:false (get_type te) tety in
 		  te::acc
 		with
 		  | _ -> acc
@@ -450,7 +451,7 @@ and typeinfer
 	      (* then, for each pattern *)
 	      let des = List.map (fun hd ->
 		(* we unify it (with negative polarity) with te *)
-		let _ = unification defs ctxt false hd te in
+		let _ = unification defs ctxt ~polarity:false hd te in
 		(* and typecheck des against ret_ty *)
 		typecheck defs ctxt des ret_ty
 	      ) tes in
@@ -459,7 +460,7 @@ and typeinfer
 	      (* and finally returns all the constructors *)
 	      List.map2 (fun hd1 hd2 -> [hd1], hd2) ps des
 	    ) des in
-	    let ret_ty = typecheck defs ctxt ret_ty (type_ (UName "")) in
+	    let ret_ty = typecheck defs ctxt ~polarity:polarity ret_ty (type_ (UName "")) in
 	    Match (te, List.concat des, Typed ret_ty, pos, reduced)
 	      
 	      
@@ -477,7 +478,7 @@ and typeinfer
 and unification 
     (defs: defs)
     (ctxt: context ref)
-    (polarity: bool)
+    ?(polarity : bool = true)
     (te1: term) (te2: term) : term =
   if !mk_trace then trace := (if polarity then (U (!ctxt, te1, te2)) else (UNeg (!ctxt, te1, te2)))::!trace;
   let res = 
@@ -513,7 +514,7 @@ and unification
 
     (* equality on cste *)
     | Cste (c1, Typed ty1, pos1, reduced1), Cste (c2, Typed ty2, pos2, reduced2) when c1 = c2 ->
-      let ty = unification defs ctxt polarity ty1 ty2 in
+      let ty = unification defs ctxt ~polarity:polarity ty1 ty2 in
       Cste (c1, Typed ty, pos_to_position (best_pos (pos_from_position pos1) (pos_from_position pos2)), reduced1 && reduced2)
       
 
@@ -526,19 +527,19 @@ and unification
     (* equality over variables *)
     (* two bounded variables case *)
     | Var (i1, Typed ty1, pos1), Var (i2, Typed ty2, pos2) when i1 = i2 -> 
-      let ty = unification defs ctxt polarity ty1 ty2 in
+      let ty = unification defs ctxt ~polarity:polarity ty1 ty2 in
       Var (i1, Typed ty, pos_to_position (best_pos (pos_from_position pos1) (pos_from_position pos2)))
 
     (* if one of terms is a free variable which which there is a substitution, we redo unification on the term*)
     | Var (i1, Typed ty1, pos1), _ when i1 < 0 && fvar_subst ctxt i1 != None -> 
-      unification defs ctxt polarity (match fvar_subst ctxt i1 with Some te1 -> te1) te2
+      unification defs ctxt ~polarity:polarity (match fvar_subst ctxt i1 with Some te1 -> te1) te2
 
     | _, Var (i2, Typed ty2, pos2) when i2 < 0 && fvar_subst ctxt i2 != None -> 
-      unification defs ctxt polarity te1 (match fvar_subst ctxt i2 with Some te2 -> te2)
+      unification defs ctxt ~polarity:polarity te1 (match fvar_subst ctxt i2 with Some te2 -> te2)
 	
     (* two free variables case *)
     | Var (i1, Typed ty1, pos1), Var (i2, Typed ty2, pos2) when i1 < 0 && i2 < 0 -> 
-      let ty = unification defs ctxt polarity ty1 ty2 in
+      let ty = unification defs ctxt ~polarity:polarity ty1 ty2 in
       let imin = min i1 i2 in
       let imax = max i1 i2 in
       let s = IndexMap.singleton imin (Var (imax, Typed ty, pos_to_position (best_pos (pos_from_position pos1) (pos_from_position pos2)))) in
@@ -546,7 +547,7 @@ and unification
       Var (imax, Typed ty, pos_to_position (best_pos (pos_from_position pos1) (pos_from_position pos2)))
     (* one free variable and one bounded *)
     | Var (i1, Typed ty1, _), _ when i1 < 0 && not (IndexSet.mem i1 (fv_term te2)) -> (
-      let ty = unification defs ctxt polarity ty1 (get_type te2) in
+      let ty = unification defs ctxt ~polarity:polarity ty1 (get_type te2) in
       let s = IndexMap.singleton i1 (set_term_typed te2 ty) in
       context_add_substitution ctxt s;
       te2
@@ -555,7 +556,7 @@ and unification
       raise (PoussinException (NoUnification (!ctxt, te1, te2)))
     )
     | _, Var (i2, Typed ty2, _) when i2 < 0 && not (IndexSet.mem i2 (fv_term te1)) -> (
-      let ty = unification defs ctxt polarity (get_type te1) ty2  in
+      let ty = unification defs ctxt ~polarity:polarity (get_type te1) ty2  in
       let s = IndexMap.singleton i2 (set_term_typed te1 ty) in
       context_add_substitution ctxt s;
       te1
@@ -568,12 +569,12 @@ and unification
     | Lambda ((s1, ty1, n1, pq1), te1, Typed lty1, p1, reduced1), Lambda ((s2, ty2, n2, pq2), te2, Typed lty2, p2, reduced2) ->
       if n1 <> n2 then raise (PoussinException (NoUnification (!ctxt, te1, te2)));
       (* we unify the types *)
-      let lty = unification defs ctxt polarity lty1 lty2 in
-      let ty = unification defs ctxt polarity ty1 ty2 in
+      let lty = unification defs ctxt ~polarity:polarity lty1 lty2 in
+      let ty = unification defs ctxt ~polarity:polarity ty1 ty2 in
       (* we push the quantification *)
       push_quantification (s1, ty, n1, pq1) ctxt;
       (* we unify the body *)
-      let te = unification defs ctxt polarity te1 te2 in
+      let te = unification defs ctxt ~polarity:polarity te1 te2 in
       (* we pop quantification (possibly modifying te) *)
       let q1, [te] = pop_quantification defs ctxt [te] in
       (* and we return the term *)
@@ -584,12 +585,12 @@ and unification
       if n = None then raise (PoussinException (NoUnification (!ctxt, te1, te2)));
       let Some n = n in
       (* we unify the types *)
-      let lty = unification defs ctxt polarity lty1 lty2 in
-      let ty = unification defs ctxt polarity ty1 ty2 in
+      let lty = unification defs ctxt ~polarity:polarity lty1 lty2 in
+      let ty = unification defs ctxt ~polarity:polarity ty1 ty2 in
       (* we push the quantification *)
       push_quantification (s1, ty, n1, pq1) ctxt;
       (* we unify the body *)
-      let te = unification defs ctxt polarity fte1 fte2 in
+      let te = unification defs ctxt ~polarity:polarity fte1 fte2 in
       (* we pop quantification (possibly modifying te) *)
       let (s, ty, _, pq), [te] = pop_quantification defs ctxt [te] in
       (* and we return the term *)
@@ -597,12 +598,12 @@ and unification
 
     | Let ((s1, ty1, pq1), te1, Typed lty1, p1, reduced1), Let ((s2, ty2, pq2), te2, Typed lty2, p2, reduced2) ->
       (* we unify the types *)
-      let lty = unification defs ctxt polarity lty1 lty2 in
-      let ty = unification defs ctxt polarity ty1 ty2 in
+      let lty = unification defs ctxt ~polarity:polarity lty1 lty2 in
+      let ty = unification defs ctxt ~polarity:polarity ty1 ty2 in
       (* we push the quantification *)
       push_quantification (s1, ty, Explicit, pq1) ctxt;
       (* we unify the body *)
-      let te = unification defs ctxt polarity te1 te2 in
+      let te = unification defs ctxt ~polarity:polarity te1 te2 in
       (* we pop quantification (possibly modifying te) *)
       let (s, ty, _, pq), [te] = pop_quantification defs ctxt [te] in
       (* and we return the term *)
@@ -619,27 +620,27 @@ and unification
 
     (* Normalizing App *)
     | App (App(hd1, args1, Typed ty1, pos1, _), args2, Typed ty2, pos2, _), _ -> 
-      let te = unification defs ctxt polarity (App(hd1, args1 @ args2, Typed ty2, pos2, false)) te2 in
+      let te = unification defs ctxt ~polarity:polarity (App(hd1, args1 @ args2, Typed ty2, pos2, false)) te2 in
       te
 
     |  _, App(App(hd1, args1, Typed ty1, pos1, _), args2, Typed ty2, pos2, _) -> 
-      let te = unification defs ctxt polarity te1 (App(hd1, args1 @ args2, Typed ty2, pos2, false)) in
+      let te = unification defs ctxt ~polarity:polarity te1 (App(hd1, args1 @ args2, Typed ty2, pos2, false)) in
       te
 
     | App(f, [], _, _, _), _ ->
-      let te = unification defs ctxt polarity f te2 in
+      let te = unification defs ctxt ~polarity:polarity f te2 in
       te
 
     | _, App(f, [], _, _, _) ->
-      let te = unification defs ctxt polarity te1 f in
+      let te = unification defs ctxt ~polarity:polarity te1 f in
       te
       
 
     (* this is really conservatives ... *)
     | Match (t1, des1, Typed ty1, pos1, _), Match (t2, des2, Typed ty2, pos2, _) when List.length des1 = List.length des2 ->
       (* unify the destructed term and the returned type *)
-      let t = unification defs ctxt polarity t1 t2 in
-      let ty = unification defs ctxt polarity ty1 ty2 in
+      let t = unification defs ctxt ~polarity:polarity t1 t2 in
+      let ty = unification defs ctxt ~polarity:polarity ty1 ty2 in
       (* then proceeds with the destructor *)
       let des = List.map2 (fun (ps1, t1) (ps2, t2) ->
 	if ps1 <> ps2 then raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
@@ -650,7 +651,7 @@ and unification
 	  let ty = add_fvar ctxt in
 	  push_quantification (v, ty, Explicit (*dummy*), NoPosition) ctxt
 	) vars;
-	let t = unification defs ctxt polarity t1 t2 in
+	let t = unification defs ctxt ~polarity:polarity t1 t2 in
 	let _, [t] = pop_quantifications defs ctxt [t] (List.length vars) in
 	ps1, t	  
       ) des1 des2 in
@@ -658,9 +659,9 @@ and unification
 
     (* the case of two application: with the same arity *)
     | App (hd1, args1, Typed ty1, pos1, _), App (hd2, args2, Typed ty2, pos2, _) when List.length args1 = List.length args2 ->
-      let ty = unification defs ctxt polarity ty1 ty2 in
-      let hd = unification defs ctxt polarity hd1 hd2 in
-      let args = List.map (fun (n, hd1, hd2) -> unification defs ctxt polarity hd1 hd2, n) 
+      let ty = unification defs ctxt ~polarity:polarity ty1 ty2 in
+      let hd = unification defs ctxt ~polarity:polarity hd1 hd2 in
+      let args = List.map (fun (n, hd1, hd2) -> unification defs ctxt ~polarity:polarity hd1 hd2, n) 
 	(List.map2 (fun (hd1, n1) (hd2, n2) -> 
 	  if n1 <> n2 then 
 	    raise (PoussinException (NoNatureUnification (!ctxt, hd1, hd2)))
@@ -673,13 +674,13 @@ and unification
     | _ when not (get_term_reduced te1) ->
       let te1' = set_term_reduced true (reduction_term defs ctxt unification_strat te1) in
       if !mk_trace then trace := (Reduction (!ctxt, te1, te1'))::!trace;
-      let res = unification defs ctxt polarity te1' te2 in
+      let res = unification defs ctxt ~polarity:polarity te1' te2 in
       if !mk_trace then trace := List.tl !trace;
       res
     | _ when not (get_term_reduced te2) ->
       let te2' = set_term_reduced true (reduction_term defs ctxt unification_strat te2) in
       if !mk_trace then trace := (Reduction (!ctxt, te2, te2'))::!trace;
-      let res = unification defs ctxt polarity te1 te2' in
+      let res = unification defs ctxt ~polarity:polarity te1 te2' in
       if !mk_trace then trace := List.tl !trace;
       res
 
@@ -700,7 +701,7 @@ and unification
 	  let te2' = term_substitution s te2 in
 	  (*printf "(%s, %s) --> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt te1') (term2string ctxt te2');*)
 	  try 
-	    let res = unification defs ctxt polarity te1' te2' in
+	    let res = unification defs ctxt ~polarity:polarity te1' te2' in
 	    if !mk_trace then trace := List.tl !trace;
 	    res
 	  with
@@ -716,7 +717,7 @@ and unification
 	if !mk_trace then trace := (Reduction (!ctxt, te1, te1'))::!trace;
 	let te2' = if not (get_term_reduced te2) then set_term_reduced true (reduction_term defs ctxt unification_strat te2) else te2 in
 	if !mk_trace then trace := (Reduction (!ctxt, te2, te2'))::!trace;
-	let res = unification defs ctxt polarity te1' te2' in
+	let res = unification defs ctxt ~polarity:polarity te1' te2' in
 	if !mk_trace then trace := List.tl (List.tl !trace);
 	res
 	
@@ -735,9 +736,9 @@ and are_convertible
       try 
 	if !mk_trace then trace := (Free (String.concat "" ["try conversion: "; (term2string ctxt hd1); " <-> "; (term2string ctxt hd2)])):: !trace;
 	let ctxt' = ref {!ctxt with conversion_hyps = delete i !ctxt.conversion_hyps } in
-	let _ = unification defs ctxt' true (get_type te1) (get_type hd1) in
-	let _ = unification defs ctxt' true te1 hd1 in
-	let _ = unification defs ctxt' true te2 hd2 in
+	let _ = unification defs ctxt' (get_type te1) (get_type hd1) in
+	let _ = unification defs ctxt' te1 hd1 in
+	let _ = unification defs ctxt' te2 hd2 in
 	ctxt := { !ctxt' with conversion_hyps = !ctxt.conversion_hyps };
 	if !mk_trace then trace := List.tl !trace;
 	Right ()
@@ -839,7 +840,7 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 		  acc
 		) 
 		  body 
-		  (List.map (fun te -> shift_term te (List.length l)) (List.rev l)) in
+		  (List.rev (List.fold_left (fun acc te -> acc @ [shift_term te (List.length acc + 1)]) [] l)) in
 		Right te
 	  ) () ps
 	) () des in
