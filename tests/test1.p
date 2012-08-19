@@ -18,14 +18,14 @@ Constructor eq_refl {A} (a: A): eq a a
 
 Definition eq_symm {A} (x y: A) (Hxy: eq x y) : eq y x :=
    match Hxy with
-      | eq_refl {A} x := eq_refl {A} x
+      | eq_refl {A} x := eq_refl x
    end
 
 Definition eq_trans {A} (x y z: A) (Hxy: eq x y) (Hyz: eq y z) : eq x z :=
    match Hxy with
       | eq_refl {A} xy :=
           match Hyz with
-           | eq_refl {A} yz := eq_refl {A} z
+           | eq_refl {A} yz := eq_refl z
           end      
    end
 
@@ -60,7 +60,7 @@ Signature map {A B: Set} {n}: (f: A -> B) -> Vector A n -> Vector B n
 
 Definition map {A B: Set} {n} (f: A -> B) (v: Vector A n) : Vector B n :=
   match v with
-     | nil {A} := nil {B}
+     | nil {A} := nil
      | cons {A} {n} hd tl := cons (f hd) (map f tl)
 end
 
@@ -112,7 +112,7 @@ Compute eqb_bool false false
 Signature iota : Nat -> (size: Nat) -> Vector Nat size
 Definition iota (start size: Nat) :=
   match size with
-     | O := nil {Nat}
+     | O := nil
      | S size := cons start (iota (S start) size)
   end
 

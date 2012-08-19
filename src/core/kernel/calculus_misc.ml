@@ -51,6 +51,14 @@ let rec destruct_forall (te: term) : ((name * term * nature * position) * typean
       ((q, annot, pos) :: l, te)
     | _ -> ([], te)
 
+let nb_first_implicits (te: term) : int option =
+  let qs, _ = destruct_forall te in
+  match qs with 
+    | [] -> None
+    | _ -> Some (
+      List.fold_left (fun acc ((_, _, n, _), _, _) -> if n = Implicit then acc + 1 else acc) 0 qs
+    )
+
 let rec construct_lambda (qs: ((name * term * nature * position) * typeannotation * position) list) (body: term) : term =
   match qs with
     | [] -> body

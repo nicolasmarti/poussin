@@ -281,7 +281,8 @@ and typeinfer
       (*let ty = typecheck defs ctxt ty (type_ (UName "")) in*)
       let ty = typeinfer defs ctxt ~polarity:polarity ty in
       typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty)
-    | _ ->
+    | ty ->
+      let mty = match ty with | NoAnnotation -> None | TypedAnnotation ty -> Some ty in
       let te' = (
 	match te with
 	  | Universe _ -> te
@@ -310,7 +311,11 @@ and typeinfer
 	      | Some i -> 
 		Var (i, Typed (bvar_type ctxt i), pos)
 	      | None -> 
-		typeinfer defs ctxt (Cste (n, NoAnnotation, pos, false))		
+		match get_cste defs n with
+		  | Inductive (_, ty) | Axiom ty | Constructor (_, ty) -> 
+		    Cste (n, Typed ty, pos, false)
+		  | Definition te -> 
+		    Cste (n, Typed (get_type te), pos, false)
 	  )
 
 	  | Forall ((s, ty, n, pq), te, _, p, reduced) ->
@@ -465,12 +470,36 @@ and typeinfer
 	      
 	      
 	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
-      ) in (*
-	     match get_term_annotation te with
-	     | TypedAnnotation ty ->
-	     let ty = unification defs ctxt true (get_type te') ty in
-	     set_term_type te' ty
-	     | _ ->*) te'
+      ) in 
+      match mty with
+	| Some ty -> (
+	  (*
+	  printf "%s ~~> %s:\n%s(%s)\n Vs \n%s(%s)\n\n" 
+	    (term2string ctxt te) 
+	    (term2string ctxt te') 
+	    (term2string ctxt (get_type te')) 
+	    (match nb_first_implicits (get_type te') with | None -> "None" | Some i -> string_of_int i) 
+	    (term2string ctxt ty)
+	    (match nb_first_implicits ty with | None -> "None" | Some i -> string_of_int i) 
+	  ;
+	  *)
+	  (* we can check if we need to add Implicit arguments *)
+	  match nb_first_implicits (get_type te'),  nb_first_implicits ty with
+	    | Some i, Some j when i > j ->
+	      let new_args = foldi (fun l -> (add_fvar ctxt, Implicit)::l) [] (i - j) in
+	      let te = App (te', new_args, TypedAnnotation ty, NoPosition, false) in
+	      (*printf "%s ~~> %s\n" (term2string ctxt te') (term2string ctxt te);*)
+	      typeinfer defs ctxt ~polarity:polarity te
+	    | Some i, None when i > 0 ->
+	      let new_args = foldi (fun l -> (add_fvar ctxt, Implicit)::l) [] i in
+	      let te = App (te', new_args, TypedAnnotation ty, NoPosition, false) in
+	      (*printf "%s ~~> %s\n" (term2string ctxt te') (term2string ctxt te);*)
+	      typeinfer defs ctxt ~polarity:polarity te
+	    | _ -> te'
+
+	)
+
+	| _ -> te'
   in
   if !mk_trace then trace := List.tl !trace;
   res

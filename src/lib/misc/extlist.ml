@@ -113,3 +113,7 @@ let rec delete (i: int) (l: 'a list) : 'a list =
       match i with
 	| 0 -> tl
 	| _ -> hd :: delete (i-1) tl
+
+let rec foldi (f: 'a -> 'a) (acc: 'a) (i: int) : 'a =
+  if i <= 0 then acc else
+    foldi f (f acc) (i-1)
