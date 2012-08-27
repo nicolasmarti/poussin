@@ -183,7 +183,8 @@ Constructor f_pred: bool -> formula
 Inductive exists {A: Set} (P: A -> Prop): Prop
 Constructor witness {A: Set} (a: A) P: P a -> exists P
 
-Definition Iff (P Q: Prop) := And (P -> Q) (Q -> P)
+Inductive Iff: Prop -> Prop -> Prop
+Constructor iff {P Q}: (P -> Q) -> (Q -> P) -> Iff P Q
 
 Signature formula_sem: formula -> Prop
 Definition formula_sem (f: formula) :=
