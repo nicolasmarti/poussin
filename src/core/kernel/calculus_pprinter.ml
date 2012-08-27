@@ -206,7 +206,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	  (* tthe tokens for the math ... with *)
 	  Verbatim "match"; Space 1; term2token vars te Alone; Space 1; Verbatim "with"; Newline;
 	  (* the tokens for the cases *)
-	  Box (intercalate Newline (List.map (fun (ps, te) ->
+	  IBox (intercalate Newline (List.map (fun (ps, te) ->
 	    Box ([Verbatim "|"; Space 1; patterns2token vars ps Alone; Space 1; Verbatim ":="; Space 1; term2token (List.rev (patterns_vars ps) @ vars) te Alone ])
 	  ) eqs
 	  )

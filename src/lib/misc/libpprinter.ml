@@ -298,7 +298,7 @@ let rec token2box (t: token) (w: int) (indent: int) : box =
 
 	      | t ->
 		  let b = token2box t remainingwidth indent in
-		    if (b.width > remainingwidth || b.height > 1) then (
+		    if (b.width > remainingwidth || b.height > 1) && false then (
 
 		      let b = token2box t (w - indent) indent in
 			if (b.height > 1) then 
