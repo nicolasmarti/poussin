@@ -170,4 +170,31 @@ Definition expr_sem {A: Set} (e: expr A) :=
         end
   end
 
+Inductive formula: Set
+Constructor f_forall: {A: Set} -> (A -> formula) -> formula
+Constructor f_exists: {A: Set} -> (A -> formula) -> formula
+Constructor f_neg: formula -> formula
+Constructor f_and: formula -> formula -> formula
+Constructor f_or: formula -> formula -> formula
+Constructor f_impl: formula -> formula -> formula
+Constructor f_iff: formula -> formula -> formula
+Constructor f_pred: bool -> formula
+
+Inductive exists {A: Set} (P: A -> Prop): Prop
+Constructor witness {A: Set} (a: A) (P: A -> Prop): P a -> exists P
+
+Definition Iff (P Q: Prop) := And (P -> Q) (Q -> P)
+
+Signature formula_sem: formula -> Prop
+Definition formula_sem (f: formula) :=
+   match f with
+      | f_forall {A} f := (x: A) -> formula_sem (f x)
+      | f_exists {A} f := exists (\ x -> formula_sem (f x))
+      | f_neg f := Not (formula_sem f)
+      | f_and f1 f2 := And (formula_sem f1) (formula_sem f2)
+      | f_or f1 f2 := Or (formula_sem f1) (formula_sem f2)
+      | f_impl f1 f2 := (formula_sem f1) -> (formula_sem f2)
+      | f_iff f1 f2 := Iff (formula_sem f1) (formula_sem f2)
+      | f_pred b := eq b true
+   end
 
