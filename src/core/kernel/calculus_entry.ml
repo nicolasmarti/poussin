@@ -145,6 +145,7 @@ let process_stream (str: string Stream.t) : unit  =
       printf "error:\n%s\n" s;
       raise Pervasives.Exit
     | PoussinException err ->
+      pp_option := {!pp_option with show_type = true};
       printf "poussin_error:\n%s\n%s\n" (trace2string !trace) (poussin_error2string err);
       raise Pervasives.Exit
 ;;

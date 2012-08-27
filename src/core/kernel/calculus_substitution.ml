@@ -101,7 +101,9 @@ let rec term_substitution (s: substitution) (te: term) : term =
 	  | Not_found -> Var (i, typeannotation_substitution s ty, pos)
       )
 
-    | AVar _ -> raise (PoussinException (FreeError "term_substitution catastrophic: AVar"))
+    (*| AVar _ -> raise (PoussinException (FreeError "term_substitution catastrophic: AVar"))*)
+    | AVar _ -> te
+
     | TName _ -> raise (PoussinException (FreeError "term_substitution catastrophic: TName"))
 
     | App (te, args, ty, pos, reduced) ->
