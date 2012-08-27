@@ -638,15 +638,6 @@ and unification
       (* and we return the term *)
       Let ((s, ty, pq), te, Typed lty, p1, false)
 
-	(*
-    (* TODO: App case *)
-    (* some higher order unification *)
-    | App (Var (i, _, _), _::args, _, _, true), t2 when i < 0 ->
-      raise (Failure "unification: NYI")
-    | t1, App (Var (i, _, _), _::args, _, _, true) when i < 0  ->
-      raise (Failure "unification: NYI")
-	*)
-
     (* Normalizing App *)
     | App (App(hd1, args1, Typed ty1, pos1, _), args2, Typed ty2, pos2, _), _ -> 
       let te = unification defs ctxt ~polarity:polarity (App(hd1, args1 @ args2, Typed ty2, pos2, false)) te2 in
@@ -664,6 +655,32 @@ and unification
       let te = unification defs ctxt ~polarity:polarity te1 f in
       te
       
+    (* some higher order unification *)
+    | App (Var (i, _, _), (arg, n)::args, _, _, true), t | t, App (Var (i, _, _), (arg, n)::args, _, _, true) when i < 0 ->
+      (* here the principle is to "extract" the arg from the other term, transforming it into a Lambda and retry the unification *)
+      (* shift te 1 : now there is no TVar 0 in te *)
+      let t' = shift_term t 1 in
+      (* thus we can rewrite (shift arg 1) by TVar 0 *)
+      let t' = rewrite_term defs ctxt (shift_term arg 1) (var_ 0) t' in
+      (* we just verify that we have some instance of TVar 0 *)
+      if not (IndexSet.mem 0 (bv_term t')) then raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
+      (* we push a variable in the environment *)
+      push_quantification ("", get_type arg, n, NoPosition) ctxt;
+      (* we shift all args *)
+      let args = List.map (fun (te, n) -> shift_term te 1, n) args in
+      (* we create a new free variable and an application *)
+      let j = add_fvar ctxt in
+      let te_j = app_ j args in
+      let te_j = typeinfer defs ctxt ~polarity:polarity te_j in
+      (* we unify the application to the remaining args, with the body of the lambda (=t) *)
+      let body = unification defs ctxt ~polarity:polarity te_j t' in
+      (* we pop the quantifiers *)
+      let (_, ty, _, _), [body] = pop_quantification defs ctxt [body] in
+      (* we build the lambda, and add the substitution to i *)
+      let res = lambda_ "@higher_order_unif" ~nature:n ~ty:ty body in
+      let res = typeinfer defs ctxt ~polarity:polarity res in
+      context_add_substitution ctxt (IndexMap.singleton i res);
+      res
 
     (* this is really conservatives ... *)
     | Match (t1, des1, Typed ty1, pos1, _), Match (t2, des2, Typed ty2, pos2, _) when List.length des1 = List.length des2 ->
@@ -777,6 +794,14 @@ and are_convertible
       | Left _ -> false
       | Right () -> true
 
+(* some basic rewriting *)
+and rewrite_term (defs: defs) (ctxt: context ref) (lhs: term) (rhs: term) (te: term) : term =
+  (* the base case:
+     - we push rhs in the term stack
+     - we try to unify lhs and te 
+     - if it works the free variable in rhs will be substituted so that we pop rhs and return it     
+  *)
+  raise (Failure "rewrite_term: NYI")
 
 (* reduction *)
 (* NB: in order to enhanced reduction, it might be proper have a marker on terms 
@@ -944,3 +969,4 @@ and reduction_typeannotation (defs: defs) (ctxt: context ref) (strat: reduction_
     | NoAnnotation -> NoAnnotation
     | Annotation te -> Annotation (reduction_term_loop defs ctxt strat te)
     | Typed te -> Typed (reduction_term_loop defs ctxt strat te)
+
