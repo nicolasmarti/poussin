@@ -15,53 +15,40 @@ let rec shift_term (te: term) (delta: int) : term =
 
 (* shift bvar index in a term, above a given index *)
 and leveled_shift_term (te: term) (level: int) (delta: int) : term =
-  match te with
-    | Universe _ -> te
-    | Cste (n, ty, pos, reduced) -> Cste (n, leveled_shift_typeannotation ty level delta, pos, reduced)
-    | AVar (ty, pos) -> AVar (leveled_shift_typeannotation ty level delta, pos)
-    | TName (n, ty, pos) -> TName (n, leveled_shift_typeannotation ty level delta, pos)
-      
-    | Var (i, ty, pos) when i < 0 -> Var (i, leveled_shift_typeannotation ty level delta, pos)
+  let te =
+    match te.ast with
+      | Universe _ | Cste _ | AVar | TName _ -> te
+	
+      | Var i when i < 0 -> te
 
-    | Var (i, ty, pos) when i >= 0 ->
-      if i >= level then
-	if i + delta < level then (
-	  raise (PoussinException (Unshiftable_term (te, level, delta)))
-	)
+      | Var i when i >= 0 ->
+	if i >= level then
+	  if i + delta < level then (
+	    raise (PoussinException (Unshiftable_term (te, level, delta)))
+	  )
+	  else
+	    { te with ast = Var (i + delta) }
 	else
-	  Var (i + delta, leveled_shift_typeannotation ty level delta, pos)
-      else
-	Var (i, leveled_shift_typeannotation ty level delta, pos)
+	  te
 
-    | App (te, args, ty, pos, reduced) ->
-      App (
-	leveled_shift_term te level delta,
-	List.map (fun (te, n) -> leveled_shift_term te level delta, n) args,
-	leveled_shift_typeannotation ty level delta,
-	pos,
-	reduced
-      )
+      | App (f, args) ->
+	{ te with ast = App (leveled_shift_term f level delta,
+			     List.map (fun (te, n) -> leveled_shift_term te level delta, n) args) }
 
-    | Forall ((s, ty, n, p), te, ty2, pos, reduced) ->
-      Forall ((s, leveled_shift_term ty level delta, n, p), leveled_shift_term te (level + 1) delta,
-	      leveled_shift_typeannotation ty2 level delta,
-	      pos, reduced)
+      | Forall ((s, ty, n), body) ->
+	{ te with ast = Forall ((s, leveled_shift_term ty level delta, n), leveled_shift_term body (level + 1) delta) }
 
-    | Lambda ((s, ty, n, p), te, ty2, pos, reduced) ->
-      Lambda ((s, leveled_shift_term ty level delta, n, p), leveled_shift_term te (level + 1) delta, 
-	      leveled_shift_typeannotation ty2 level delta,
-	      pos, reduced)
+      | Lambda ((s, ty, n), body) ->
+	{ te with ast = Lambda ((s, leveled_shift_term ty level delta, n), leveled_shift_term te (level + 1) delta) }
 
-    | Let ((s, ty,p), te, ty2, pos, reduced) ->
-      Let ((s, leveled_shift_term ty level delta, p), leveled_shift_term te (level + 1) delta, 
-	      leveled_shift_typeannotation ty2 level delta,
-	      pos, reduced)
+      | Let ((s, value), body) ->
+	{ te with ast = Let ((s, leveled_shift_term value level delta), leveled_shift_term body (level + 1) delta) }
 
-    | Match (te, des, ty, pos, reduced) ->
-      Match (leveled_shift_term te level delta,
-	     List.map (fun des -> leveled_shift_destructor des level delta) des,
-	     leveled_shift_typeannotation ty level delta,
-	     pos, reduced)
+      | Match (m, des) ->
+	{ te with ast = Match (leveled_shift_term m level delta,
+			       List.map (fun des -> leveled_shift_destructor des level delta) des) }
+  in
+  { te with annot = leveled_shift_typeannotation te.annot level delta }
 
 and leveled_shift_typeannotation (ty: typeannotation) (level: int) (delta: int) : typeannotation =
   match ty with
@@ -90,52 +77,40 @@ let rec shift_substitution (s: substitution) (delta: int) : substitution =
 
 (* substitution *)
 let rec term_substitution (s: substitution) (te: term) : term =
-  match te with
-    | Universe _ -> te
-    | Cste (n, ty, pos, reduced) -> Cste (n, typeannotation_substitution s ty, pos, reduced)
-    | Var (i, ty, pos) -> 
-      (
-	try 
-	  IndexMap.find i s 
-	with
-	  | Not_found -> Var (i, typeannotation_substitution s ty, pos)
-      )
+  let te = 
+    match te.ast with
+      | Universe _ | Cste _ | AVar -> te
+      | Var i -> 
+	(
+	  try 
+	    IndexMap.find i s 
+	  with
+	    | Not_found -> te
+	)
 
-    (*| AVar _ -> raise (PoussinException (FreeError "term_substitution catastrophic: AVar"))*)
-    | AVar _ -> te
+      | TName _ -> raise (PoussinException (FreeError "term_substitution catastrophic: TName"))
 
-    | TName _ -> raise (PoussinException (FreeError "term_substitution catastrophic: TName"))
+      | App (f, args) ->
+	{ te with ast = App (term_substitution s te,
+			     List.map (fun (te, n) -> term_substitution s te, n) args) }
 
-    | App (te, args, ty, pos, reduced) ->
-      App (term_substitution s te,
-	   List.map (fun (te, n) -> term_substitution s te, n) args,
-	   typeannotation_substitution s ty,
-	   pos, false)
+      | Forall ((symb, ty, n), body) ->
+	{ te with ast = Forall ((symb, term_substitution s ty, n),
+				term_substitution (shift_substitution s 1) body) }
 
-    | Forall ((symb, ty, n, p), te, ty2, pos, reduced) ->
-      Forall ((symb, term_substitution s ty, n, p),
-	      term_substitution (shift_substitution s 1) te,
-	      typeannotation_substitution s ty2,
-	      pos, false)
+      | Lambda ((symb, ty, n), body) ->
+	{ te with ast = Lambda ((symb, term_substitution s ty, n),
+				term_substitution (shift_substitution s 1) body) }
 
-    | Lambda ((symb, ty, n, p), te, ty2, pos, reduced) ->
-      Lambda ((symb, term_substitution s ty, n, p),
-	      term_substitution (shift_substitution s 1) te,
-	      typeannotation_substitution s ty2,
-	      pos, false)
+      | Let ((symb, value), body) ->
+	{ te with ast = Let ((symb, term_substitution s value),
+			     term_substitution (shift_substitution s 1) body) }
 
-    | Let ((symb, ty, p), te, ty2, pos, reduced) ->
-      Let ((symb, term_substitution s ty, p),
-	      term_substitution (shift_substitution s 1) te,
-	      typeannotation_substitution s ty2,
-	      pos, false)
-
-    | Match (te, des, ty, p, reduced) ->
-      Match (term_substitution s te,
-	     List.map (fun des -> destructor_substitution s des) des,
-	     typeannotation_substitution s ty,
-	     p, false
-      )
+      | Match (m, des) ->
+	{ te with ast = Match (term_substitution s m,
+			       List.map (fun des -> destructor_substitution s des) des) }
+  in 
+  { te with annot = typeannotation_substitution s te.annot }
 
 and typeannotation_substitution (s: substitution) (ty: typeannotation) : typeannotation =
   match ty with
@@ -153,12 +128,12 @@ and destructor_substitution (s: substitution) (des: pattern list * term) : patte
 let rec conversion_hyps2subst ?(dec_order: bool = false) (cv: (term * term) list) : (substitution * (term * term) list) =
   match cv with
     | [] -> IndexMap.empty,  []
-    | (Var (i, _, _), te2)::tl when i >= 0 && IndexSet.is_empty 
+    | ({ ast = Var i; _} , te2)::tl when i >= 0 && IndexSet.is_empty 
 	(IndexSet.filter 
 	   (fun i' -> if dec_order then i >= i' else i <= i') (bv_term te2)) ->
       let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
       IndexMap.add i te2 s, l 
-    | (te1, Var (i, _, _))::tl when i >= 0  && IndexSet.is_empty (IndexSet.filter (fun i' -> if dec_order then i >= i' else i <= i') (bv_term te1)) ->
+    | (te1, { ast = Var i; _})::tl when i >= 0  && IndexSet.is_empty (IndexSet.filter (fun i' -> if dec_order then i >= i' else i <= i') (bv_term te1)) ->
       let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
       IndexMap.add i te1 s, l 
     | hd::tl -> 

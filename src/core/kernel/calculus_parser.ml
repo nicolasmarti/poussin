@@ -172,7 +172,7 @@ and parse_lambda_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : (
       let ty = parse_term defs leftmost pb in
       ty
     ) pb) with
-      | None -> AVar (NoAnnotation, NoPosition)
+      | None -> avar_ ()
       | Some ty -> ty in
     (List.map (fun (n, p) -> n, p) names, ty, Implicit)
   )
@@ -183,7 +183,7 @@ and parse_lambda_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : (
     let n = at_start_pos leftmost name_parser pb in
     let endpos = cur_pos pb in
     let () = whitespaces pb in
-    ([n, (startpos, endpos)], AVar (NoAnnotation, NoPosition), Explicit)        
+    ([n, (startpos, endpos)], avar_ (), Explicit)        
   )
 
 end pb
@@ -204,7 +204,7 @@ and parse_term_lvl0 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
     match args with
       | [] -> head
       | _ -> 
-	App (head, args, NoAnnotation, Position ((startpos, endpos), []), false)
+	app_ ~pos:(Position ((startpos, endpos), [])) head args
 end pb
 
 (* arguments: term_lvl2 with possibly brackets *)
@@ -226,25 +226,25 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
     let () = whitespaces pb in
     let (), pos = at_start_pos leftmost (with_pos (word "Type")) pb in
     let () = whitespaces pb in
-    Universe (Type, UName "", pos_to_position pos)
+    type_ ~pos:(pos_to_position pos) (UName "")
   ) 
   <|> tryrule (fun pb -> 
     let () = whitespaces pb in
     let (), pos = at_start_pos leftmost (with_pos (word "Set")) pb in
     let () = whitespaces pb in
-    Universe (Set, UName "", pos_to_position pos)
+    set_ ~pos:(pos_to_position pos) (UName "")
   ) 
   <|> tryrule (fun pb -> 
     let () = whitespaces pb in
     let (), pos = at_start_pos leftmost (with_pos (word "Prop")) pb in
     let () = whitespaces pb in
-    Universe (Prop, UName "", pos_to_position pos)
+    prop_ ~pos:(pos_to_position pos) (UName "")
   ) 
   <|> tryrule (fun pb ->
     let () =  whitespaces pb in
     let (), pos = at_start_pos leftmost (with_pos parse_avar) pb in
     let () =  whitespaces pb in
-    AVar (NoAnnotation, pos_to_position pos)
+    avar_ ~pos:(pos_to_position pos) ()
   ) 
   <|> tryrule (fun pb ->
     let () =  whitespaces pb in
@@ -262,7 +262,7 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
     let te2 = parse_term defs leftmost pb in
     let endpos = cur_pos pb in    
     let () =  whitespaces pb in
-    Let ((n, te, NoPosition), te2, NoAnnotation, pos_to_position (startpos, endpos), false)
+    let_ ~pos:(pos_to_position (startpos, endpos)) n te te2
   )
   (* parsing of math: TODO extends for having more than one pattern per destructor *)
   <|> tryrule (fun pb ->
@@ -288,13 +288,13 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
     let () =  whitespaces pb in
     let () = at_start_pos leftmost (word "end") pb in
     let endpos = cur_pos pb in    
-    Match (te, eqs, NoAnnotation, pos_to_position (startpos, endpos), false)
+    match_ ~pos:(pos_to_position (startpos, endpos)) te eqs
   )
   <|> tryrule (fun pb ->
     let () = whitespaces pb in
     let n, pos = at_start_pos leftmost (with_pos name_parser) pb in
     let () = whitespaces pb in
-    TName (n, NoAnnotation, pos_to_position pos)
+    name_ ~pos:(pos_to_position pos) n
   )
   <|> (fun pb -> 
     let () = whitespaces pb in

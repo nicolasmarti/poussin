@@ -53,31 +53,39 @@ type position = NoPosition
 
 type reduced = bool
 
-type term = Universe of uType * uLevel * position 
+type pattern = PAvar | PName of string | PCste of name
+	       | PApp of name * (pattern * nature) list
+
+
+type term_ast = Universe of uType * uLevel 
 
             (* constante *)
-	    | Cste of name * typeannotation * position * reduced
+	    | Cste of name
 
 	    (* Free Var (index < 0) and Bounded Var (index > 0) *)
-	    | Var of index * typeannotation * position
+	    | Var of index
 		
 	    (* these constructors are only valide after parsing, and removed by typechecking *)
-	    | AVar of typeannotation * position (* _ *)
-	    | TName of name * typeannotation * position
+	    | AVar (* _ *)
+	    | TName of name
 
 	    (* quantifiers *)
-	    | Lambda of (name * term * nature * position) * term * typeannotation * position * reduced
-	    | Forall of (name * term * nature * position) * term * typeannotation * position * reduced
-	    | Let of (name * term * position) * term * typeannotation * position * reduced
+	    | Lambda of (name * term * nature) * term
+	    | Forall of (name * term * nature) * term
+	    | Let of (name * term) * term
 
 	    (* application *)
-	    | App of term * (term * nature) list * typeannotation * position * reduced
+	    | App of term * (term * nature) list
 
 	    (* destruction *)
-	    | Match of term * (pattern list * term) list * typeannotation * position * reduced
+	    | Match of term * (pattern list * term) list
 
-and pattern = PAvar | PName of string | PCste of name
-	      | PApp of name * (pattern * nature) list
+and term = 
+{ ast: term_ast;
+  annot: typeannotation;
+  tpos: position;
+  reduced: bool;
+}
 
 and typeannotation = NoAnnotation
 		     | Annotation of term
@@ -92,7 +100,6 @@ and var_frame = {
   name: name;
   ty: term;
   nature: nature;
-  pos: position;
     
 }
 

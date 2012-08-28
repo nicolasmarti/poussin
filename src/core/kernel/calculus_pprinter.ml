@@ -63,23 +63,23 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	  ]
 
     | _ ->
-  match te with
+  match te.ast with
 
-    | Universe (Type, _, _) -> Verbatim "Type"
-    | Universe (Set, _, _) -> Verbatim "Set"
-    | Universe (Prop, _, _) -> Verbatim "Prop"
+    | Universe (Type, _) -> Verbatim "Type"
+    | Universe (Set, _) -> Verbatim "Set"
+    | Universe (Prop, _) -> Verbatim "Prop"
 
-    | Cste (name, _, _, _) -> verbatims [name]
+    | Cste name -> verbatims [name]
 
-    | Var (i, _, _) when i >= 0 -> (
+    | Var i when i >= 0 -> (
       try
 	verbatims ([List.nth vars i] @ (if !pp_option.show_indices then ["("; string_of_int i ;")"] else []))
       with | _ -> verbatims ["!"; string_of_int i]
     )
-    | Var (i, _, _) when i < 0 -> verbatims ["?"; string_of_int (-i)]
+    | Var i when i < 0 -> verbatims ["?"; string_of_int (-i)]
 
-    | AVar _ -> Verbatim "_"
-    | TName (name, _, _) -> verbatims ["'"; name; "'"]
+    | AVar  -> Verbatim "_"
+    | TName name -> verbatims ["'"; name; "'"]
 
     | Lambda _ ->
       (* we embed in parenthesis if 
@@ -100,7 +100,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	     2 the inner variables list
 	  *)
 	  let vars, lhs = 
-	    fold_cont (fun (vars, acc) (((s, ty, n, p), _, _)::tl) ->
+	    fold_cont (fun (vars, acc) (((s, ty, n), _, _)::tl) ->
 	      let s = 
 		match s with
 		  (* the variable does not appears in the rest -> we skip it *)
@@ -122,7 +122,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	  Box ([Verbatim "\\"] @ lhs @ [ Space 1; Verbatim "->"; Space 1; rhs])
 	)
 
-    | Forall ((s, ty, nature, _), te, _, _, _) ->
+    | Forall ((s, ty, nature), te) ->
       (* we embed in parenthesis if 
 	 - embed as some arg 
 	 - ??
@@ -153,7 +153,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	  Box [lhs; Space 1; Verbatim "->"; Space 1; rhs]
 	)
 
-    | Let ((s, te1, _), te2, _, _, _) ->
+    | Let ((s, te1), te2) ->
       (* we embed in parenthesis if 
 	 - embed as some arg 
 	 - ??
@@ -175,7 +175,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	  Box [lhs; Space 1; rhs]
 	)
 
-    | App (te, args, _, _, _) ->
+    | App (te, args) ->
       (* we only embed in parenthesis if
 	 - we are an argument of an application
       *)
@@ -194,7 +194,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	Box ((*[Verbatim "["] @*) (intercalate (Space 1) (te::args))(* @ [Verbatim "]"]*))
        )
 
-    | Match (te, eqs, _, _, _) ->
+    | Match (te, eqs) ->
       (match p with
 	| InArg Explicit -> withParen
 	| InApp -> withParen
@@ -238,7 +238,7 @@ and pattern2token (vars: name list) (pattern: pattern) (p: place) : token =
 	  (pattern2token vars te (InArg n))
 	) (if !pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args) in
 	(* the token for the function *)
-	let te = term2token vars (Cste (n, NoAnnotation, NoPosition, true)) InApp in
+	let te = term2token vars (cste_ n) InApp in
 	(* put it all together *)
 	Box ((*[Verbatim "["] @*) (intercalate (Space 1) (te::args))(* @ [Verbatim "]"]*))
        )
