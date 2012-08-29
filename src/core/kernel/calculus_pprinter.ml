@@ -27,7 +27,7 @@ type pp_option = {
 }
 
 let pp_option = ref {show_implicit = true; 
-		     show_indices = false; 
+		     show_indices = true; 
 		     show_position = false; 
 		     show_univ = false;
 		     show_type = false;

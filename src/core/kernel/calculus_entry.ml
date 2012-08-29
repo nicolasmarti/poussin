@@ -75,8 +75,8 @@ let process_definition (def: definition) : unit =
       (* ensure that conclusion head is an Inductive *)
       let hd = app_head (snd (destruct_forall ty)) in
       let ind = 
-	match hd with
-	  | Cste (n, _, _, _) -> ignore(get_inductive env.defs n); n
+	match hd.ast with
+	  | Cste n -> ignore(get_inductive env.defs n); n
 	  | _ -> raise (PoussinException (FreeError (
 	      String.concat "" ["constructor conclusion head is not an Inductive"]
 	    ))) in
@@ -145,7 +145,7 @@ let process_stream (str: string Stream.t) : unit  =
       printf "error:\n%s\n" s;
       raise Pervasives.Exit
     | PoussinException err ->
-      pp_option := {!pp_option with show_type = true};
+      (*pp_option := {!pp_option with show_type = true};*)
       printf "poussin_error:\n%s\n%s\n" (trace2string !trace) (poussin_error2string err);
       raise Pervasives.Exit
 ;;

@@ -105,8 +105,7 @@ let rec patterns_vars (ps: pattern list) : name list =
 (* the set of free variable in a term *)
 let rec fv_term (te: term) : IndexSet.t =
   match te.ast with
-    | Universe _ | AVar _ | TName _ -> IndexSet.empty
-    | Cste _ -> fv_typeannotation te.annot
+    | Universe _ | AVar _ | TName _ | Cste _ -> fv_typeannotation te.annot
     | Var i when i < 0 -> IndexSet.add i (fv_typeannotation te.annot)
     | Var i when i >= 0 -> fv_typeannotation te.annot
     | Lambda ((_, ty, _), body) ->
@@ -129,8 +128,7 @@ and fv_typeannotation (ty: typeannotation) : IndexSet.t =
 (* the set of bounded variable in a term NB: does not take into account vars in type annotation *)
 let rec bv_term (te: term) : IndexSet.t =
   match te.ast with
-    | Universe _ | AVar _ | TName _ -> IndexSet.empty
-    | Cste _ ->  bv_typeannotation te.annot
+    | Universe _ | AVar _ | TName _ | Cste _ -> bv_typeannotation te.annot
     | Var i when i < 0 -> bv_typeannotation te.annot
     | Var i when i >= 0 -> IndexSet.add i (bv_typeannotation te.annot)
     | Lambda ((_, ty, _), body) ->
@@ -142,6 +140,7 @@ let rec bv_term (te: term) : IndexSet.t =
     | App (f, args) -> List.fold_left (fun acc (te, _) -> IndexSet.union acc (bv_term te)) (IndexSet.union (bv_typeannotation te.annot) (bv_term f)) args
     | Match (m, des) ->
       List.fold_left (fun acc eq -> IndexSet.union acc (destructor_bv_term eq)) (bv_term m) des
+
 
 and destructor_bv_term (des: (pattern list * term)) : IndexSet.t =
     (shift_vars (bv_term (snd des)) (patterns_size (fst des)))
@@ -174,6 +173,28 @@ and cste_typeannotation (ty: typeannotation) : NameSet.t =
     | Annotation te -> cste_term te
     | TypedAnnotation te -> cste_term te
     | Typed te -> cste_term te
+
+(* the set of cste in a term *)
+let rec name_term (te: term) : NameSet.t =
+  match te.ast with
+    | Universe _ | AVar _ | Cste _ | Var _ -> name_typeannotation te.annot
+    | TName c ->  NameSet.add c (name_typeannotation te.annot)
+    | Lambda ((_, ty, _), body) ->
+      NameSet.union (name_typeannotation te.annot) (NameSet.union (name_term ty) (name_term body))
+    | Forall ((_, ty, _), body) ->
+      NameSet.union (name_typeannotation te.annot) (NameSet.union (name_term ty) (name_term body))
+    | Let ((_, te1), te2) ->
+      NameSet.union (name_typeannotation te.annot) (NameSet.union (name_term te1) (name_term te2))
+    | App (f, args) -> List.fold_left (fun acc (te, _) -> NameSet.union acc (name_term te)) (NameSet.union (name_typeannotation te.annot) (name_term f)) args
+    | Match (m, des) ->
+      List.fold_left (fun acc eq -> NameSet.union acc (name_term (snd eq))) (name_term m) des
+
+and name_typeannotation (ty: typeannotation) : NameSet.t =
+  match ty with
+    | NoAnnotation -> NameSet.empty
+    | Annotation te -> name_term te
+    | TypedAnnotation te -> name_term te
+    | Typed te -> name_term te
 
  
 (* some name freshness *)
@@ -290,19 +311,19 @@ let rec set_term_reduced ?(recursive: bool = false) (reduced: bool) (te: term) :
   match te.ast with
     | _ when get_term_reduced te = reduced && not recursive -> te
 
-    | Universe _ | Var _ | AVar _ | TName _ | Cste _ -> te
+    | Universe _ | Var _ | AVar _ | TName _ | Cste _ -> { te with reduced = reduced }
     | Lambda (q, body) -> 
-      { te with ast = Lambda (q, if recursive then set_term_reduced ~recursive:recursive reduced body else body) }
+      { te with ast = Lambda (q, if recursive then set_term_reduced ~recursive:recursive reduced body else body); reduced = reduced }
     | Forall (q, body) -> 
-      { te with ast = Forall (q, if recursive then set_term_reduced ~recursive:recursive reduced body else body) }
+      { te with ast = Forall (q, if recursive then set_term_reduced ~recursive:recursive reduced body else body); reduced = reduced }
     | Let (q, body) -> 
-      { te with ast = Let (q, if recursive then set_term_reduced ~recursive:recursive reduced body else body) }
+      { te with ast = Let (q, if recursive then set_term_reduced ~recursive:recursive reduced body else body); reduced = reduced }
     | App (f, args) -> 
       { te with ast = App ((if recursive then set_term_reduced ~recursive:recursive reduced f else f),  
-			   if recursive then (List.map (fun (te, n) -> set_term_reduced ~recursive:recursive reduced te,n) args) else args) }
+			   if recursive then (List.map (fun (te, n) -> set_term_reduced ~recursive:recursive reduced te,n) args) else args); reduced = reduced }
     | Match (m, des) -> 
       { te with ast = Match ((if recursive then set_term_reduced ~recursive:recursive reduced m else m), 
-			     if recursive then (List.map (fun (ps, te) -> ps, set_term_reduced ~recursive:recursive reduced te) des) else des) }
+			     if recursive then (List.map (fun (ps, te) -> ps, set_term_reduced ~recursive:recursive reduced te) des) else des); reduced = reduced }
   in
   if recursive then
   { te with annot = set_typeannotation_reduced ~recursive:recursive reduced te.annot }

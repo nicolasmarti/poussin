@@ -39,7 +39,7 @@ and leveled_shift_term (te: term) (level: int) (delta: int) : term =
 	{ te with ast = Forall ((s, leveled_shift_term ty level delta, n), leveled_shift_term body (level + 1) delta) }
 
       | Lambda ((s, ty, n), body) ->
-	{ te with ast = Lambda ((s, leveled_shift_term ty level delta, n), leveled_shift_term te (level + 1) delta) }
+	{ te with ast = Lambda ((s, leveled_shift_term ty level delta, n), leveled_shift_term body (level + 1) delta) }
 
       | Let ((s, value), body) ->
 	{ te with ast = Let ((s, leveled_shift_term value level delta), leveled_shift_term body (level + 1) delta) }
@@ -88,10 +88,10 @@ let rec term_substitution (s: substitution) (te: term) : term =
 	    | Not_found -> te
 	)
 
-      | TName _ -> raise (PoussinException (FreeError "term_substitution catastrophic: TName"))
+      | TName n -> raise (PoussinException (FreeError (String.concat " " ["term_substitution catastrophic: TName"; n])))
 
       | App (f, args) ->
-	{ te with ast = App (term_substitution s te,
+	{ te with ast = App (term_substitution s f,
 			     List.map (fun (te, n) -> term_substitution s te, n) args) }
 
       | Forall ((symb, ty, n), body) ->
