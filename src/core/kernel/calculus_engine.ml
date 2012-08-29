@@ -55,14 +55,14 @@ let rec pattern_match (ctxt: context ref) (p: pattern) (te: term) : (term list) 
     | PAvar -> Some [te]
     | PName s -> Some [te]
     | PCste c -> (
-      match te with
-	| Cste (c2, _, _, _) when c = c2 -> Some []
+      match te.ast with
+	| Cste c2 when c = c2 -> Some []
 	| _ -> (*printf "%s <> %s (1)\n" (pattern2string ctxt p) (term2string ctxt te);*) None
     )
     | PApp (c, args) ->
-      match te with
-	| Cste (c2, _, _, _) when c = c2 && List.length args = 0 -> Some []
-	| App (Cste (c2, _, _, _), args2, _, _, _) when c = c2 && List.length args = List.length args2 ->
+      match te.ast with
+	| Cste c2 when c = c2 && List.length args = 0 -> Some []
+	| App ({ ast = Cste c2; _} , args2) when c = c2 && List.length args = List.length args2 ->
 	  List.fold_left (fun acc (hd1, hd2) -> 
 	    match acc with
 	      | None -> None
@@ -83,10 +83,10 @@ let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
   ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
 
 
-let push_quantification (q: (name * term * nature * position)) (ctxt: context ref) : unit =
-  let s, ty, n, p = q in
+let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
+  let s, ty, n = q in
   ctxt := { !ctxt with
-    bvs = {name = s; ty = shift_term ty 1; nature = n; pos = p}::!ctxt.bvs;
+    bvs = {name = s; ty = shift_term ty 1; nature = n}::!ctxt.bvs;
     fvs = List.map (fun (i, ty, te, n) -> (i, shift_term ty 1, (match te with | None -> None | Some te -> Some (shift_term te 1)), n)) !ctxt.fvs;
     conversion_hyps = List.map (fun (hd1, hd2) -> (shift_term hd1 1, shift_term hd2 1)) !ctxt.conversion_hyps
   }
@@ -140,7 +140,7 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term lis
   tes
 
 
-let pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature * position) * term list =
+let pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature) * term list =
   (* we flush the vars *)
   let tes = flush_fvars defs ctxt tes in
   (* we grab the remaining context and the popped frame *)
@@ -161,9 +161,9 @@ let pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name
       ) [] !ctxt.conversion_hyps;    
   };
   (* and returns the quantifier *)
-  (frame.name, shift_term frame.ty (-1), frame.nature, frame.pos), tes  
+  (frame.name, shift_term frame.ty (-1), frame.nature), tes  
 
-let rec pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n: int) : (name * term * nature * position) list * term list =
+let rec pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n: int) : (name * term * nature) list * term list =
   match n with
     | _ when n < 0 -> raise (PoussinException (FreeError "Catastrophic: negative n in pop_quantifications"))
     | 0 -> [], tes
@@ -234,7 +234,7 @@ let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te:
   };
   (*printf "adding %s\n" (string_of_int next_fvar_index);
   ignore(fvar_subst ctxt next_fvar_index);*)
-  Var (next_fvar_index, Typed ty, pos)
+  var_ ~annot:(Typed ty) ~pos:pos next_fvar_index
 
 (* typechecking, inference and reduction *)
 
@@ -284,147 +284,142 @@ and typeinfer
     | ty ->
       let mty = match ty with | NoAnnotation -> None | TypedAnnotation ty -> Some ty in
       let te' = (
-	match te with
+	match te.ast with
 	  | Universe _ -> te
-	  | Cste (n, _, pos, reduced) -> (
+	  | Cste n -> (
 	      match get_cste defs n with
 		| Inductive (_, ty) | Axiom ty | Constructor (_, ty) -> 
-		  Cste (n, Typed ty, pos, reduced)
+		  { te with annot = Typed ty }
 		| Definition te -> 
-		  Cste (n, Typed (get_type te), pos, reduced)
+		  { te with annot = Typed (get_type te) }
 	  )
 
-	  | Var (i, _, pos) when i < 0 -> (
+	  | Var i when i < 0 -> (
 	    match fvar_subst ctxt i with
-	      | None -> Var (i, Typed (fvar_type ctxt i), pos)
+	      | None -> { te with annot = Typed (fvar_type ctxt i) }
 	      | Some te -> te
 	  )
-	  | Var (i, _, pos) when i >= 0 ->
-	    Var (i, Typed (bvar_type ctxt i), pos)
+	  | Var i when i >= 0 ->
+	    { te with annot = Typed (bvar_type ctxt i) }
 
-	  | AVar (_, pos) ->
-	    add_fvar ~pos:pos ctxt
+	  | AVar  ->
+	    add_fvar ~pos:te.tpos ctxt
 
-	  | TName (n, _, pos) -> (
+	  | TName n -> (
 	    (* we first look for a variable *)
 	    match var_lookup ctxt n with
 	      | Some i -> 
-		Var (i, Typed (bvar_type ctxt i), pos)
+		{ te with ast = Var i; annot = Typed (bvar_type ctxt i) }
 	      | None -> 
 		match get_cste defs n with
 		  | Inductive (_, ty) | Axiom ty | Constructor (_, ty) -> 
-		    Cste (n, Typed ty, pos, false)
+		    { te with ast = Cste n; annot = Typed ty }
 		  | Definition te -> 
-		    Cste (n, Typed (get_type te), pos, false)
+		    { te with ast = Cste n; annot = Typed (get_type te) }
 	  )
 
-	  | Forall ((s, ty, n, pq), te, _, p, reduced) ->
+	  | Forall ((s, ty, n), body) ->
 	    (* first let's be sure that ty :: Type *)
 	    let ty = typecheck defs ctxt ~polarity:polarity ty (type_ (UName "")) in
 	    (* we push the quantification *)
-	    push_quantification (s, ty, n, pq) ctxt;
+	    push_quantification (s, ty, n) ctxt;
 	    (* we typecheck te :: Type *)
 	    let te = typecheck defs ctxt ~polarity:polarity te (type_ (UName "")) in
 	    (* we pop quantification *)
 	    let q1, [te] = pop_quantification defs ctxt [te] in
 	    (* and we returns the term with type Type *)
-	    Forall ((s, ty, n, pq), te, Typed (type_ (UName "")), p, reduced)
+	    { te with ast = Forall ((s, ty, n), te); annot = Typed (type_ (UName "")) }
 
-	  | Lambda ((s, ty, n, pq), te, aty, p, reduced) ->
+	  | Lambda ((s, ty, n), body) ->
 	    (* first let's be sure that ty :: Type *)
 	    let ty = typecheck defs ctxt ~polarity:polarity ty (type_ (UName "")) in
 	    (* if we have some type we use it *)
 	    let ty = 
 	      (* we typecheck te :: Type *)
-	      match aty with
-		| TypedAnnotation (Forall ((_, ty', _, _), te', _, _, _)) -> unification defs ctxt ~polarity:polarity ty ty'
+	      match te.annot with
+		| TypedAnnotation ({ ast = Forall ((_, ty', _), te'); _ }) -> unification defs ctxt ~polarity:polarity ty ty'
 		| _ -> ty
 	    in
 	    (* we push the quantification *)
-	    push_quantification (s, ty, n, pq) ctxt;
+	    push_quantification (s, ty, n) ctxt;
 	    (* and we typecheck te *)
-	    let te = 
+	    let body = 
 	      (* we typecheck te :: Type *)
-	      match aty with
-		| TypedAnnotation (Forall ((_, ty', _, _), te', _, _, _)) -> typecheck defs ctxt ~polarity:polarity te te'
-		| _ -> typeinfer defs ctxt ~polarity:polarity te
+	      match te.annot with
+		| TypedAnnotation ({ ast = Forall ((_, ty', _), te'); _ }) -> typecheck defs ctxt ~polarity:polarity body te'
+		| _ -> typeinfer defs ctxt ~polarity:polarity body
 	    in    	    
 	    (* we pop quantification *)
-	    let q1, [te] = pop_quantification defs ctxt [te] in
+	    let q1, [body] = pop_quantification defs ctxt [body] in
 	    (* and we returns the term with type Type *)
-	    let res = Forall ((s, ty, n, pq), get_type te, Typed (type_ (UName "")), NoPosition, reduced) in
-	    Lambda ((s, ty, n, pq), te, Typed res, p, reduced)
+	    let res = forall_ ~annot:(Typed (type_ (UName ""))) s ~nature:n ~ty:ty (get_type body) in
+	    { te with ast = Lambda ((s, ty, n), te); annot = Typed res }
 
-	  | Let ((n, te, pos), te2, _, pos2, reduced) ->
+	  | Let ((n, value), body) ->
 	    (* first we infer the value *)
-	    let te = typeinfer defs ctxt ~polarity:polarity te in
+	    let value = typeinfer defs ctxt ~polarity:polarity value in
 	    (* then we push the quantification *)
-	    push_quantification (n, get_type te, NJoker, pos) ctxt;
+	    push_quantification (n, get_type value, Explicit) ctxt;
 	    (* here we add a conversion rule between the variable and the value *)
-	    context_add_conversion ctxt (var_ ~annot:(Typed (bvar_type ctxt 0)) 0) te;
+	    context_add_conversion ctxt (var_ ~annot:(Typed (bvar_type ctxt 0)) 0) value;
 	    (* we infer the body *)
-	    let te2 = typeinfer defs ctxt ~polarity:polarity te2 in
+	    let body = typeinfer defs ctxt ~polarity:polarity body in
 	    (* we pop the quantification *)
-	    let (n, ty, _, _), [te2] = pop_quantification defs ctxt [te2] in
+	    let (n, ty, _), [body] = pop_quantification defs ctxt [body] in
 	    (* we returns the the let with the type of te2 shifted (god help us all ...) *)
-	    Let ((n, te, pos), te2, Typed (shift_term (get_type te2) (-1)), pos2, reduced)
+	    { te with ast = Let ((n, value), body); annot = Typed (shift_term (get_type body) (-1)) }
 
-	  | App (hd, [], _, pos, reduced) -> (
-	    let te = typeinfer defs ctxt ~polarity:polarity hd in
-	    match app_args te with
-	      | [] -> te
+	  | App (hd, []) -> (
+	    let hd = typeinfer defs ctxt ~polarity:polarity hd in
+	    match app_args hd with
+	      | [] -> hd
 	      | args ->
-		App (app_head te, args, Typed (get_type te), pos, get_term_reduced te)
+		{ te with ast = App (app_head hd, args); annot = Typed (get_type hd) }
 	  )
 
-	  | App (hd, (arg, n)::args, _, pos, reduced) ->	  
+	  | App (hd, (arg, n)::args) ->	  
 	    (* we infer hd and arg *)
 	    let hd = typeinfer defs ctxt ~polarity:polarity hd in
 	    let arg = typeinfer defs ctxt ~polarity:polarity arg in
 	    (* we unify the type of hd with a forall *)
 	    let fty = add_fvar ctxt in
 	    let hd_ty = unification defs ctxt ~polarity:polarity (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
-	    let Forall ((_, _, n', _), _, _, _, _) = hd_ty in
+	    let { ast = Forall ((_, _, n'), _); _ } = hd_ty in
 	    (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
 	    if n' = Implicit && n = Explicit then (
 	      let new_arg = add_fvar ctxt in
 	      (* and retypeinfer the whole *)
-	      typeinfer defs ctxt ~polarity:polarity (App (hd, (new_arg, n')::(arg, n)::args, NoAnnotation, pos, reduced))
+	      typeinfer defs ctxt ~polarity:polarity {te with ast = App (hd, (new_arg, n')::(arg, n)::args) }
 	    ) else (
 	      (* needs to unify the type properly *)
-	      let ty = unification defs ctxt ~polarity:polarity fty (get_type arg) in
-	      let Forall ((q, _, n', pq), te, Typed fty, p, reduced) = hd_ty in
+	      let (*ty*) _ = unification defs ctxt ~polarity:polarity fty (get_type arg) in
+	      let { ast = Forall ((q, _, n'), body); annot = Typed fty; _ } = hd_ty in
 	      (* we build a new head, as the reduction of hd and arg, with the proper type *)
-	      let new_hd_ty = (App (Lambda ((q, ty, n, pq), te, Typed fty, p, reduced), (arg,n)::[], Typed fty, pos, false)) in
-	      (*printf "Unification, App new_hd_ty:\n%s\n\n" (term2string ctxt new_hd_ty);*)
-	      let new_hd_ty = reduction_term defs ctxt simplification_strat new_hd_ty in
-	      let new_hd = App (hd, (arg, n)::[], 
-				Typed (new_hd_ty), pos,
-				false) in
+	      (*(App (Lambda ((q, ty, n, pq), te, Typed fty, p, reduced), (arg,n)::[], Typed fty, pos, false))*)
+	      let new_hd_ty = shift_term (term_substitution (IndexMap.singleton 0 (shift_term arg 1)) body) (-1) in
+	      let new_hd = app_ ~annot:(Typed (new_hd_ty)) (*~pos:pos*) hd ((arg, n)::[]) in
 	      (*printf "Unification, App new_hd:\n%s\n\n" (term2string ctxt new_hd);*)
-	      let new_hd = reduction_term defs ctxt simplification_strat (
-		new_hd
-	      ) in 
-	      typeinfer defs ctxt ~polarity:polarity (App (new_hd, args, NoAnnotation, pos, reduced))
+	      let new_hd = reduction_term defs ctxt simplification_strat new_hd in 
+	      typeinfer defs ctxt ~polarity:polarity (app_ ~pos:te.tpos new_hd args)
 	    )
 
-	  | Match (te, des, aty, pos, reduced) ->
+	  | Match (m, des) ->
 	    (* first we typecheck the destructed term *)
-	    let te = typeinfer defs ctxt te in
+	    let m = typeinfer defs ctxt m in
 	    (* then we assure ourselves that it is an inductive *)
-	    let tety = (get_type te) in
+	    let tety = (get_type m) in
 	    let _ = 
-	      match app_head (reduction_term defs ctxt typeinfer_strat tety) with
-		| Cste (n, _, _, _) -> (
-		    match get_cste defs n with
-		      | Inductive _ as ty -> ty
-		      | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, te)))
+	      match (app_head (reduction_term defs ctxt typeinfer_strat tety)).ast with
+		| Cste n -> (
+		  match get_cste defs n with
+		    | Inductive _ as ty -> ty
+		    | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, te)))
 		)
 		| _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, te)))
 	    in 
 	    (* we create a type for the return value *)
 	    let ret_ty = 
-	      match aty with
+	      match te.annot with
 		| TypedAnnotation ty -> ty
 		| _ -> add_fvar ctxt
 	    in
@@ -435,12 +430,12 @@ and typeinfer
 	      (* we push quantification corresponding to the pattern vars *)
 	      List.iter (fun v -> 
 		let ty = add_fvar ctxt in
-		push_quantification (v, ty, Explicit (*dummy*), NoPosition) ctxt
+		push_quantification (v, ty, Explicit (*dummy*)) ctxt
 	      ) vars;
 	      (* we need to shift ret_ty, te, and tety to be at the same level *)
 	      let ret_ty = shift_term ret_ty (List.length vars) in
 	      let tety = shift_term tety (List.length vars) in
-	      let te = shift_term te (List.length vars) in
+	      let m = shift_term m (List.length vars) in
 	      (* then we create the terms corresponding to the patterns *)
 	      let tes = List.map (fun p -> pattern_to_term defs p) ps in
 	      (* then, for each patterns, we typecheck against tety *)
@@ -456,7 +451,7 @@ and typeinfer
 	      (* then, for each pattern *)
 	      let des = List.map (fun hd ->
 		(* we unify it (with negative polarity) with te *)
-		let _ = unification defs ctxt ~polarity:false hd te in
+		let _ = unification defs ctxt ~polarity:false hd m in
 		(* and typecheck des against ret_ty *)
 		typecheck defs ctxt des ret_ty
 	      ) tes in
@@ -466,7 +461,7 @@ and typeinfer
 	      List.map2 (fun hd1 hd2 -> [hd1], hd2) ps des
 	    ) des in
 	    let ret_ty = typecheck defs ctxt ~polarity:polarity ret_ty (type_ (UName "")) in
-	    Match (te, List.concat des, Typed ret_ty, pos, reduced)
+	    { te with ast = Match (te, List.concat des); annot = Typed ret_ty }
 	      
 	      
 	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
@@ -487,12 +482,12 @@ and typeinfer
 	  match nb_first_implicits (get_type te'),  nb_first_implicits ty with
 	    | Some i, Some j when i > j ->
 	      let new_args = foldi (fun l -> (add_fvar ctxt, Implicit)::l) [] (i - j) in
-	      let te = App (te', new_args, TypedAnnotation ty, NoPosition, false) in
+	      let te = { ast = App (te', new_args); annot = TypedAnnotation ty; tpos = NoPosition; reduced = false } in
 	      (*printf "%s ~~> %s\n" (term2string ctxt te') (term2string ctxt te);*)
 	      typeinfer defs ctxt ~polarity:polarity te
 	    | Some i, None when i > 0 ->
 	      let new_args = foldi (fun l -> (add_fvar ctxt, Implicit)::l) [] i in
-	      let te = App (te', new_args, TypedAnnotation ty, NoPosition, false) in
+	      let te = { ast = App (te', new_args); annot = TypedAnnotation ty; tpos = NoPosition; reduced = false } in
 	      (*printf "%s ~~> %s\n" (term2string ctxt te') (term2string ctxt te);*)
 	      typeinfer defs ctxt ~polarity:polarity te
 	    | _ -> te'
