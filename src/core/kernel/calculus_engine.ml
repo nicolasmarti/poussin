@@ -426,6 +426,8 @@ and typeinfer
 	    in
 	    (* then we traverse the destructors *)
 	    let des = List.map (fun (ps, des) ->
+	      (* saves the conversion *)
+	      let convs = !ctxt.conversion_hyps in
 	      (* first grab the vars of the patterns *)
 	      let vars = patterns_vars ps in
 	      (* we push quantification corresponding to the pattern vars *)
@@ -442,13 +444,15 @@ and typeinfer
 	      (* then, for each patterns, we typecheck against tety *)
 	      (* for each pattern that do not unify we remove it *)
 	      let tes = List.fold_right (fun te acc -> 
+		(*printf "%s :?\n" (term2string ctxt te); flush stdout;*)
 		let te = typeinfer defs ctxt ~polarity:false te in
 		try 
+		  (*printf "%s =?= %s\n" (term2string ctxt (get_type te)) (term2string ctxt mty); flush stdout;*)
 		  let _ = unification defs ctxt ~polarity:false (get_type te) mty in
 		  te::acc
 		with
-		  | _ -> 
-		    printf "%s <> %s\n" (term2string ctxt (get_type te)) (term2string ctxt mty); flush stdout;
+		  | PoussinException (NoUnification _) -> 
+		    (*printf "%s <!> %s\n" (term2string ctxt (get_type te)) (term2string ctxt mty); flush stdout;*)
 		    acc
 	      ) tes [] in
 	      (* then, for each pattern *)
@@ -460,6 +464,8 @@ and typeinfer
 	      ) tes in
 	      (* we pop all quantifiers *)
 	      let _, des = pop_quantifications defs ctxt des (List.length vars) in
+	      (* restore old conversions *)
+	      ctxt := { !ctxt with conversion_hyps = convs };
 	      (* and finally returns all the constructors *)
 	      List.map2 (fun hd1 hd2 -> [hd1], hd2) ps des
 	    ) des in
@@ -469,10 +475,12 @@ and typeinfer
 	      
 	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
       ) in 
+      (*
       if not (NameSet.is_empty (name_term te')) then (
 	printf "catastrophic contains names !!:\n%s\n" (term2string ctxt te');
 	raise Pervasives.Exit
       );
+      *)
       match mty with
 	| Some ty -> (
 	  (*
@@ -554,6 +562,7 @@ and unification
 	*)
 	(* a bit better *)
 	| _ when (match maybe_constante te1, maybe_constante te2 with | Some c1, Some c2 -> is_irreducible defs c1 && is_irreducible defs c2 && String.compare c1 c2 != 0 | _ -> false) ->
+	  (*printf "%s <!> %s\n" (term2string ctxt te1) (term2string ctxt te2); flush stdout;*)
 	  raise (PoussinException (NoUnification (!ctxt, te1, te2)))
 
 	(* equality over variables *)
@@ -587,6 +596,7 @@ and unification
 	  te2
 	)
 	| Var i1, _ when i1 < 0 && (IndexSet.mem i1 (fv_term te2)) -> (
+	  (*printf "%s \\in %s\n" (string_of_int i1) (term2string ctxt te2); flush stdout;*)
 	  raise (PoussinException (NoUnification (!ctxt, te1, te2)))
 	)
 	| _, Var i2 when i2 < 0 && not (IndexSet.mem i2 (fv_term te1)) -> (
@@ -596,6 +606,7 @@ and unification
 	  te1
 	)
 	| _, Var i2 when i2 < 0 && (IndexSet.mem i2 (fv_term te1)) -> (
+	  printf "%s \\in %s\n" (string_of_int i2) (term2string ctxt te1); flush stdout;
 	  raise (PoussinException (NoUnification (!ctxt, te1, te2)))
 	)
 
