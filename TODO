@@ -5,6 +5,4 @@
   + Completeness
   + Proof Irrelevance
 
-- change terms rep, with an general and extendable infofields
-  containing: positions, redeuced flags, ...
-- higher order unification
+- higher order unification (STARTED)
