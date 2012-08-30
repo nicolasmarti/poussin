@@ -199,3 +199,38 @@ Definition formula_sem (f: formula) :=
       | f_pred b := eq b true
    end
 
+Signature andb (b1 b2: bool): bool
+Definition andb (b1 b2: bool) :=
+   match b1 with
+      | false := false
+      | true := b2
+   end
+
+Signature orb (b1 b2: bool): bool
+Definition orb (b1 b2: bool) :=
+   match b1 with
+      | true := true
+      | false := b2
+   end
+
+Signature notb (b: bool): bool
+Definition notb (b: bool) :=
+   match b with
+      | true := false
+      | false := true
+   end
+
+Signature implb (b1 b2: bool): bool
+Definition implb (b1 b2: bool) :=
+   match b1 with
+      | false := true
+      | true := b2
+   end
+
+Signature eq_implb_orb_notb (b1 b2: bool): eq (implb b1 b2) (orb (notb b1) b2)
+Definition eq_implb_orb_notb (b1 b2: bool) :=
+  match b1 with
+     | true := eq_refl b2
+     | false := eq_refl true
+  end
+
