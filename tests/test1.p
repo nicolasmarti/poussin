@@ -234,3 +234,11 @@ Definition eq_implb_orb_notb (b1 b2: bool) :=
      | false := eq_refl true
   end
 
+Signature eq_implb_orb_notb2 (b1 b2: bool): eq (implb b1 b2) (orb (notb b1) b2)
+Definition eq_implb_orb_notb2 (b1 b2: bool) :=
+  match prod b1 b2 with
+     | prod true true := eq_refl true 
+     | prod true false := eq_refl false
+     | prod false _ := eq_refl true
+  end
+
