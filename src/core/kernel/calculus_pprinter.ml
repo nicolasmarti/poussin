@@ -27,7 +27,7 @@ type pp_option = {
 }
 
 let pp_option = ref {show_implicit = true; 
-		     show_indices = false; 
+		     show_indices = true; 
 		     show_position = false; 
 		     show_univ = false;
 		     show_type = false;
@@ -307,7 +307,9 @@ let poussin_error2token (err: poussin_error) : token =
     | NegativeIndexBVar  _ -> Verbatim "NegativeIndexBVar"
     | UnknownBVar  _ -> Verbatim "UnknownBVar"
     | UnknownFVar _ -> Verbatim "UnknownFVar"
-    | NotInductiveDestruction _ -> Verbatim "NotInductiveDestruction"
+    | NotInductiveDestruction (ctxt, te) -> 
+      Box [Verbatim "NotInductiveDestruction: "; Newline; 
+	   term2token (context2namelist (ref ctxt)) te Alone; Space 1; Verbatim ":"; Space 1; term2token (context2namelist (ref ctxt)) (get_type te) Alone; Newline]
 	
 let poussin_error2string (err: poussin_error) : string =
   let token = poussin_error2token err in

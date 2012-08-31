@@ -25,7 +25,7 @@ Definition eq_trans {A} (x y z: A) (Hxy: eq x y) (Hyz: eq y z) : eq x z :=
    match Hxy with
       | eq_refl {A} xy :=
           match Hyz with
-           | eq_refl {A} yz := eq_refl z
+           | eq_refl {A} yz := eq_refl _
           end      
    end
 
@@ -241,4 +241,62 @@ Definition eq_implb_orb_notb2 (b1 b2: bool) :=
      | prod true false := eq_refl false
      | prod false _ := eq_refl true
   end
+
+Definition eq_trans2 {A} (x y z: A) (Hxy: eq x y) (Hyz: eq y z) : eq x z :=
+  match Hyz with
+     | eq_refl {_} _ := Hxy
+  end
+
+Signature congr: {A: Type} -> (x y: A) -> (P: A -> Type) -> (Hxy: eq x y) -> (H: P x) -> P y
+Definition congr {A: Type} (x y: A) (P: A -> Type) (Hxy: eq x y) (H: P x) :=
+  match Hxy with
+     | eq_refl {_} _ := H
+  end
+
+Signature leibniz: {A: Type} -> (x y: A) -> ((P: A -> Prop) -> P x -> P y) -> eq x y
+Definition leibniz {A: Type} (x y: A) (H: (P: A -> Prop) -> P x -> P y) :=
+  H (eq {A} x) (eq_refl _)
+
+Signature nat_ind (P: Nat -> Prop) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)): (n: Nat) -> P n
+Definition nat_ind (P: Nat -> Prop) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)) (n: Nat) :=
+  match n with
+     | O := H0
+     | S n := H1 n (nat_ind P H0 H1 n)
+  end
+
+Definition eqS (x y: Nat) (Hxy: eq x y) : eq (S x) (S y) :=
+  match Hxy with
+    | eq_refl {_} _ := eq_refl (S x)
+  end
+
+Signature plusxO: (n: Nat) -> eq (plus n O) n
+Definition plusx0 (n: Nat) :=
+  nat_ind (\ x -> eq (plus x O) x)
+          (eq_refl O)
+          (\ n (Pn: eq (plus n O) n) -> eqS _ _ Pn) n
+
+Definition plusxS (x y: Nat) : eq (plus x (S y)) (S (plus x y)) :=
+  nat_ind (\ x -> eq (plus x (S y)) (S (plus x y)))
+          (eq_refl (S y))
+          (\n (Pn: eq (plus n (S y)) (S (plus n y))) -> eqS _ _ Pn) x
+
+Definition plus_comm (x y: Nat) : eq (plus x y) (plus y x) :=
+  nat_ind (\ x -> eq (plus x y) (plus y x))
+          (eq_symm _ _ (plusxO y))
+          (\ n (Pn: eq (plus n y) (plus y n)) -> 
+	    match (plusxS y n) with
+              | eq_refl {_} v :=  match Pn with
+	      		            | eq_refl {_} m := eq_refl (S (plus n y))
+				      	      	  
+                   end
+	     end
+	  ) x
+
+
+
+
+
+
+
+
 

@@ -131,11 +131,13 @@ let rec conversion_hyps2subst ?(dec_order: bool = false) (cv: (term * term) list
     | ({ ast = Var i; _} , te2)::tl when i >= 0 && IndexSet.is_empty 
 	(IndexSet.filter 
 	   (fun i' -> if dec_order then i >= i' else i <= i') (bv_term te2)) ->
-      let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
-      IndexMap.add i te2 s, l 
+      let s = IndexMap.singleton i te2 in
+      let s', l = conversion_hyps2subst ~dec_order:dec_order (List.map (fun (te1, te2) -> term_substitution s te1, term_substitution s te2) tl) in
+      (IndexMap.add i te2 s'), l 
     | (te1, { ast = Var i; _})::tl when i >= 0  && IndexSet.is_empty (IndexSet.filter (fun i' -> if dec_order then i >= i' else i <= i') (bv_term te1)) ->
-      let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
-      IndexMap.add i te1 s, l 
+      let s = IndexMap.singleton i te1 in
+      let s', l = conversion_hyps2subst ~dec_order:dec_order (List.map (fun (te1, te2) -> term_substitution s te1, term_substitution s te2) tl) in
+      (IndexMap.add i te1 s'), l 
     | hd::tl -> 
       let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
       s, hd::tl
@@ -171,3 +173,8 @@ let context_add_substitution (ctxt: context ref) (s: substitution) : unit =
     
 let substitution_vars (s: substitution) =
   IndexMap.fold (fun k _ acc -> IndexSet.add k acc) s IndexSet.empty
+
+let context2subst (ctxt: context ref) : substitution =
+  List.fold_left (fun acc (i, _, te, _) ->
+    match te with | None -> acc | Some te -> IndexMap.add i te acc
+  ) IndexMap.empty !ctxt.fvs

@@ -123,17 +123,19 @@ let process_stream (str: string Stream.t) : unit  =
   let leftmost = cur_pos pb in
   try 
     ignore (
-      many (fun pb ->
+      let _ = many (fun pb ->
 	let def = parse_definition env.defs leftmost pb in
 	(*let () = 
 	  match def with
-	    | DefSignature (n, ty) -> printf "Inductive %s: %s\n\n" n (term2string (ref empty_context) ty)
-	    | DefInductive (n, ty) -> printf "Inductive %s: %s\n\n" n (term2string (ref empty_context) ty)
-	    | DefConstructor (n, ty) -> printf "Constructor %s: %s\n\n" n (term2string (ref empty_context) ty)
-	    | DefDefinition (n, te) -> printf "Definition %s:= %s \n\n" n (term2string (ref empty_context) te)
-	in*)
+	  | DefSignature (n, ty) -> printf "Inductive %s: %s\n\n" n (term2string (ref empty_context) ty)
+	  | DefInductive (n, ty) -> printf "Inductive %s: %s\n\n" n (term2string (ref empty_context) ty)
+	  | DefConstructor (n, ty) -> printf "Constructor %s: %s\n\n" n (term2string (ref empty_context) ty)
+	  | DefDefinition (n, te) -> printf "Definition %s:= %s \n\n" n (term2string (ref empty_context) te)
+	  in*)
 	process_definition def
-      ) pb
+      ) pb in
+      let _ = eos pb in
+      ()
     )
   with
     | NoMatch -> 
