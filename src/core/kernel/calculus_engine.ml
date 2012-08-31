@@ -743,7 +743,7 @@ and unification
 	     ) args1 args2) in
 	  { ast = App (hd, args); annot = Typed ty; tpos = te1.tpos; reduced = false }
 
-    (* maybe we can reduce the term *)
+	(* maybe we can reduce the term *)
 	| _ when not (get_term_reduced te1) ->
 	  let te1' = set_term_reduced true (reduction_term defs ctxt unification_strat te1) in
 	  if !mk_trace then trace := (Reduction (!ctxt, te1, te1'))::!trace;
@@ -757,33 +757,14 @@ and unification
 	  if !mk_trace then trace := List.tl !trace;
 	  res
 
-    (* nothing so far, if the polarity is negative, we add the unification as a converion hypothesis *)
+	(* nothing so far, if the polarity is negative, we add the unification as a converion hypothesis *)
 	| _ when not polarity ->
 	  context_add_conversion ctxt te1 te2;
 	  te1
 
-    (* we try a simple use of conversions *)
+	(* we do not know *)
+	| _ -> raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
 	    
-	| _ when polarity ->
-	  let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
-	  (*printf "l := %s ==========> s := %s, l:= %s\n" (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l);*)
-	  if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) && polarity then (
-	  (*if !mk_trace then trace := (Free (String.concat "" [substitution2string ctxt s'; " /\ "; substitution2string ctxt s])):: !trace;*)
-          if !mk_trace then trace := (Free (conversion_hyps2string ctxt !ctxt.conversion_hyps)) :: !trace;
-	    let te1' = term_substitution s te1 in
-	    let te2' = term_substitution s te2 in
-	  (*printf "(%s, %s) --> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt te1') (term2string ctxt te2');*)
-	    try 
-	      let res = unification defs ctxt ~polarity:polarity te1' te2' in
-	      if !mk_trace then trace := List.tl !trace;
-	      res
-	    with
-	      | _ -> 
-		if !mk_trace then trace := List.tl !trace;
-		if are_convertible defs ctxt te1' te2' or are_convertible defs ctxt te2' te1' then te1' else
-		  raise (PoussinException (UnknownUnification (!ctxt, te1', te2')));
-	  ) else
-	    raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
     ) with
       | (PoussinException (UnknownUnification (ctxt', te1', te2'))) when not (get_term_reduced te1) or not (get_term_reduced te2) ->
 	let te1' = if not (get_term_reduced te1) then set_term_reduced true (reduction_term defs ctxt unification_strat te1) else te1 in
@@ -793,6 +774,28 @@ and unification
 	let res = unification defs ctxt ~polarity:polarity te1' te2' in
 	if !mk_trace then trace := List.tl (List.tl !trace);
 	res
+
+      | (PoussinException (UnknownUnification (ctxt', te1', te2'))) when polarity ->
+	let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
+	  (*printf "l := %s ==========> s := %s, l:= %s\n" (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l);*)
+	if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) && polarity then (
+	  (*if !mk_trace then trace := (Free (String.concat "" [substitution2string ctxt s'; " /\ "; substitution2string ctxt s])):: !trace;*)
+          if !mk_trace then trace := (Free (conversion_hyps2string ctxt !ctxt.conversion_hyps)) :: !trace;
+	  let te1' = term_substitution s te1 in
+	  let te2' = term_substitution s te2 in
+	    (*printf "(%s, %s) --> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt te1') (term2string ctxt te2');*)
+	  try 
+	    let res = unification defs ctxt ~polarity:polarity te1' te2' in
+	    if !mk_trace then trace := List.tl !trace;
+	    res
+	  with
+	    | _ -> 
+	      if !mk_trace then trace := List.tl !trace;
+	      if are_convertible defs ctxt te1' te2' or are_convertible defs ctxt te2' te1' then te1' else
+		raise (PoussinException (UnknownUnification (!ctxt, te1', te2')));
+	) else
+	  raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
+	
 	  
   in
   if !mk_trace then trace := List.tl !trace;

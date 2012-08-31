@@ -286,7 +286,7 @@ Definition plus_comm (x y: Nat) : eq (plus x y) (plus y x) :=
           (\ n (Pn: eq (plus n y) (plus y n)) -> 
 	    match (plusxS y n) with
               | eq_refl {_} v :=  match Pn with
-	      		            | eq_refl {_} m := eq_refl (S (plus n y))
+	      		            | eq_refl {_} m := eq_refl (S (plus y n))
 				      	      	  
                    end
 	     end
