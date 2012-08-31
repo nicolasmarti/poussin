@@ -777,8 +777,8 @@ and unification
 
       | (PoussinException (UnknownUnification (ctxt', te1', te2'))) when polarity ->
 	let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
-	  (*printf "l := %s ==========> s := %s, l:= %s\n" (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l);*)
-	if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) && polarity then (
+	(*printf "\n%s Vs %s\nl := %s \n==========> \ns := %s, \nl:= %s\n\n" (term2string ctxt te1) (term2string ctxt te2) (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l); flush stdout;*)
+	if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then ( 
 	  (*if !mk_trace then trace := (Free (String.concat "" [substitution2string ctxt s'; " /\ "; substitution2string ctxt s])):: !trace;*)
           if !mk_trace then trace := (Free (conversion_hyps2string ctxt !ctxt.conversion_hyps)) :: !trace;
 	  let te1' = term_substitution s te1 in
@@ -793,9 +793,11 @@ and unification
 	      if !mk_trace then trace := List.tl !trace;
 	      if are_convertible defs ctxt te1' te2' or are_convertible defs ctxt te2' te1' then te1' else
 		raise (PoussinException (UnknownUnification (!ctxt, te1', te2')));
-	) else
+	) else (
+	  (*printf "\n%s Vs %s WTF\n" (term2string ctxt te1) (term2string ctxt te2); flush stdout;*)
+	  if are_convertible defs ctxt te1 te2 or are_convertible defs ctxt te2 te1 then te1 else
 	  raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
-	
+	)	
 	  
   in
   if !mk_trace then trace := List.tl !trace;
@@ -808,12 +810,12 @@ and are_convertible
     (te1: term) (te2: term) : bool =
   match 
     let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
-    printf "l := %s ==========> s := %s, l:= %s\n" (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l);
+    (*printf "l := %s ==========> s := %s, l:= %s\n" (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l);*)
     fold_stop (fun i (hd1, hd2) ->
       (*printf "(%s, %s) <--> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt hd1) (term2string ctxt hd2);*)
       try 
 	if !mk_trace then trace := (Free (String.concat "" ["try conversion: "; (term2string ctxt hd1); " <-> "; (term2string ctxt hd2)])):: !trace;
-	let ctxt' = ref {!ctxt with conversion_hyps = delete i !ctxt.conversion_hyps } in
+	let ctxt' = ref {!ctxt with conversion_hyps = delete i l } in
 	let _ = unification defs ctxt' (get_type te1) (get_type hd1) in
 	let _ = unification defs ctxt' te1 hd1 in
 	let _ = unification defs ctxt' te2 hd2 in
