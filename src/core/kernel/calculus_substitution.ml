@@ -152,7 +152,7 @@ let rec conversion_hyps2subst ?(dec_order: bool = false) (cv: (term * term) list
 
     | hd::tl -> 
       let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
-      s, hd::tl
+      s, hd::l
 
 
 (**)
