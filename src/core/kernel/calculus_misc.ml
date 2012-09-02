@@ -105,7 +105,7 @@ let rec patterns_vars (ps: pattern list) : name list =
 (* the set of free variable in a term *)
 let rec fv_term (te: term) : IndexSet.t =
   match te.ast with
-    | Universe _ | AVar _ | TName _ | Cste _ -> fv_typeannotation te.annot
+    | Universe _ | AVar _ | TName _ | Cste _ | Interactive -> fv_typeannotation te.annot
     | Var i when i < 0 -> IndexSet.add i (fv_typeannotation te.annot)
     | Var i when i >= 0 -> fv_typeannotation te.annot
     | Lambda ((_, ty, _), body) ->
@@ -128,7 +128,7 @@ and fv_typeannotation (ty: typeannotation) : IndexSet.t =
 (* the set of bounded variable in a term NB: does not take into account vars in type annotation *)
 let rec bv_term (te: term) : IndexSet.t =
   match te.ast with
-    | Universe _ | AVar _ | TName _ | Cste _ -> bv_typeannotation te.annot
+    | Universe _ | AVar _ | TName _ | Cste _ | Interactive -> bv_typeannotation te.annot
     | Var i when i < 0 -> bv_typeannotation te.annot
     | Var i when i >= 0 -> IndexSet.add i (bv_typeannotation te.annot)
     | Lambda ((_, ty, _), body) ->
@@ -155,7 +155,7 @@ and bv_typeannotation (ty: typeannotation) : IndexSet.t =
 (* the set of cste in a term *)
 let rec cste_term (te: term) : NameSet.t =
   match te.ast with
-    | Universe _ | AVar _ | TName _ | Var _ -> cste_typeannotation te.annot
+    | Universe _ | AVar _ | TName _ | Var _ | Interactive -> cste_typeannotation te.annot
     | Cste c ->  NameSet.add c (cste_typeannotation te.annot)
     | Lambda ((_, ty, _), body) ->
       NameSet.union (cste_typeannotation te.annot) (NameSet.union (cste_term ty) (cste_term body))
@@ -177,7 +177,7 @@ and cste_typeannotation (ty: typeannotation) : NameSet.t =
 (* the set of cste in a term *)
 let rec name_term (te: term) : NameSet.t =
   match te.ast with
-    | Universe _ | AVar _ | Cste _ | Var _ -> name_typeannotation te.annot
+    | Universe _ | AVar _ | Cste _ | Var _ | Interactive -> name_typeannotation te.annot
     | TName c ->  NameSet.add c (name_typeannotation te.annot)
     | Lambda ((_, ty, _), body) ->
       NameSet.union (name_typeannotation te.annot) (NameSet.union (name_term ty) (name_term body))
@@ -311,7 +311,7 @@ let rec set_term_reduced ?(recursive: bool = false) (reduced: bool) (te: term) :
   match te.ast with
     | _ when get_term_reduced te = reduced && not recursive -> te
 
-    | Universe _ | Var _ | AVar _ | TName _ | Cste _ -> { te with reduced = reduced }
+    | Universe _ | Var _ | AVar _ | TName _ | Cste _ | Interactive -> { te with reduced = reduced }
     | Lambda (q, body) -> 
       { te with ast = Lambda (q, if recursive then set_term_reduced ~recursive:recursive reduced body else body); reduced = reduced }
     | Forall (q, body) -> 

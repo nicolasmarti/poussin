@@ -292,7 +292,7 @@ Definition plus_comm (x y: Nat) : eq (plus x y) (plus y x) :=
 	     end
 	  ) x
 
-
+Definition plus_assoc (x y z: Nat) : eq (plus x (plus y z)) (plus (plus x y) z) := ?
 
 
 

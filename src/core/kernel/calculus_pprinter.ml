@@ -214,6 +214,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	]
        )
 
+    | Interactive -> Verbatim "?"
 
     | _ -> raise (Failure "term2token: NYI")
 
@@ -310,6 +311,8 @@ let poussin_error2token (err: poussin_error) : token =
     | NotInductiveDestruction (ctxt, te) -> 
       Box [Verbatim "NotInductiveDestruction: "; Newline; 
 	   term2token (context2namelist (ref ctxt)) te Alone; Space 1; Verbatim ":"; Space 1; term2token (context2namelist (ref ctxt)) (get_type te) Alone; Newline]
+    | InteractiveFailure ->
+      Verbatim "failure in interactive mode"
 	
 let poussin_error2string (err: poussin_error) : string =
   let token = poussin_error2token err in

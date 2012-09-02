@@ -17,7 +17,7 @@ let rec shift_term (te: term) (delta: int) : term =
 and leveled_shift_term (te: term) (level: int) (delta: int) : term =
   let te =
     match te.ast with
-      | Universe _ | Cste _ | AVar | TName _ -> te
+      | Universe _ | Cste _ | AVar | TName _ | Interactive -> te
 	
       | Var i when i < 0 -> te
 
@@ -79,7 +79,7 @@ let rec shift_substitution (s: substitution) (delta: int) : substitution =
 let rec term_substitution (s: substitution) (te: term) : term =
   let te = 
     match te.ast with
-      | Universe _ | Cste _ | AVar -> te
+      | Universe _ | Cste _ | AVar | Interactive -> te
       | Var i -> 
 	(
 	  try 

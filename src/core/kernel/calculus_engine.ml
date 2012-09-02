@@ -480,8 +480,17 @@ and typeinfer
 	    (*printf "********************************************************************\n";*)
 	    let ret_ty = typecheck defs ctxt ~polarity:polarity ret_ty (type_ (UName "")) in
 	    { te with ast = Match (m, List.concat des); annot = Typed ret_ty }
-	      
-	      
+
+	  | Interactive -> (
+	    try	      
+	      let ty = match te.annot with
+		| TypedAnnotation ty -> ty
+	      in
+	      let te' = !interactive defs !ctxt ty in
+	      typeinfer defs ctxt { te with ast = te'.ast }
+	    with
+	      | _ -> raise (PoussinException InteractiveFailure)
+	  )
 	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
       ) in 
       (*

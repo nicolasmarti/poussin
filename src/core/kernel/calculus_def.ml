@@ -80,6 +80,9 @@ type term_ast = Universe of uType * uLevel
 	    (* destruction *)
 	    | Match of term * (pattern list * term) list
 
+            (* this is only for internall use: interactive construction of terms *)
+	    | Interactive
+
 and term = 
 { ast: term_ast;
   annot: typeannotation;
@@ -145,7 +148,7 @@ type poussin_error = FreeError of string
 		    | UnknownBVar of context * int
 		    | UnknownFVar of context * int
 		    | NotInductiveDestruction of context * term
-
+		    | InteractiveFailure
 		    (*| ConstructorCclHeadNotInductive of term*)
 
 exception PoussinException of poussin_error
@@ -163,3 +166,7 @@ let trace : ty_action list ref = ref []
 let mk_trace : bool ref = ref true
 
 let debug_reduction = ref false
+
+(* interactive routine *)
+let interactive : (defs -> context -> term -> term) ref = ref (fun defs ctxt ty -> raise (Failure "no interactive mode set"))
+
