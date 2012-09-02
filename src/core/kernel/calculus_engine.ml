@@ -124,6 +124,7 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term lis
 	  (*printf "remove %s\n" (string_of_int i);*)
 	  acc
 	) else
+	  (* TODO: add oracle call for instantiating the free variable *)
 	  (* otherwise there is something wrong here, for now we make it an error *)
 	  raise (PoussinException (FreeError "we failed to infer a free variable that cannot be out-scoped"))
   ) [] fvs in
