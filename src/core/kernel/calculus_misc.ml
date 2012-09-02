@@ -429,3 +429,178 @@ let rec is_clean_term (te: term) : bool =
 
 (* does a constante appears negatively *)	  
 let rec neg_occur_cste (te: term) (n: name) : bool = false
+
+(* shifting of terms *)
+let rec shift_term (te: term) (delta: int) : term =
+  leveled_shift_term te 0 delta
+
+(* shift bvar index in a term, above a given index *)
+and leveled_shift_term (te: term) (level: int) (delta: int) : term =
+  let te =
+    match te.ast with
+      | Universe _ | Cste _ | AVar | TName _ | Interactive -> te
+	
+      | Var i when i < 0 -> te
+
+      | Var i when i >= 0 ->
+	if i >= level then
+	  if i + delta < level then (
+	    raise (PoussinException (Unshiftable_term (te, level, delta)))
+	  )
+	  else
+	    { te with ast = Var (i + delta) }
+	else
+	  te
+
+      | App (f, args) ->
+	{ te with ast = App (leveled_shift_term f level delta,
+			     List.map (fun (te, n) -> leveled_shift_term te level delta, n) args) }
+
+      | Forall ((s, ty, n), body) ->
+	{ te with ast = Forall ((s, leveled_shift_term ty level delta, n), leveled_shift_term body (level + 1) delta) }
+
+      | Lambda ((s, ty, n), body) ->
+	{ te with ast = Lambda ((s, leveled_shift_term ty level delta, n), leveled_shift_term body (level + 1) delta) }
+
+      | Let ((s, value), body) ->
+	{ te with ast = Let ((s, leveled_shift_term value level delta), leveled_shift_term body (level + 1) delta) }
+
+      | Match (m, des) ->
+	{ te with ast = Match (leveled_shift_term m level delta,
+			       List.map (fun des -> leveled_shift_destructor des level delta) des) }
+  in
+  { te with annot = leveled_shift_typeannotation te.annot level delta }
+
+and leveled_shift_typeannotation (ty: typeannotation) (level: int) (delta: int) : typeannotation =
+  match ty with
+    | NoAnnotation -> NoAnnotation
+      (* this case should be an error ... *)
+    | Annotation te -> Annotation (leveled_shift_term te level delta)
+    | TypedAnnotation te -> TypedAnnotation (leveled_shift_term te level delta)
+    | Typed te -> Typed (leveled_shift_term te level delta)
+
+and leveled_shift_destructor (des: pattern list * term) (level: int) (delta: int) : pattern list * term =
+  let (ps, te) = des in
+  let sz = patterns_size ps in
+  ps, leveled_shift_term te (level + sz) delta
+
+(* shift substitution *)
+let rec shift_substitution (s: substitution) (delta: int) : substitution =
+  IndexMap.fold (fun key value acc -> 
+    try 
+      if key < 0 then 
+	IndexMap.add key (shift_term value delta) acc
+      else 
+	if key + delta < 0 then acc else IndexMap.add (key + delta) (shift_term value delta) acc 
+    with
+      | PoussinException (Unshiftable_term _) -> acc
+  ) s IndexMap.empty
+
+
+(* simpl pattern match *)
+let rec pattern_match (ctxt: context ref) (p: pattern) (te: term) : (term list) option =
+  match p with
+    | PAvar -> Some [te]
+    | PName s -> Some [te]
+    | PCste c -> (
+      match te.ast with
+	| Cste c2 when c = c2 -> Some []
+	| _ -> (*printf "%s <> %s (1)\n" (pattern2string ctxt p) (term2string ctxt te);*) None
+    )
+    | PApp (c, args) ->
+      match te.ast with
+	| Cste c2 when c = c2 && List.length args = 0 -> Some []
+	| App ({ ast = Cste c2; _} , args2) when c = c2 && List.length args = List.length args2 ->
+	  List.fold_left (fun acc (hd1, hd2) -> 
+	    match acc with
+	      | None -> None
+	      | Some l ->
+		match pattern_match ctxt hd1 hd2 with
+		  | None -> None
+		  | Some l' -> Some (l @ l')
+	  ) (Some []) (List.map2 (fun hd1 hd2 -> (fst hd1, fst hd2)) args args2)
+	| _ -> (*printf "%s <> %s (2)\n" (* (term2string ctxt te)*) (pattern2string ctxt p) (term2string ctxt te);*) None
+
+
+(**)
+let context_add_lvl_contraint (ctxt: context ref) (c: uLevel_constraints) : unit =
+  ctxt := { !ctxt with lvl_cste = c::!ctxt.lvl_cste }
+
+(**)
+let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
+  (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
+  ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
+  (*printf "%s\n"(conversion_hyps2string ctxt (!ctxt.conversion_hyps))*)
+
+
+(* retrieve the debruijn index of a bound var through its symbol *)
+let var_lookup (ctxt: context ref) (n: name) : index option =
+  let res = fold_stop (fun level frame ->
+    if frame.name = n then Right level else Left (level+1)
+  ) 0 !ctxt.bvs in
+  match res with
+    | Left _ -> (
+      let res = fold_stop (fun () (i, _, _, n') ->
+	match n' with
+	  | Some n' when n' = n -> Right i
+	  | _ -> Left ()
+      ) () !ctxt.fvs in
+      match res with
+	| Left () -> None
+	| Right i -> Some i
+    )
+    | Right level -> Some level
+
+let get_fvar (ctxt: context ref) (i: index) : (term * term option * name option) =
+  let lookup = fold_stop (fun () (index, ty, value, name) -> 
+    if index = i then Right (ty, value, name) else Left ()
+  ) () !ctxt.fvs in
+  match lookup with
+    | Left _ -> raise (PoussinException (UnknownFVar (!ctxt, i)))
+    | Right res -> res
+
+let fvar_subst (ctxt: context ref) (i: index) : term option =
+  let (_, te, _) = get_fvar ctxt i in
+  te
+
+(* grab the type of a free var *)
+let fvar_type (ctxt: context ref) (i: index) : term =
+  let (ty, _, _) = get_fvar ctxt i in
+  ty
+
+(* grab the type of a bound var *)
+let bvar_type (ctxt: context ref) (i: index) : term =
+  try (
+    let frame = List.nth !ctxt.bvs i in
+    let ty = frame.ty in
+    shift_term ty i
+  ) with
+    | Failure "nth" -> raise (PoussinException (UnknownBVar (!ctxt, i)))
+    | Invalid_argument "List.nth" -> raise (PoussinException (NegativeIndexBVar i))
+
+(* grab the name of a bound var *)
+let bvar_name (ctxt: context ref) (i: index) : name =
+  try (
+    let frame = List.nth !ctxt.bvs i in
+    frame.name
+  ) with
+    | Failure "nth" -> raise (PoussinException (UnknownBVar (!ctxt, i)))
+    | Invalid_argument "List.nth" -> raise (PoussinException (NegativeIndexBVar i))
+
+(* we add a free variable *)
+let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te: term option = None) ?(ty: term option = None) (ctxt: context ref) : term =
+  let ty = match ty with
+    | None -> add_fvar ~ty:(Some (type_ (UName""))) ctxt
+    | Some ty -> ty 
+      in
+  let next_fvar_index = 
+      match !ctxt.fvs with
+	| [] -> (-1)
+	| (i, _, _, _)::_ -> (i - 1)
+  in
+  ctxt := { !ctxt with 
+    fvs = ((next_fvar_index, ty, te, name)::!ctxt.fvs)
+  };
+  (*printf "adding %s\n" (string_of_int next_fvar_index);
+  ignore(fvar_subst ctxt next_fvar_index);*)
+  var_ ~annot:(Typed ty) ~pos:pos next_fvar_index

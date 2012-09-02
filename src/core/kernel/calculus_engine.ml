@@ -49,41 +49,6 @@ let simplification_strat = {
 }
 
 
-(* simpl pattern match *)
-let rec pattern_match (ctxt: context ref) (p: pattern) (te: term) : (term list) option =
-  match p with
-    | PAvar -> Some [te]
-    | PName s -> Some [te]
-    | PCste c -> (
-      match te.ast with
-	| Cste c2 when c = c2 -> Some []
-	| _ -> (*printf "%s <> %s (1)\n" (pattern2string ctxt p) (term2string ctxt te);*) None
-    )
-    | PApp (c, args) ->
-      match te.ast with
-	| Cste c2 when c = c2 && List.length args = 0 -> Some []
-	| App ({ ast = Cste c2; _} , args2) when c = c2 && List.length args = List.length args2 ->
-	  List.fold_left (fun acc (hd1, hd2) -> 
-	    match acc with
-	      | None -> None
-	      | Some l ->
-		match pattern_match ctxt hd1 hd2 with
-		  | None -> None
-		  | Some l' -> Some (l @ l')
-	  ) (Some []) (List.map2 (fun hd1 hd2 -> (fst hd1, fst hd2)) args args2)
-	| _ -> (*printf "%s <> %s (2)\n" (* (term2string ctxt te)*) (pattern2string ctxt p) (term2string ctxt te);*) None
-
-(**)
-let context_add_lvl_contraint (ctxt: context ref) (c: uLevel_constraints) : unit =
-  ctxt := { !ctxt with lvl_cste = c::!ctxt.lvl_cste }
-
-(**)
-let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
-  (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
-  ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
-  (*printf "%s\n"(conversion_hyps2string ctxt (!ctxt.conversion_hyps))*)
-
-
 let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
   let s, ty, n = q in
   ctxt := { !ctxt with
@@ -174,69 +139,6 @@ let rec pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n
       let tl, tes = pop_quantifications defs ctxt tes (n-1) in
       hd::tl, tes
 
-
-(* retrieve the debruijn index of a bound var through its symbol *)
-let var_lookup (ctxt: context ref) (n: name) : index option =
-  let res = fold_stop (fun level frame ->
-    if frame.name = n then Right level else Left (level+1)
-  ) 0 !ctxt.bvs in
-  match res with
-    | Left _ -> (
-      let res = fold_stop (fun () (i, _, _, n') ->
-	match n' with
-	  | Some n' when n' = n -> Right i
-	  | _ -> Left ()
-      ) () !ctxt.fvs in
-      match res with
-	| Left () -> None
-	| Right i -> Some i
-    )
-    | Right level -> Some level
-
-let get_fvar (ctxt: context ref) (i: index) : (term * term option * name option) =
-  let lookup = fold_stop (fun () (index, ty, value, name) -> 
-    if index = i then Right (ty, value, name) else Left ()
-  ) () !ctxt.fvs in
-  match lookup with
-    | Left _ -> raise (PoussinException (UnknownFVar (!ctxt, i)))
-    | Right res -> res
-
-let fvar_subst (ctxt: context ref) (i: index) : term option =
-  let (_, te, _) = get_fvar ctxt i in
-  te
-
-(* grab the type of a free var *)
-let fvar_type (ctxt: context ref) (i: index) : term =
-  let (ty, _, _) = get_fvar ctxt i in
-  ty
-
-(* grab the type of a bound var *)
-let bvar_type (ctxt: context ref) (i: index) : term =
-  try (
-    let frame = List.nth !ctxt.bvs i in
-    let ty = frame.ty in
-    shift_term ty i
-  ) with
-    | Failure "nth" -> raise (PoussinException (UnknownBVar (!ctxt, i)))
-    | Invalid_argument "List.nth" -> raise (PoussinException (NegativeIndexBVar i))
-
-(* we add a free variable *)
-let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te: term option = None) ?(ty: term option = None) (ctxt: context ref) : term =
-  let ty = match ty with
-    | None -> add_fvar ~ty:(Some (type_ (UName""))) ctxt
-    | Some ty -> ty 
-      in
-  let next_fvar_index = 
-      match !ctxt.fvs with
-	| [] -> (-1)
-	| (i, _, _, _)::_ -> (i - 1)
-  in
-  ctxt := { !ctxt with 
-    fvs = ((next_fvar_index, ty, te, name)::!ctxt.fvs)
-  };
-  (*printf "adding %s\n" (string_of_int next_fvar_index);
-  ignore(fvar_subst ctxt next_fvar_index);*)
-  var_ ~annot:(Typed ty) ~pos:pos next_fvar_index
 
 (* typechecking, inference and reduction *)
 

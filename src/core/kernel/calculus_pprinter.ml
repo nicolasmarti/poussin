@@ -26,8 +26,8 @@ type pp_option = {
   show_type: bool;
 }
 
-let pp_option = ref {show_implicit = true; 
-		     show_indices = true; 
+let pp_option = ref {show_implicit = false; 
+		     show_indices = false; 
 		     show_position = false; 
 		     show_univ = false;
 		     show_type = false;
@@ -377,3 +377,16 @@ let conversion_hyps2string (ctxt: context ref) (conv: (term * term) list) : stri
   let token = conversion_hyps2token ctxt conv in
   let box = token2box token 150 2 in
   box2string box
+
+
+let ctxt2token (ctxt: context ref) : token =
+  let vars = IBox (
+    [Verbatim "------------------------------------"; Newline] @
+    (map_nth (fun i -> Box [ Verbatim (bvar_name ctxt i); Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) (bvar_type ctxt i) Alone; Newline]
+     ) (List.length !ctxt.bvs - 1))  @ [Verbatim "------------------------------------"; Newline]
+  ) in
+  Box [vars; conversion_hyps2token ctxt !ctxt.conversion_hyps; Newline; 
+       Verbatim "------------------------------------"; Newline
+      ]
+
+

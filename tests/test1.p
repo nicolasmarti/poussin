@@ -292,7 +292,11 @@ Definition plus_comm (x y: Nat) : eq (plus x y) (plus y x) :=
 	     end
 	  ) x
 
-Definition plus_assoc (x y z: Nat) : eq (plus x (plus y z)) (plus (plus x y) z) := ?
+Definition lemm1 (A B: Prop) : And A B -> Or A B :=
+   \ H ->
+   match H with
+      | conj {_} {_} Ha Hb := ?
+   end
 
 
 
