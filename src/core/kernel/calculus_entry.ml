@@ -120,6 +120,7 @@ let process_definition (def: definition) : unit =
 
 let process_stream (str: string Stream.t) : unit  =
   let pb = build_parserbuffer str in
+  global_parserbuffer := pb;
   let leftmost = cur_pos pb in
   try 
     ignore (

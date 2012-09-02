@@ -167,6 +167,9 @@ let mk_trace : bool ref = ref true
 
 let debug_reduction = ref false
 
+(* the global parserbuffer *)
+let global_parserbuffer : parserbuffer ref = ref (build_parserbuffer (Stream.of_list []))
+
 (* interactive routine *)
-let interactive : (defs -> context -> term -> term) ref = ref (fun defs ctxt ty -> raise (Failure "no interactive mode set"))
+let oracle : (defs -> context -> term -> term) ref = ref (fun defs ctxt ty -> raise (Failure "no oracle mode set"))
 

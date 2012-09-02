@@ -247,6 +247,9 @@ let rec typecheck
     (ty: term) : term =
   if !mk_trace then trace := (TC (!ctxt, te, ty))::!trace;
   let res = 
+  (* TODO: add oracle calls on error
+     te:ty' --> f: ty' -> ty, returns f te
+  *)
   match get_term_typeannotation te with
     | Typed ty' ->
       ignore(unification defs ctxt ~polarity:polarity ty' ty);
@@ -486,7 +489,7 @@ and typeinfer
 	      let ty = match te.annot with
 		| TypedAnnotation ty -> ty
 	      in
-	      let te' = !interactive defs !ctxt ty in
+	      let te' = !oracle defs !ctxt ty in
 	      typeinfer defs ctxt { te with ast = te'.ast }
 	    with
 	      | _ -> raise (PoussinException InteractiveFailure)
