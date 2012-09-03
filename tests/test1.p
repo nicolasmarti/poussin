@@ -292,12 +292,9 @@ Definition plus_comm (x y: Nat) : eq (plus x y) (plus y x) :=
 	     end
 	  ) x
 
-Definition lemm1 (A B: Prop) : And A B -> Or A B :=
-   \ H ->
-   match H with
-      | conj {_} {_} Ha Hb := ?
-   end
-
+Definition lemm1 (A B: Prop) : And A B -> Or A B := ?
+exact \ H -> ?
+exact match H with | conj {_} {_} Ha Hb := ? end
 exact left {A} {B} ?
 exact Ha
 
