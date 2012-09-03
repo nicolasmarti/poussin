@@ -298,6 +298,16 @@ exact match H with | conj {_} {_} Ha Hb := ? end
 exact left {A} {B} ?
 exact Ha
 
+Signature nat_ind2 (P: Nat -> Prop) (n: Nat) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)): P n
+Definition nat_ind2 (P: Nat -> Prop) (n: Nat) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)) :=
+  match n with
+     | O := H0
+     | S n := H1 n (nat_ind2 P n H0 H1)
+  end
+
+
+Definition lemm2 (x: Nat) : eq x x := ?
+exact nat_ind2 _ x ? ?
 
 
 

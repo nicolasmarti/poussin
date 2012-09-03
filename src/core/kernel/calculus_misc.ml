@@ -604,3 +604,29 @@ let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te:
   (*printf "adding %s\n" (string_of_int next_fvar_index);
   ignore(fvar_subst ctxt next_fvar_index);*)
   var_ ~annot:(Typed ty) ~pos:pos next_fvar_index
+
+(* strict equality *)
+let rec term_equal (te1: term) (te2: term) : bool =
+  match te1.ast, te2.ast with
+    | Universe (u1, lvl1), Universe (u2, lvl2) -> u2 = u1
+    | Cste n1, Cste n2 -> n1 = n2
+    | Var i1, Var i2 -> i1 = i2
+    | Lambda ((_, ty1, n1), te1), Lambda ((_, ty2, n2), te2) ->
+      term_equal ty1 ty2 && n1 = n2 && term_equal te1 te2
+    | Forall ((_, ty1, n1), te1), Forall ((_, ty2, n2), te2) ->
+      term_equal ty1 ty2 && n1 = n2 && term_equal te1 te2
+    | Let ((_, val1), te1), Let ((_, val2), te2) ->
+      term_equal val1 val2 && term_equal te1 te2
+    | App (f1, args1), App (f2, args2) when List.length args1 = List.length args2 && (term_equal f1 f2) ->
+      List.fold_left (fun acc ((arg1, n1), (arg2, n2)) ->
+	if n1 = n2 && term_equal arg1 arg2 then
+	  acc else false
+      ) true (List.combine args1 args2)
+    | Match (te1, des1), Match (te2, des2) when List.length des1 = List.length des2 && term_equal te1 te2 ->
+      List.fold_left (fun acc ((ps1, te1), (ps2, te2)) -> 
+	if ps1 = ps2 && term_equal te1 te2 then
+	  acc
+	else false
+      ) true (List.combine des1 des2)
+    | _ -> false
+      
