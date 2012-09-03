@@ -10,10 +10,8 @@
 <src/lib/python/pylang.{ml,byte,native}>: pkg_pycaml
 
 <src/core/kernel>: include
-
 <src/core/comp>: include
-
-<src/core/primitives>: include
+<src/core/interactive>: include
 
 
 

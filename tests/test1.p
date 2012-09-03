@@ -298,6 +298,8 @@ Definition lemm1 (A B: Prop) : And A B -> Or A B :=
       | conj {_} {_} Ha Hb := ?
    end
 
+exact left {A} {B} ?
+exact Ha
 
 
 
