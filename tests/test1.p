@@ -281,7 +281,7 @@ Definition plusxS (x y: Nat) : eq (plus x (S y)) (S (plus x y)) :=
           (\n (Pn: eq (plus n (S y)) (S (plus n y))) -> eqS _ _ Pn)
 
 Definition plus_comm (x y: Nat) : eq (plus x y) (plus y x) :=
-  nat_ind _ x
+  nat_ind (\ x -> eq (plus x y) (plus y x)) x
           (eq_symm _ _ (plusxO y))
           (\ n (Pn: eq (plus n y) (plus y n)) -> 
 	    match (plusxS y n) with

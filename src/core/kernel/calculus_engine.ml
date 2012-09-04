@@ -665,56 +665,33 @@ and unification
 
       | (PoussinException (UnknownUnification (ctxt', te1', te2'))) when polarity ->
 	let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
-	(*printf "(1)\n%s Vs %s\nl := %s \n==========> \ns := %s, \nl:= %s\n\n" (term2string ctxt te1) (term2string ctxt te2) (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l); flush stdout;*)
-	if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then ( 
-	  (*if !mk_trace then trace := (Free (String.concat "" [substitution2string ctxt s'; " /\ "; substitution2string ctxt s])):: !trace;*)
-          if !mk_trace then trace := (Free (conversion_hyps2string ctxt !ctxt.conversion_hyps)) :: !trace;
+	(*printf "(1)\n%s =?= %s\n\nl := %s \n==========> \ns := %s, \nl:= %s\n\n" (term2string ctxt te1) (term2string ctxt te2) (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l); flush stdout;*)
+	if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then (
+	  (*if !mk_trace then trace := (Free (conversion_hyps2string ctxt !ctxt.conversion_hyps)) :: !trace;*)
 	  let te1' = term_substitution s te1 in
 	  let te2' = term_substitution s te2 in
-	    (*printf "(%s, %s) --> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt te1') (term2string ctxt te2');*)
-	  try 
-	    let res = unification defs ctxt ~polarity:polarity te1' te2' in
-	    if !mk_trace then trace := List.tl !trace;
-	    res
-	  with
-	    | _ -> 
-	      if !mk_trace then trace := List.tl !trace;
-	      if are_convertible defs ctxt te1' te2' or are_convertible defs ctxt te2' te1' then te1' else
-		raise (PoussinException (UnknownUnification (!ctxt, te1', te2')));
+	  printf "==> %s =?= %s\n\n" (term2string ctxt te1') (term2string ctxt te2');
+	  let ctxt' = ref { !ctxt with conversion_hyps = l } in
+	  let res = unification defs ctxt' ~polarity:polarity te1' te2' in
+	  ctxt := { !ctxt' with conversion_hyps = !ctxt.conversion_hyps };
+	  res
 	) else (
-	  (*printf "\n%s Vs %s WTF\n" (term2string ctxt te1) (term2string ctxt te2); flush stdout;*)
-	  if are_convertible defs ctxt te1 te2 or are_convertible defs ctxt te2 te1 then te1 else
-	  raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
+	  match l with
+	    | [] -> raise (PoussinException (UnknownUnification (!ctxt, te1, te2)))
+	    | (hd1, hd2)::tl -> 
+	      let te1' = rewrite_term ctxt hd1 hd2 te1 in
+	      let te2' = rewrite_term ctxt hd1 hd2 te2 in
+	      (*printf "==> %s =?= %s\n\n" (term2string ctxt te1') (term2string ctxt te2');*)
+	      let tl' = List.map (fun (te1, te2) -> rewrite_term ctxt hd1 hd2 te1, rewrite_term ctxt hd1 hd2 te2) tl in
+	      let ctxt' = ref { !ctxt with conversion_hyps = tl' } in
+	      let res = unification defs ctxt' ~polarity:polarity te1' te2' in
+	      ctxt := { !ctxt' with conversion_hyps = !ctxt.conversion_hyps };
+	      res	      
 	)	
 	  
   in
   if !mk_trace then trace := List.tl !trace;
   res
-
-(* these stuffs are quite ... *)
-and are_convertible 
-    (defs: defs)
-    (ctxt: context ref)
-    (te1: term) (te2: term) : bool =
-  match 
-    let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
-    (*printf "(2)\n%s Vs %s\nl := %s \n==========> \ns := %s, \nl:= %s\n\n" (term2string ctxt te1) (term2string ctxt te2) (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l); flush stdout;*)
-    fold_stop (fun i (hd1, hd2) ->
-      (*printf "(%s, %s) <--> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt hd1) (term2string ctxt hd2);*)
-      try 
-	if !mk_trace then trace := (Free (String.concat "" ["try conversion: "; (term2string ctxt hd1); " <-> "; (term2string ctxt hd2)])):: !trace;
-	let ctxt' = ref {!ctxt with conversion_hyps = delete i l } in
-	let _ = unification defs ctxt' (get_type te1) (get_type hd1) in
-	let _ = unification defs ctxt' te1 hd1 in
-	let _ = unification defs ctxt' te2 hd2 in
-	ctxt := { !ctxt' with conversion_hyps = !ctxt.conversion_hyps };
-	if !mk_trace then trace := List.tl !trace;
-	Right ()
-      with
-	| _ -> 	if !mk_trace then trace := List.tl !trace; Left (i + 1)
-    ) 0 l with
-      | Left _ -> false
-      | Right () -> true
 
 and higher_order_unification (defs: defs) (ctxt: context ref) ?(polarity : bool = true) (i: index) (arg: term) (n: nature) (args: (term* nature) list) (te: term) te1 te2 =
   (* here the principle is to "extract" the arg from the other term, transforming it into a Lambda and retry the unification *)
