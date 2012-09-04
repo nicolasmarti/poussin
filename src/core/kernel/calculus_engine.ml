@@ -671,10 +671,10 @@ and unification
 	  match l with
 	    | [] -> raise (PoussinException (UnknownUnification (!ctxt, te1, te2)))
 	    | (hd1, hd2)::tl -> 
-	      let te1' = rewrite_term ctxt hd1 hd2 te1 in
-	      let te2' = rewrite_term ctxt hd1 hd2 te2 in
+	      let te1' = rewrite_term defs ctxt hd1 hd2 te1 in
+	      let te2' = rewrite_term defs ctxt hd1 hd2 te2 in
 	      (*printf "==> %s =?= %s\n\n" (term2string ctxt te1') (term2string ctxt te2');*)
-	      let tl' = List.map (fun (te1, te2) -> rewrite_term ctxt hd1 hd2 te1, rewrite_term ctxt hd1 hd2 te2) tl in
+	      let tl' = List.map (fun (te1, te2) -> rewrite_term defs ctxt hd1 hd2 te1, rewrite_term defs ctxt hd1 hd2 te2) tl in
 	      let ctxt' = ref { !ctxt with conversion_hyps = tl' } in
 	      let res = unification defs ctxt' ~polarity:polarity te1' te2' in
 	      ctxt := { !ctxt' with conversion_hyps = !ctxt.conversion_hyps };
@@ -690,7 +690,7 @@ and higher_order_unification (defs: defs) (ctxt: context ref) ?(polarity : bool 
   (* shift te 1 : now there is no TVar 0 in te *)
   let te' = shift_term te 1 in
   (* thus we can rewrite (shift arg 1) by TVar 0 *)
-  let te' = rewrite_term ctxt (shift_term arg 1) (var_ 0) te' in
+  let te' = rewrite_term defs ctxt (shift_term arg 1) (var_ 0) te' in
   (* we just verify that we have some instance of TVar 0 *)
   if not (IndexSet.mem 0 (bv_term te')) then raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
   (* we push a variable in the environment *)
@@ -714,35 +714,47 @@ and higher_order_unification (defs: defs) (ctxt: context ref) ?(polarity : bool 
 
 
 (* some basic rewriting *)
-and rewrite_term ctxt (lhs: term) (rhs: term) (te: term) : term =
+(* two mode: structural equality or unification *)
+and rewrite_term defs ctxt ?(struct_eq: bool = true) (lhs: term) (rhs: term) (te: term) : term =
   (*printf "rewrite [%s => %s] in %s\n" (term2string ctxt lhs) (term2string ctxt rhs) (term2string ctxt te);*)
-  if term_equal lhs te then
+  if (
+    if struct_eq then 
+      term_equal lhs te
+    else (
+      let ctxt' = !ctxt in
+      try
+	let _ = unification defs ctxt lhs te in
+	true
+      with
+	| PoussinException _ -> ctxt := ctxt'; false
+    )
+  ) then
     rhs
   else
     let ast =
       match te.ast with
 	| Lambda ((n, ty, nat), body) ->
-	  Lambda ((n, rewrite_term ctxt lhs rhs ty, nat),
-		  rewrite_term ctxt (shift_term lhs 1) (shift_term rhs 1) body)
+	  Lambda ((n, rewrite_term defs ctxt ~struct_eq:struct_eq lhs rhs ty, nat),
+		  rewrite_term defs ctxt ~struct_eq:struct_eq (shift_term lhs 1) (shift_term rhs 1) body)
 	| Forall ((n, ty, nat), body) ->
-	  Forall ((n, rewrite_term ctxt lhs rhs ty, nat),
-		  rewrite_term ctxt (shift_term lhs 1) (shift_term rhs 1) body)
+	  Forall ((n, rewrite_term defs ctxt lhs rhs ty, nat),
+		  rewrite_term defs ctxt ~struct_eq:struct_eq (shift_term lhs 1) (shift_term rhs 1) body)
 	| Let ((n, value), body) ->
-	  Let ((n, rewrite_term ctxt lhs rhs value),
-	       rewrite_term ctxt (shift_term lhs 1) (shift_term rhs 1) body)
+	  Let ((n, rewrite_term defs ctxt ~struct_eq:struct_eq lhs rhs value),
+	       rewrite_term defs ctxt ~struct_eq:struct_eq (shift_term lhs 1) (shift_term rhs 1) body)
 	| App (f, args) ->
-	  App (rewrite_term ctxt lhs rhs f,
-	       List.map (fun (arg, n) -> rewrite_term ctxt lhs rhs arg, n) args)
+	  App (rewrite_term defs ctxt ~struct_eq:struct_eq lhs rhs f,
+	       List.map (fun (arg, n) -> rewrite_term defs ctxt ~struct_eq:struct_eq lhs rhs arg, n) args)
 	| Match (te, des) ->
-	  Match (rewrite_term ctxt lhs rhs te,
+	  Match (rewrite_term defs ctxt ~struct_eq:struct_eq lhs rhs te,
 		 List.map (fun (ps, te) -> 
 		   let i = patterns_size ps in
-		   ps, rewrite_term ctxt (shift_term lhs i) (shift_term rhs i) te) des)
+		   ps, rewrite_term defs ctxt ~struct_eq:struct_eq (shift_term lhs i) (shift_term rhs i) te) des)
 	| _ -> te.ast
     in
     match get_type te with
       | {ast = Universe _; _} -> { te with ast = ast }
-      | ty -> { te with ast = ast; annot = Typed (rewrite_term ctxt lhs rhs ty) }
+      | ty -> { te with ast = ast; annot = Typed (rewrite_term defs ctxt lhs rhs ty) }
 
 
 (* reduction *)
