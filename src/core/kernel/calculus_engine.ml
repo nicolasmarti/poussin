@@ -662,7 +662,7 @@ and unification
 	  (*if !mk_trace then trace := (Free (conversion_hyps2string ctxt !ctxt.conversion_hyps)) :: !trace;*)
 	  let te1' = term_substitution s te1 in
 	  let te2' = term_substitution s te2 in
-	  printf "==> %s =?= %s\n\n" (term2string ctxt te1') (term2string ctxt te2');
+	  (*printf "==> %s =?= %s\n\n" (term2string ctxt te1') (term2string ctxt te2');*)
 	  let ctxt' = ref { !ctxt with conversion_hyps = l } in
 	  let res = unification defs ctxt' ~polarity:polarity te1' te2' in
 	  ctxt := { !ctxt' with conversion_hyps = !ctxt.conversion_hyps };
