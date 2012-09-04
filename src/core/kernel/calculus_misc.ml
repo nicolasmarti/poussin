@@ -620,3 +620,11 @@ let rec term_equal (te1: term) (te2: term) : bool =
       ) true (List.combine des1 des2)
     | _ -> false
       
+
+(**)
+let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
+  (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
+  ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
+  (*printf "%s\n"(conversion_hyps2string ctxt (!ctxt.conversion_hyps))*)
+
+
