@@ -352,11 +352,16 @@ let empty_context = {
 }
     
 
-(* returns if a definition is irreducible (an inductive or a constructor) *)
-let is_irreducible (defs: defs) (n: name) : bool =
-  match Hashtbl.find defs n with
-    | Inductive _ | Constructor _ -> true
-    | Axiom _ | Definition _ -> false
+(* returns if a term is irreducible *)
+let is_irreducible (defs: defs) (te: term) : bool =
+  match te.ast with
+    | Universe _ -> true
+    | Cste c -> (
+      match Hashtbl.find defs c with
+	| Inductive _ | Constructor _ -> true
+	| Axiom _ | Definition _ -> false
+    ) 
+    | _ -> false
 
 
 let nature_unify (n1: nature) (n2: nature) : nature option =
@@ -526,12 +531,6 @@ let rec pattern_match (ctxt: context ref) (p: pattern) (te: term) : (term list) 
 let context_add_lvl_contraint (ctxt: context ref) (c: uLevel_constraints) : unit =
   ctxt := { !ctxt with lvl_cste = c::!ctxt.lvl_cste }
 
-(**)
-let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
-  (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
-  ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
-  (*printf "%s\n"(conversion_hyps2string ctxt (!ctxt.conversion_hyps))*)
-
 
 (* retrieve the debruijn index of a bound var through its symbol *)
 let var_lookup (ctxt: context ref) (n: name) : index option =
@@ -539,19 +538,10 @@ let var_lookup (ctxt: context ref) (n: name) : index option =
     if frame.name = n then Right level else Left (level+1)
   ) 0 !ctxt.bvs in
   match res with
-    | Left _ -> (
-      let res = fold_stop (fun () (i, _, _, n') ->
-	match n' with
-	  | Some n' when n' = n -> Right i
-	  | _ -> Left ()
-      ) () !ctxt.fvs in
-      match res with
-	| Left () -> None
-	| Right i -> Some i
-    )
+    | Left _ -> None
     | Right level -> Some level
 
-let get_fvar (ctxt: context ref) (i: index) : (term * term option * name option) =
+let get_fvar (ctxt: context ref) (i: index) : (term * term option * bool) =
   let lookup = fold_stop (fun () (index, ty, value, name) -> 
     if index = i then Right (ty, value, name) else Left ()
   ) () !ctxt.fvs in
@@ -588,7 +578,7 @@ let bvar_name (ctxt: context ref) (i: index) : name =
     | Invalid_argument "List.nth" -> raise (PoussinException (NegativeIndexBVar i))
 
 (* we add a free variable *)
-let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te: term option = None) ?(ty: term option = None) (ctxt: context ref) : term =
+let rec add_fvar ?(pos: position = NoPosition) ?(interactive: bool = false) ?(te: term option = None) ?(ty: term option = None) (ctxt: context ref) : term =
   let ty = match ty with
     | None -> add_fvar ~ty:(Some (type_ (UName""))) ctxt
     | Some ty -> ty 
@@ -599,7 +589,7 @@ let rec add_fvar ?(pos: position = NoPosition) ?(name: name option = None) ?(te:
 	| (i, _, _, _)::_ -> (i - 1)
   in
   ctxt := { !ctxt with 
-    fvs = ((next_fvar_index, ty, te, name)::!ctxt.fvs)
+    fvs = ((next_fvar_index, ty, te, interactive)::!ctxt.fvs)
   };
   (*printf "adding %s\n" (string_of_int next_fvar_index);
   ignore(fvar_subst ctxt next_fvar_index);*)

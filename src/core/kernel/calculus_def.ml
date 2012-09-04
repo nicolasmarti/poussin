@@ -109,7 +109,7 @@ and var_frame = {
 (* context *)
 and context = {
   bvs: var_frame list; (* size = n *)
-  fvs: (index * term * term option * name option) list; (*  *)
+  fvs: (index * term * term option * bool) list; (*  *)
   conversion_hyps: (term * term) list; (* *)
   lvl_cste: uLevel_constraints list; (* *)
 }

@@ -257,11 +257,11 @@ Signature leibniz: {A: Type} -> (x y: A) -> ((P: A -> Prop) -> P x -> P y) -> eq
 Definition leibniz {A: Type} (x y: A) (H: (P: A -> Prop) -> P x -> P y) :=
   H (eq {A} x) (eq_refl _)
 
-Signature nat_ind (P: Nat -> Prop) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)): (n: Nat) -> P n
-Definition nat_ind (P: Nat -> Prop) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)) (n: Nat) :=
+Signature nat_ind (P: Nat -> Prop) (n: Nat) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)): P n
+Definition nat_ind (P: Nat -> Prop) (n: Nat) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)) :=
   match n with
      | O := H0
-     | S n := H1 n (nat_ind P H0 H1 n)
+     | S n := H1 n (nat_ind P n H0 H1)
   end
 
 Definition eqS (x y: Nat) (Hxy: eq x y) : eq (S x) (S y) :=
@@ -271,17 +271,17 @@ Definition eqS (x y: Nat) (Hxy: eq x y) : eq (S x) (S y) :=
 
 Signature plusxO: (n: Nat) -> eq (plus n O) n
 Definition plusx0 (n: Nat) :=
-  nat_ind (\ x -> eq (plus x O) x)
+  nat_ind (\ x -> eq (plus x O) x) n
           (eq_refl O)
-          (\ n (Pn: eq (plus n O) n) -> eqS _ _ Pn) n
+          (\ n (Pn: eq (plus n O) n) -> eqS _ _ Pn)
 
 Definition plusxS (x y: Nat) : eq (plus x (S y)) (S (plus x y)) :=
-  nat_ind (\ x -> eq (plus x (S y)) (S (plus x y)))
+  nat_ind (\ x -> eq (plus x (S y)) (S (plus x y))) x
           (eq_refl (S y))
-          (\n (Pn: eq (plus n (S y)) (S (plus n y))) -> eqS _ _ Pn) x
+          (\n (Pn: eq (plus n (S y)) (S (plus n y))) -> eqS _ _ Pn)
 
 Definition plus_comm (x y: Nat) : eq (plus x y) (plus y x) :=
-  nat_ind (\ x -> eq (plus x y) (plus y x))
+  nat_ind _ x
           (eq_symm _ _ (plusxO y))
           (\ n (Pn: eq (plus n y) (plus y n)) -> 
 	    match (plusxS y n) with
@@ -290,24 +290,7 @@ Definition plus_comm (x y: Nat) : eq (plus x y) (plus y x) :=
 				      	      	  
                    end
 	     end
-	  ) x
-
-Definition lemm1 (A B: Prop) : And A B -> Or A B := ?
-exact \ H -> ?
-exact match H with | conj {_} {_} Ha Hb := ? end
-exact left {A} {B} ?
-exact Ha
-
-Signature nat_ind2 (P: Nat -> Prop) (n: Nat) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)): P n
-Definition nat_ind2 (P: Nat -> Prop) (n: Nat) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)) :=
-  match n with
-     | O := H0
-     | S n := H1 n (nat_ind2 P n H0 H1)
-  end
-
-
-Definition lemm2 (x: Nat) : eq x x := ?
-exact nat_ind2 _ x ? ?
+	  )
 
 
 

@@ -139,6 +139,13 @@ let rec pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n
       let tl, tes = pop_quantifications defs ctxt tes (n-1) in
       hd::tl, tes
 
+(**)
+let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
+  printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);
+  ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
+  (*printf "%s\n"(conversion_hyps2string ctxt (!ctxt.conversion_hyps))*)
+
+
 
 (* typechecking, inference and reduction *)
 
@@ -181,6 +188,7 @@ and typeinfer
     ?(polarity: bool = true)
     (te: term) : term =
   if !mk_trace then trace := (TI (!ctxt, te))::!trace;
+  (*printf "%s :? \n" (term2string ctxt te);*)
   let res = 
   match get_term_typeannotation te with
     | Typed ty -> te
@@ -211,6 +219,9 @@ and typeinfer
 
 	  | AVar  ->
 	    add_fvar ~pos:te.tpos ctxt
+
+	  | Interactive -> 
+	    add_fvar ~pos:te.tpos ~interactive:true ctxt
 
 	  | TName n -> (
 	    (* we first look for a variable *)
@@ -361,7 +372,7 @@ and typeinfer
 		  (*printf "%s : %s == %s\n" (term2string ctxt m) (term2string ctxt mty) (term2string ctxt te);*)
 		  te::acc
 		with
-		  | PoussinException (NoUnification _) -> 
+		  | PoussinException _ -> 
 		    (*printf "%s <!> %s\n" (term2string ctxt (get_type te)) (term2string ctxt mty); flush stdout;*)
 		    acc
 	      ) tes [] in
@@ -386,17 +397,6 @@ and typeinfer
 	    (*printf "********************************************************************\n";*)
 	    let ret_ty = typecheck defs ctxt ~polarity:polarity ret_ty (type_ (UName "")) in
 	    { te with ast = Match (m, List.concat des); annot = Typed ret_ty }
-
-	  | Interactive -> (
-	    try	      
-	      let ty = match te.annot with
-		| TypedAnnotation ty -> ty
-	      in
-	      let te' = !oracle defs !ctxt ty in
-	      typeinfer defs ctxt { te with ast = te'.ast }
-	    with
-	      | _ -> raise (PoussinException InteractiveFailure)
-	  )
 	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
       ) in 
       (*
@@ -480,13 +480,8 @@ and unification
 	  let ty = unification defs ctxt ~polarity:polarity (get_type te1) (get_type te2) in
 	  cste_ ~annot:(Typed ty) ~pos:(pos_to_position (best_pos (pos_from_position te1.tpos) (pos_from_position te2.tpos))) c1
 	    
-	(*
-	| Cste (c1, Typed ty1, _, _), Cste (c2, Typed ty2, _, _) when String.compare c1 c2 != 0 && is_irreducible defs c1 && is_irreducible defs c2 ->
-	  raise (PoussinException (NoUnification (!ctxt, te1, te2)))
-	*)
 	(* a bit better *)
-	| _ when (match maybe_constante te1, maybe_constante te2 with | Some c1, Some c2 -> is_irreducible defs c1 && is_irreducible defs c2 && String.compare c1 c2 != 0 | _ -> false) ->
-	  (*printf "%s <!> %s\n" (term2string ctxt te1) (term2string ctxt te2); flush stdout;*)
+	| _ when (is_irreducible defs te1 && is_irreducible defs te2 && not (term_equal te1 te2)) ->
 	  raise (PoussinException (NoUnification (!ctxt, te1, te2)))
 
 	(* equality over variables *)
@@ -593,32 +588,12 @@ and unification
 	| _, App(f, []) ->
 	  unification defs ctxt ~polarity:polarity te1 f
 	    
-	(* some higher order unification: NOT YET TESTED !!! *)
+	(* some higher order unification: NOT YET FULLY TESTED !!! *)
 	| App ({ ast = Var i; _}, (arg, n)::args), _ when i < 0 ->
-	  (* here the principle is to "extract" the arg from the other term, transforming it into a Lambda and retry the unification *)
-	  (* shift te 1 : now there is no TVar 0 in te *)
-	  let te2' = shift_term te2 1 in
-	  (* thus we can rewrite (shift arg 1) by TVar 0 *)
-	  let te2' = rewrite_term ctxt (shift_term arg 1) (var_ 0) te2' in
-	  (* we just verify that we have some instance of TVar 0 *)
-	  if not (IndexSet.mem 0 (bv_term te2')) then raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
-	  (* we push a variable in the environment *)
-	  push_quantification ("", get_type arg, n) ctxt;
-	  (* we shift all args *)
-	  let args = List.map (fun (te, n) -> shift_term te 1, n) args in
-	  (* we create a new free variable and an application *)
-	  let j = add_fvar ctxt in
-	  let te_j = app_ j args in
-	  let te_j = typeinfer defs ctxt ~polarity:polarity te_j in
-	  (* we unify the application to the remaining args, with the body of the lambda (=t) *)
-	  let body = unification defs ctxt ~polarity:polarity te_j te2' in
-	  (* we pop the quantifiers *)
-	  let (_, ty, _), [body] = pop_quantification defs ctxt [body] in
-	  (* we build the lambda, and add the substitution to i *)
-	  let res = lambda_ "X" ~nature:n ~ty:ty body in
-	  let res = typeinfer defs ctxt ~polarity:polarity res in
-	  context_add_substitution ctxt (IndexMap.singleton i res);
-	  res
+	  higher_order_unification defs ctxt ~polarity:polarity i arg n args te2 te1 te2
+	| _, App ({ ast = Var i; _}, (arg, n)::args) when i < 0 ->
+	  higher_order_unification defs ctxt ~polarity:polarity i arg n args te1 te1 te2
+
 
 	(* this is really conservatives ... *)
 	| Match (t1, des1), Match (t2, des2) when List.length des1 = List.length des2 ->
@@ -643,7 +618,7 @@ and unification
 
 	(* the case of two application: with the same arity (and only positive polarity ) *)
 	| App (hd1, args1), App (hd2, args2) when List.length args1 = List.length args2 && 
-					       (match maybe_constante te1, maybe_constante te2 with | Some c1, Some c2 -> (polarity or (is_irreducible defs c1 && is_irreducible defs c2)) && String.compare c1 c2 = 0 | _ -> polarity)
+					       (polarity or (is_irreducible defs hd1 && is_irreducible defs hd2 && term_equal hd1 hd2))
 					     ->
 	  let ty = unification defs ctxt ~polarity:polarity (get_type te1) (get_type te2) in
 	  let hd = unification defs ctxt ~polarity:polarity hd1 hd2 in
@@ -690,7 +665,7 @@ and unification
 
       | (PoussinException (UnknownUnification (ctxt', te1', te2'))) when polarity ->
 	let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
-	(*printf "\n%s Vs %s\nl := %s \n==========> \ns := %s, \nl:= %s\n\n" (term2string ctxt te1) (term2string ctxt te2) (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l); flush stdout;*)
+	(*printf "(1)\n%s Vs %s\nl := %s \n==========> \ns := %s, \nl:= %s\n\n" (term2string ctxt te1) (term2string ctxt te2) (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l); flush stdout;*)
 	if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then ( 
 	  (*if !mk_trace then trace := (Free (String.concat "" [substitution2string ctxt s'; " /\ "; substitution2string ctxt s])):: !trace;*)
           if !mk_trace then trace := (Free (conversion_hyps2string ctxt !ctxt.conversion_hyps)) :: !trace;
@@ -723,7 +698,7 @@ and are_convertible
     (te1: term) (te2: term) : bool =
   match 
     let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
-    (*printf "l := %s ==========> s := %s, l:= %s\n" (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l);*)
+    (*printf "(2)\n%s Vs %s\nl := %s \n==========> \ns := %s, \nl:= %s\n\n" (term2string ctxt te1) (term2string ctxt te2) (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l); flush stdout;*)
     fold_stop (fun i (hd1, hd2) ->
       (*printf "(%s, %s) <--> (%s, %s)\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt hd1) (term2string ctxt hd2);*)
       try 
@@ -740,6 +715,34 @@ and are_convertible
     ) 0 l with
       | Left _ -> false
       | Right () -> true
+
+and higher_order_unification (defs: defs) (ctxt: context ref) ?(polarity : bool = true) (i: index) (arg: term) (n: nature) (args: (term* nature) list) (te: term) te1 te2 =
+  (* here the principle is to "extract" the arg from the other term, transforming it into a Lambda and retry the unification *)
+  (* shift te 1 : now there is no TVar 0 in te *)
+  let te' = shift_term te 1 in
+  (* thus we can rewrite (shift arg 1) by TVar 0 *)
+  let te' = rewrite_term ctxt (shift_term arg 1) (var_ 0) te' in
+  (* we just verify that we have some instance of TVar 0 *)
+  if not (IndexSet.mem 0 (bv_term te')) then raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
+  (* we push a variable in the environment *)
+  push_quantification ("", get_type arg, n) ctxt;
+  (* we shift all args *)
+  let args = List.map (fun (te, n) -> shift_term te 1, n) args in
+  (* we create a new free variable and an application *)
+  let j = add_fvar ctxt in
+  let te_j = app_ j args in
+  let te_j = typeinfer defs ctxt ~polarity:polarity te_j in
+  (* we unify the application to the remaining args, with the body of the lambda (=t) *)
+  let body = unification defs ctxt ~polarity:polarity te_j te' in
+  (* we pop the quantifiers *)
+  let (_, ty, _), [body] = pop_quantification defs ctxt [body] in
+  (* we build the lambda, and add the substitution to i *)
+  let res = lambda_ "X" ~nature:n ~ty:ty body in
+  let res = typeinfer defs ctxt ~polarity:polarity res in
+  context_add_substitution ctxt (IndexMap.singleton i res);
+  printf "(%s Vs %s) -> %s\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt (app_ res ((arg, n)::[])));
+  te
+
 
 (* some basic rewriting *)
 and rewrite_term ctxt (lhs: term) (rhs: term) (te: term) : term =
