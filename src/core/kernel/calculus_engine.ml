@@ -74,22 +74,22 @@ let rec flush_interactives (defs: defs) (ctxt: context ref) (tes: term list) : t
   ) tes fvs in
   (* we compute the fvars of the terms *)
   let lfvs = List.fold_left (fun acc te -> IndexSet.union acc (fv_term te)) IndexSet.empty tes in  
-  (* we ask for the oracle to solve the free variables introduced by interactive and present in the term *)
+  (* we ask for the oracles to solve the free variables introduced by interactive and present in the term *)
   let fvs = List.fold_right (fun ((i, ty, te, n) as var) acc ->
     (* is the current variable an interactive one and present in the terms? *)
     if n && IndexSet.mem i lfvs then (
       (* yes, next we look if we were able to give it a value *)
       match te with
 	| Some _ -> (* yes, so we just return it as a non-interactive variable *) (i, ty, te, false)::acc
-	| None -> (* nop, so here we need to ask the oracle for a candidate *)
+	| None -> (* nop, so here we need to ask the oracles for a candidate *)
 	  printf "interactive var %d\n" i;
-	  match oracle_call defs ctxt ty with
+	  match oracles_call defs ctxt ty with
 	    | None -> (* nothing there, here there is two possibility: 
 			 (1) either we continue with the variable, and it will be tried on the next level
 			 (2) we just raise an error (the convervative way that we implement for now)
 		      *)
-	      raise (PoussinException (FreeError "the oracle failed to infer a free variable"))
-	    | Some _ as te -> (* we just return the answer of the oracle as the free variable value *)
+	      raise (PoussinException (FreeError "the oracles failed to infer a free variable"))
+	    | Some _ as te -> (* we just return the answer of the oracles as the free variable value *)
 	      (i, ty, te, false)::acc
 	      
     ) else (
@@ -125,8 +125,6 @@ and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
 	  (*printf "remove %s\n" (string_of_int i);*)
 	  acc
 	) else
-	  (* TODO: add oracle call for instantiating the free variable *)
-	  (* otherwise there is something wrong here, for now we make it an error *)
 	  raise (PoussinException (FreeError "we failed to infer a free variable that cannot be out-scoped"))
   ) [] !ctxt.fvs in
 	(* we replace the new free var set *)
@@ -176,18 +174,30 @@ and pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n: in
       hd::tl, tes
 
 (* calls for oracles for a given type *)
-and oracle_call (defs: defs) (ctxt: context ref) (ty: term) : term option =
-  try	      
-    (* grab an answer from the oracle *)
-    let te = !oracle defs !ctxt ty in
-    (* typecheck it for the wanted type *)
-    let te = typecheck defs ctxt te ty in
-    printf "oracle (correct) answer: %s\n\n" (term2string ctxt te);
-    let [te] = flush_interactives defs ctxt [te] in
-    (* return it *)
-    Some te
-  with
-    | _ -> None
+and oracles_call (defs: defs) (ctxt: context ref) (ty: term) : term option =
+  let res = fold_stop (fun () oracle ->
+    try	     
+      (* save the context *)
+      let ctxt' = ref (!ctxt) in
+      (* grab an answer from the oracle *)
+      let te = oracle defs !ctxt ty in
+      (* do we have a result ?*)
+      match te with
+	| None -> (* nop, so try next one *) Left ()
+	| Some te -> (* yep, look if the oracle's answer is correct *)
+	  (* typecheck it for the wanted type *)
+	  let te = typecheck defs ctxt' te ty in
+	  printf "oracle (correct) answer: %s\n\n" (term2string ctxt' te);
+	  let [te] = flush_interactives defs ctxt' [te] in
+	  (* restore the context and return the result *)
+	  ctxt := !ctxt';
+	  Right te
+    with
+      | _ -> Left ()
+  ) () !oracles in
+  match res with
+    | Left () -> None
+    | Right te -> Some te
 
 (* typechecking, inference and reduction *)
 

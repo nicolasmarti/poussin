@@ -171,7 +171,5 @@ let debug_reduction = ref false
 let global_parserbuffer : parserbuffer ref = ref (build_parserbuffer (Stream.of_list []))
 
 (* interactive routine *)
-let oracle : (defs -> context -> term -> term) ref = ref (fun defs ctxt ty -> 
-  raise (Failure "no oracle mode set")
-)
+let oracles : (defs -> context -> term -> term option) list ref = ref []
 
