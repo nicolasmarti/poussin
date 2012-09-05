@@ -292,7 +292,10 @@ Definition plus_comm (x y: Nat) : eq (plus x y) (plus y x) :=
 	     end
 	  )
 
-
-
+Signature dodo: Nat -> Nat -> Nat
+Definition dodo (x y: Nat) := ?
+exact match x with | O := ? | S x := ? end
+exact y
+exact x
 
 
