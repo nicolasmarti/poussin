@@ -525,6 +525,9 @@ and unification
 	(* a bit better *)
 	| _ when (is_irreducible defs te1 && is_irreducible defs te2 && not (term_equal te1 te2)) ->
 	  raise (PoussinException (NoUnification (!ctxt, te1, te2)))
+	(* a few other NoUnification Cases *)
+	| Lambda _, _ | Forall _, _ | Universe _, _ when is_irreducible defs te2 -> raise (PoussinException (NoUnification (!ctxt, te1, te2)))
+	| _, Lambda _ | _, Forall _ | _, Universe _ when is_irreducible defs te1 -> raise (PoussinException (NoUnification (!ctxt, te1, te2)))
 
 	(* equality over variables *)
 	(* two bounded variables case *)
