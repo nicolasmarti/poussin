@@ -57,7 +57,7 @@ let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
     conversion_hyps = List.map (fun (hd1, hd2) -> (shift_term hd1 1, shift_term hd2 1)) !ctxt.conversion_hyps
   }
 
-let rec flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
+let rec flush_interactives (defs: defs) (ctxt: context ref) (tes: term list) : term list =
   (* we rewrite the conversion hypothesis in increasing order in the free vars *)
   let s, _ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
   let fvs = List.map (fun (i, ty, te, n) ->
@@ -72,6 +72,42 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term lis
       | None -> acc
       | Some te -> List.map (fun te' -> term_substitution (IndexMap.singleton i te) te') acc
   ) tes fvs in
+  (* we compute the fvars of the terms *)
+  let lfvs = List.fold_left (fun acc te -> IndexSet.union acc (fv_term te)) IndexSet.empty tes in  
+  (* we ask for the oracle to solve the free variables introduced by interactive and present in the term *)
+  let fvs = List.fold_right (fun ((i, ty, te, n) as var) acc ->
+    (* is the current variable an interactive one and present in the terms? *)
+    if n && IndexSet.mem i lfvs then (
+      (* yes, next we look if we were able to give it a value *)
+      match te with
+	| Some _ -> (* yes, so we just return it as a non-interactive variable *) (i, ty, te, false)::acc
+	| None -> (* nop, so here we need to ask the oracle for a candidate *)
+	  printf "interactive var %d\n" i;
+	  match oracle_call defs ctxt ty with
+	    | None -> (* nothing there, here there is two possibility: 
+			 (1) either we continue with the variable, and it will be tried on the next level
+			 (2) we just raise an error (the convervative way that we implement for now)
+		      *)
+	      raise (PoussinException (FreeError "the oracle failed to infer a free variable"))
+	    | Some _ as te -> (* we just return the answer of the oracle as the free variable value *)
+	      (i, ty, te, false)::acc
+	      
+    ) else (
+      (* no, so we just return it *)
+      var::acc
+    )
+  ) fvs [] in
+  (* we rewrite all the terms *)
+  let tes = List.fold_left (fun acc (i, ty, te, n) ->
+    match te with
+      | None -> acc
+      | Some te -> List.map (fun te' -> term_substitution (IndexMap.singleton i te) te') acc
+  ) tes fvs in  
+  ctxt := {!ctxt with fvs = fvs};
+  tes
+
+and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
+  let tes = flush_interactives defs ctxt tes in
   (* we compute the fvars of the terms *)
   let lfvs = List.fold_left (fun acc te -> IndexSet.union acc (fv_term te)) IndexSet.empty tes in  
   (* we shift the freevars, and allow removing does who does not appears *)
@@ -92,7 +128,7 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term lis
 	  (* TODO: add oracle call for instantiating the free variable *)
 	  (* otherwise there is something wrong here, for now we make it an error *)
 	  raise (PoussinException (FreeError "we failed to infer a free variable that cannot be out-scoped"))
-  ) [] fvs in
+  ) [] !ctxt.fvs in
 	(* we replace the new free var set *)
 	(if List.length !ctxt.bvs != 0 then
 	    ctxt := { !ctxt with
@@ -107,7 +143,7 @@ let rec flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term lis
   tes
 
 
-let pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature) * term list =
+and pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature) * term list =
   (* we flush the vars *)
   let tes = flush_fvars defs ctxt tes in
   (* we grab the remaining context and the popped frame *)
@@ -130,7 +166,7 @@ let pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name
   (* and returns the quantifier *)
   (frame.name, shift_term frame.ty (-1), frame.nature), tes  
 
-let rec pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n: int) : (name * term * nature) list * term list =
+and pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n: int) : (name * term * nature) list * term list =
   match n with
     | _ when n < 0 -> raise (PoussinException (FreeError "Catastrophic: negative n in pop_quantifications"))
     | 0 -> [], tes
@@ -139,9 +175,23 @@ let rec pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n
       let tl, tes = pop_quantifications defs ctxt tes (n-1) in
       hd::tl, tes
 
+(* calls for oracles for a given type *)
+and oracle_call (defs: defs) (ctxt: context ref) (ty: term) : term option =
+  try	      
+    (* grab an answer from the oracle *)
+    let te = !oracle defs !ctxt ty in
+    (* typecheck it for the wanted type *)
+    let te = typecheck defs ctxt te ty in
+    printf "oracle (correct) answer: %s\n\n" (term2string ctxt te);
+    let [te] = flush_interactives defs ctxt [te] in
+    (* return it *)
+    Some te
+  with
+    | _ -> None
+
 (* typechecking, inference and reduction *)
 
-let rec typecheck 
+and typecheck 
     (defs: defs)
     (ctxt: context ref)
     ?(polarity: bool = true)
