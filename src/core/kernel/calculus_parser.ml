@@ -48,6 +48,36 @@ let parse_avar : unit parsingrule = applylexingrule (regexp "_",
 						     fun (s:string) -> ()
 )
 
+(* build an implication: no shifting in types !!! (used by the parser) *)
+let build_impl (symbols: (name * pos) list) (ty: term) (nature: nature) (body: term) : term =
+  List.fold_right (fun (s, pos) acc -> 
+    { ast = Forall ((s, ty, nature), acc);
+      annot = NoAnnotation;
+      tpos = Position ((fst pos, snd (pos_from_position (get_term_pos acc))), []);
+      reduced = false;
+    }
+  ) symbols body
+
+(* build a Forall: no shifting in types !!! (used by the parser) *)
+let build_impls (qs: ((name * pos) list * term * nature) list) (body: term) : term =
+  List.fold_right (fun (s, ty, n) acc -> build_impl s ty n acc) qs body
+
+(* build a Lambda: no shifting in types !!! *)
+let build_lambda (symbols: (name * pos) list) (ty: term) (nature: nature) (body: term) : term =
+  List.fold_right (fun (s, pos) acc -> 
+    { ast = Lambda ((s, ty, nature), acc);
+      annot = NoAnnotation;
+      tpos = Position ((fst pos, snd (pos_from_position (get_term_pos acc))), []);
+      reduced = false;
+    }
+  ) symbols body
+
+
+(* build a Lambda: no shifting in types !!! (used by the parser) *)
+let build_lambdas (qs: ((name * pos) list * term * nature) list) (body: term) : term =
+  List.fold_right (fun (s, ty, n) acc -> build_lambda s ty n acc) qs body
+
+
 (* these are the whole term set 
    - term_lvlx "->" term
 *)

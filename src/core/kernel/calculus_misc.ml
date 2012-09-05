@@ -272,35 +272,6 @@ let nb_first_implicits (te: term) : int option =
       List.fold_left (fun acc ((_, _, n), _, _) -> if n = Implicit then acc + 1 else acc) 0 qs
     )
   
-(* build an implication: no shifting in types !!! (used by the parser) *)
-let build_impl (symbols: (name * pos) list) (ty: term) (nature: nature) (body: term) : term =
-  List.fold_right (fun (s, pos) acc -> 
-    { ast = Forall ((s, ty, nature), acc);
-      annot = NoAnnotation;
-      tpos = Position ((fst pos, snd (pos_from_position (get_term_pos acc))), []);
-      reduced = false;
-    }
-  ) symbols body
-
-(* build a Forall: no shifting in types !!! (used by the parser) *)
-let build_impls (qs: ((name * pos) list * term * nature) list) (body: term) : term =
-  List.fold_right (fun (s, ty, n) acc -> build_impl s ty n acc) qs body
-
-(* build a Lambda: no shifting in types !!! *)
-let build_lambda (symbols: (name * pos) list) (ty: term) (nature: nature) (body: term) : term =
-  List.fold_right (fun (s, pos) acc -> 
-    { ast = Lambda ((s, ty, nature), acc);
-      annot = NoAnnotation;
-      tpos = Position ((fst pos, snd (pos_from_position (get_term_pos acc))), []);
-      reduced = false;
-    }
-  ) symbols body
-
-
-(* build a Lambda: no shifting in types !!! (used by the parser) *)
-let build_lambdas (qs: ((name * pos) list * term * nature) list) (body: term) : term =
-  List.fold_right (fun (s, ty, n) acc -> build_lambda s ty n acc) qs body
-
 (* returns if a term is reduced *)
 let get_term_reduced (te: term) : reduced =
   te.reduced
