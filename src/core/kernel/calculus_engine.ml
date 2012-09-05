@@ -406,11 +406,9 @@ and typeinfer
 	      (* then, for each patterns, we typecheck against tety *)
 	      (* for each pattern that do not unify we remove it *)
 	      let tes = List.fold_right (fun te acc -> 
-		(*printf "%s :?\n" (term2string ctxt te); flush stdout;*)
-		let te = typeinfer defs ctxt ~polarity:false te in
 		try 
 		  (*printf "%s =?= %s\n" (term2string ctxt (get_type te)) (term2string ctxt mty); flush stdout;*)
-		  let _ = unification defs ctxt ~polarity:false (get_type te) mty in
+		  let te = typecheck defs ctxt ~polarity:false te mty in
 		  (*printf "%s : %s == %s\n" (term2string ctxt m) (term2string ctxt mty) (term2string ctxt te);*)
 		  te::acc
 		with
