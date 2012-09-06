@@ -73,16 +73,17 @@ let rec flush_interactives (defs: defs) (ctxt: context ref) (tes: term list) : t
       | Some te -> List.map (fun te' -> term_substitution (IndexMap.singleton i te) te') acc
   ) tes fvs in
   (* we compute the fvars of the terms *)
-  let lfvs = List.fold_left (fun acc te -> IndexSet.union acc (fv_term te)) IndexSet.empty tes in  
+  let lfvs = List.fold_left (fun acc te -> 
+    IndexSet.union acc (fv_term te)
+  ) IndexSet.empty tes in  
   (* we ask for the oracles to solve the free variables introduced by interactive and present in the term *)
-  let fvs = List.fold_right (fun ((i, ty, te, n) as var) acc ->
+  let fvs = List.fold_left (fun acc ((i, ty, te, n) as var) ->
     (* is the current variable an interactive one and present in the terms? *)
     if n && IndexSet.mem i lfvs then (
       (* yes, next we look if we were able to give it a value *)
       match te with
 	| Some _ -> (* yes, so we just return it as a non-interactive variable *) (i, ty, te, false)::acc
 	| None -> (* nop, so here we need to ask the oracles for a candidate *)
-	  printf "interactive var %d\n" i;
 	  match oracles_call defs ctxt ty with
 	    | None -> (* nothing there, here there is two possibility: 
 			 (1) either we continue with the variable, and it will be tried on the next level
@@ -91,12 +92,12 @@ let rec flush_interactives (defs: defs) (ctxt: context ref) (tes: term list) : t
 	      raise (PoussinException (FreeError "the oracles failed to infer a free variable"))
 	    | Some _ as te -> (* we just return the answer of the oracles as the free variable value *)
 	      (i, ty, te, false)::acc
-	      
+		
     ) else (
-      (* no, so we just return it *)
+	(* no, so we just return it *)
       var::acc
     )
-  ) fvs [] in
+  ) [] (List.rev fvs) in
   (* we rewrite all the terms *)
   let tes = List.fold_left (fun acc (i, ty, te, n) ->
     match te with
@@ -106,8 +107,8 @@ let rec flush_interactives (defs: defs) (ctxt: context ref) (tes: term list) : t
   ctxt := {!ctxt with fvs = fvs};
   tes
 
-and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
-  let tes = flush_interactives defs ctxt tes in
+and flush_fvars ?(interactive_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) : term list =
+  let tes = if interactive_pushed then tes else flush_interactives defs ctxt tes in  
   (* we compute the fvars of the terms *)
   let lfvs = List.fold_left (fun acc te -> IndexSet.union acc (fv_term te)) IndexSet.empty tes in  
   (* we shift the freevars, and allow removing does who does not appears *)
@@ -141,9 +142,10 @@ and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
   tes
 
 
-and pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature) * term list =
+and pop_quantification ?(interactive_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature) * term list =
+  let tes = if interactive_pushed then tes else flush_interactives defs ctxt tes in  
   (* we flush the vars *)
-  let tes = flush_fvars defs ctxt tes in
+  let tes = flush_fvars ~interactive_pushed:true defs ctxt tes in
   (* we grab the remaining context and the popped frame *)
   let frame = List.hd (!ctxt.bvs) in
   (* we set the context *)
@@ -164,13 +166,14 @@ and pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name
   (* and returns the quantifier *)
   (frame.name, shift_term frame.ty (-1), frame.nature), tes  
 
-and pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n: int) : (name * term * nature) list * term list =
+and pop_quantifications ?(interactive_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) (n: int) : (name * term * nature) list * term list =
+  let tes = if interactive_pushed then tes else flush_interactives defs ctxt tes in  
   match n with
     | _ when n < 0 -> raise (PoussinException (FreeError "Catastrophic: negative n in pop_quantifications"))
     | 0 -> [], tes
     | _ ->
-      let hd, tes = pop_quantification defs ctxt tes in
-      let tl, tes = pop_quantifications defs ctxt tes (n-1) in
+      let hd, tes = pop_quantification ~interactive_pushed:true defs ctxt tes in
+      let tl, tes = pop_quantifications ~interactive_pushed:true defs ctxt tes (n-1) in
       hd::tl, tes
 
 (* calls for oracles for a given type *)
@@ -187,7 +190,6 @@ and oracles_call (defs: defs) (ctxt: context ref) (ty: term) : term option =
 	| Some te -> (* yep, look if the oracle's answer is correct *)
 	  (* typecheck it's untype version for the wanted type *)
 	  let te = typecheck defs ctxt' (untype_term te) ty in
-	  printf "oracle (correct) answer: %s\n\n" (term2string ctxt' te);
 	  let [te] = flush_interactives defs ctxt' [te] in
 	  (* restore the context and return the result *)
 	  ctxt := !ctxt';
@@ -415,17 +417,18 @@ and typeinfer
 	      let tes = List.map (fun p -> pattern_to_term defs p) ps in
 	      (* then, for each patterns, we typecheck against tety *)
 	      (* for each pattern that do not unify we remove it *)
-	      let tes = List.fold_right (fun te acc -> 
-		try 
+	      let tes = List.rev (
+		List.fold_left (fun acc te -> 
+		  try 
 		  (*printf "%s =?= %s\n" (term2string ctxt (get_type te)) (term2string ctxt mty); flush stdout;*)
-		  let te = typecheck defs ctxt ~polarity:false te mty in
+		    let te = typecheck defs ctxt ~polarity:false te mty in
 		  (*printf "%s : %s == %s\n" (term2string ctxt m) (term2string ctxt mty) (term2string ctxt te);*)
-		  te::acc
-		with
-		  | PoussinException _ -> 
+		    te::acc
+		  with
+		    | PoussinException _ -> 
 		    (*printf "%s <!> %s\n" (term2string ctxt (get_type te)) (term2string ctxt mty); flush stdout;*)
-		    acc
-	      ) tes [] in
+		      acc
+		) [] tes) in
 	      (* then, for each pattern *)
 	      let des = List.map (fun hd ->
 		(* we unify it (with negative polarity) with te *)
