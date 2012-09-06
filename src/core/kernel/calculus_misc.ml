@@ -89,7 +89,7 @@ let rec patterns_size (ps: pattern list) : int =
 (* list of names in a pattern *)
 let rec pattern_vars (p: pattern) : name list =
   match p with
-    | PAvar -> ["_"]
+    | PAvar -> [""]
     | PName s -> [s]
     | PCste _ -> []
     | PApp (_, args) ->
@@ -562,8 +562,6 @@ let rec add_fvar ?(pos: position = NoPosition) ?(interactive: bool = false) ?(te
   ctxt := { !ctxt with 
     fvs = ((next_fvar_index, ty, te, interactive)::!ctxt.fvs)
   };
-  (*printf "adding %s\n" (string_of_int next_fvar_index);
-  ignore(fvar_subst ctxt next_fvar_index);*)
   var_ ~annot:(Typed ty) ~pos:pos next_fvar_index
 
 (* strict equality *)
@@ -627,5 +625,4 @@ let rec untype_term (te: term) : term =
 and untype_typeannotation (ty: typeannotation) : typeannotation =
   match ty with
     | NoAnnotation -> NoAnnotation
-      (* this case should be an error ... *)
     | Annotation te | TypedAnnotation te | Typed te -> Annotation (untype_term te)
