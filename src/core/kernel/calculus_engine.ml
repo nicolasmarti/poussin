@@ -185,8 +185,8 @@ and oracles_call (defs: defs) (ctxt: context ref) (ty: term) : term option =
       match te with
 	| None -> (* nop, so try next one *) Left ()
 	| Some te -> (* yep, look if the oracle's answer is correct *)
-	  (* typecheck it for the wanted type *)
-	  let te = typecheck defs ctxt' te ty in
+	  (* typecheck it's untype version for the wanted type *)
+	  let te = typecheck defs ctxt' (untype_term te) ty in
 	  printf "oracle (correct) answer: %s\n\n" (term2string ctxt' te);
 	  let [te] = flush_interactives defs ctxt' [te] in
 	  (* restore the context and return the result *)

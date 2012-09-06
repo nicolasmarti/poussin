@@ -598,4 +598,34 @@ let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
   ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
   (*printf "%s\n"(conversion_hyps2string ctxt (!ctxt.conversion_hyps))*)
 
+(* un-type a term (keeping annotation): used to recheck a term given by an outsider *)
+(* set a term as reduced *)
+let rec untype_term (te: term) : term =
+  let te =
+    match te.ast with
+      | Universe _ | Cste _ | AVar | TName _ | Interactive | Var _ -> te
+	
+      | App (f, args) ->
+	{ te with ast = App (untype_term f,
+			     List.map (fun (te, n) -> untype_term te, n) args) }
 
+      | Forall ((s, ty, n), body) ->
+	{ te with ast = Forall ((s, untype_term ty, n), untype_term body) }
+
+      | Lambda ((s, ty, n), body) ->
+	{ te with ast = Lambda ((s, untype_term ty, n), untype_term body) }
+
+      | Let ((s, value), body) ->
+	{ te with ast = Let ((s, untype_term value), untype_term body) }
+
+      | Match (m, des) ->
+	{ te with ast = Match (untype_term m,
+			       List.map (fun (ps, te) -> ps, untype_term te) des) }
+  in
+  { te with annot = untype_typeannotation te.annot }
+
+and untype_typeannotation (ty: typeannotation) : typeannotation =
+  match ty with
+    | NoAnnotation -> NoAnnotation
+      (* this case should be an error ... *)
+    | Annotation te | TypedAnnotation te | Typed te -> Annotation (untype_term te)
