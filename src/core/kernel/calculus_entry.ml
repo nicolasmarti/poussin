@@ -15,6 +15,15 @@ let env : env = {
   deps = Hashtbl.create 100;
 };;
 
+let type_simplification_strat = {
+  beta = Some BetaStrong;
+  delta = Some DeltaWeak;
+  iota = true;
+  zeta = true;
+  eta = true;
+}
+
+
 let process_definition (def: definition) : unit =
   let ctxt = ref empty_context in
   if !mk_trace then trace := [];
@@ -102,6 +111,7 @@ let process_definition (def: definition) : unit =
 	  | Not_found -> typeinfer env.defs ctxt te
       ) in
       let [te] = flush_fvars env.defs ctxt [te] in 
+      let te = { te with annot = Typed (reduction_term env.defs ctxt type_simplification_strat (get_type te))} in
       Hashtbl.add env.defs n (Definition te);
       let time_end = Sys.time () in
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
