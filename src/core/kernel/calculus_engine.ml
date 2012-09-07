@@ -155,6 +155,7 @@ and flush_fvars ?(interactive_pushed: bool = false) (defs: defs) (ctxt: context 
 	  (*printf "remove %s\n" (string_of_int i);*)
 	  acc
 	) else
+	  (* NB: here we should call the oracles for a solution *)
 	  raise (PoussinException (FreeError "we failed to infer a free variable that cannot be out-scoped"))
   ) [] !ctxt.fvs in
 	(* we replace the new free var set *)
