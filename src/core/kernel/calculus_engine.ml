@@ -113,7 +113,7 @@ and flush_interactives (defs: defs) (ctxt: context ref) (tes: term list) : term 
       match te with
 	| Some _ -> (* yes, so we just return it as a non-interactive variable *) (i, ty, te, false)::acc
 	| None -> (* nop, so here we need to ask the oracles for a candidate *)
-	  match oracles_call defs ctxt ty with
+	  match oracles_call defs ctxt ~var:(Some i) ty with
 	    | None -> (* nothing there, here there is two possibility: 
 			 (1) either we continue with the variable, and it will be tried on the next level
 			 (2) we just raise an error (the convervative way that we implement for now)
@@ -206,7 +206,7 @@ and pop_quantifications ?(interactive_pushed: bool = false) (defs: defs) (ctxt: 
       hd::tl, tes
 
 (* calls for oracles for a given type *)
-and oracles_call (defs: defs) (ctxt: context ref) (ty: term) : term option =
+and oracles_call (defs: defs) (ctxt: context ref) ?(var: index option = None) (ty: term) : term option =
   let res = fold_stop (fun () oracle ->
     try	     
       (* save the context *)
@@ -217,9 +217,13 @@ and oracles_call (defs: defs) (ctxt: context ref) (ty: term) : term option =
       match te with
 	| None -> (* nop, so try next one *) Left ()
 	| Some te -> (* yep, look if the oracle's answer is correct *)
-	  (* typecheck it's untype version for the wanted type *)
+	  (* typecheck it's untype version for the wanted type, and that if it is suppose to be some free var instantiation then it is consistent with the context *)
 	  let te = typecheck defs ctxt' (untype_term te) ty in
 	  let [te] = flush_interactives defs ctxt' [te] in
+	  let () = match var with
+	    | None -> ()
+	    | Some i -> context_add_substitution defs ctxt' (IndexMap.singleton i te) 
+	  in
 	  (* restore the context and return the result *)
 	  ctxt := !ctxt';
 	  Right te
