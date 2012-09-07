@@ -152,7 +152,6 @@ and flush_fvars ?(interactive_pushed: bool = false) (defs: defs) (ctxt: context 
       | PoussinException (Unshiftable_term _) ->
 	(* if the free variable does not appears in the terms we can remove it *)
 	if not (IndexSet.mem i lfvs) then (
-	  (*printf "remove %s\n" (string_of_int i);*)
 	  acc
 	) else
 	  (* NB: here we should call the oracles for a solution *)
@@ -188,7 +187,6 @@ and pop_quantification ?(interactive_pushed: bool = false) (defs: defs) (ctxt: c
 	  acc @ (shift_term hd1 (-1), shift_term hd2 (-1))::[]
 	with
 	  | PoussinException (Unshiftable_term _) ->
-	    (*printf "removing from conversion: %s === %s\n" (term2string ctxt hd1) (term2string ctxt hd2);*)
 	    acc
 	      
       ) [] !ctxt.conversion_hyps;    
@@ -276,12 +274,10 @@ and typeinfer
     ?(polarity: bool = true)
     (te: term) : term =
   if !mk_trace then trace := (TI (!ctxt, te))::!trace;
-  (*printf "%s :? \n" (term2string ctxt te);*)
   let res = 
   match get_term_typeannotation te with
     | Typed ty -> te
     | Annotation ty ->
-      (*let ty = typecheck defs ctxt ty (type_ (UName "")) in*)
       let ty = typeinfer defs ctxt ~polarity:polarity ty in
       typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty)
     | ty ->
@@ -401,10 +397,8 @@ and typeinfer
 	      let { ast = Forall ((q, arg_ty, n'), body); annot = Typed fty; _ } = hd_ty in
 	      let arg = typecheck defs ctxt ~polarity:polarity arg arg_ty in
 	      (* we build a new head, as the reduction of hd and arg, with the proper type *)
-	      (*(App (Lambda ((q, ty, n, pq), te, Typed fty, p, reduced), (arg,n)::[], Typed fty, pos, false))*)
 	      let new_hd_ty = shift_term (term_substitution (IndexMap.singleton 0 (shift_term arg 1)) body) (-1) in
-	      let new_hd = app_ ~annot:(Typed (new_hd_ty)) (*~pos:pos*) hd ((arg, n)::[]) in
-	      (*printf "Unification, App new_hd:\n%s\n\n" (term2string ctxt new_hd);*)
+	      let new_hd = app_ ~annot:(Typed (new_hd_ty)) hd ((arg, n)::[]) in
 	      let new_hd = reduction_term defs ctxt simplification_strat new_hd in 
 	      typeinfer defs ctxt ~polarity:polarity (app_ ~pos:te.tpos new_hd args)
 	    )
@@ -414,17 +408,10 @@ and typeinfer
 	    let m = typeinfer defs ctxt m in
 	    (* then we assure ourselves that it is an inductive *)
 	    let mty = (get_type m) in
-	    (*
-	    let _ = 
-	      match (app_head (reduction_term defs ctxt typeinfer_strat mty)).ast with
-		| Cste n -> (
-		  match get_cste defs n with
-		    | Inductive _ as ty -> ty
-		    | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, m)))
-		)
-		| _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, m)))
+	    let _ = match (app_head (reduction_term defs ctxt typeinfer_strat mty)).ast with 
+	      | Cste n -> (match get_cste defs n with | Inductive _ as ty -> ty | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, m))))
+	      | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, m)))
 	    in
-	    *) 
 	    (* we create a type for the return value *)
 	    let ret_ty = 
 	      match te.annot with
@@ -433,7 +420,6 @@ and typeinfer
 	    in
 	    (* then we traverse the destructors *)
 	    let des = List.map (fun (ps, des) ->
-	      (*printf "********************************************************************\n";*)
 	      (* saves the conversion *)
 	      let convs = !ctxt.conversion_hyps in
 	      (* first grab the vars of the patterns *)
@@ -453,15 +439,9 @@ and typeinfer
 	      (* for each pattern that do not unify we remove it *)
 	      let tes = List.rev (
 		List.fold_left (fun acc te -> 
-		  try 
-		  (*printf "%s =?= %s\n" (term2string ctxt (get_type te)) (term2string ctxt mty); flush stdout;*)
-		    let te = typecheck defs ctxt ~polarity:false te mty in
-		  (*printf "%s : %s == %s\n" (term2string ctxt m) (term2string ctxt mty) (term2string ctxt te);*)
-		    te::acc
+		  try let te = typecheck defs ctxt ~polarity:false te mty in te::acc
 		  with
-		    | PoussinException _ -> 
-		    (*printf "%s <!> %s\n" (term2string ctxt (get_type te)) (term2string ctxt mty); flush stdout;*)
-		      acc
+		    | PoussinException _ -> acc
 		) [] tes) in
 	      (* then, for each pattern *)
 	      let des = List.map (fun hd ->
@@ -469,9 +449,7 @@ and typeinfer
 		let _ = unification defs ctxt ~polarity:false hd m in
 		(* and typecheck des against ret_ty *)
 		let s = context2subst ctxt in
-		(*printf "s := %s\n" (substitution2string ctxt s);*)
 		let ret_ty = term_substitution s ret_ty in
-		(*printf ":= %s : %s\n" (term2string ctxt des) (term2string ctxt ret_ty);*)
 		typecheck defs ctxt des ret_ty
 	      ) tes in
 	      (* we pop all quantifiers *)
@@ -486,24 +464,8 @@ and typeinfer
 	    { te with ast = Match (m, List.concat des); annot = Typed ret_ty }
 	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
       ) in 
-      (*
-      if not (NameSet.is_empty (name_term te')) then (
-	printf "catastrophic contains names !!:\n%s\n" (term2string ctxt te');
-	raise Pervasives.Exit
-      );
-      *)
       match mty with
 	| Some ty -> (
-	  (*
-	  printf "%s ~~> %s:\n%s(%s)\n Vs \n%s(%s)\n\n" 
-	    (term2string ctxt te) 
-	    (term2string ctxt te') 
-	    (term2string ctxt (get_type te')) 
-	    (match nb_first_implicits (get_type te') with | None -> "None" | Some i -> string_of_int i) 
-	    (term2string ctxt ty)
-	    (match nb_first_implicits ty with | None -> "None" | Some i -> string_of_int i) 
-	  ;
-	  *)
 	  (* we can check if we need to add Implicit arguments *)
 	  match nb_first_implicits (get_type te'),  nb_first_implicits ty with
 	    | Some i, Some j when i > j ->
@@ -532,7 +494,6 @@ and unification
     (te1: term) (te2: term) : term =
   if !mk_trace then trace := (if polarity then (U (!ctxt, te1, te2)) else (UNeg (!ctxt, te1, te2)))::!trace;
   let res = 
-    (*printf "%s Vs %s\n" (term2string ctxt te1) (term2string ctxt te2); flush stdout;*)
     try (
       match te1.ast, te2.ast with
 	  
@@ -541,8 +502,7 @@ and unification
 	| _, AVar -> te1
 
 	(* the error case for AVar *)
-	| TName _, _ -> raise (PoussinException (FreeError "unification_term_term catastrophic: TName in te1 "))
-	| _, TName _ -> raise (PoussinException (FreeError "unification_term_term catastrophic: TName in te2 "))
+	| TName _, _ | _, TName _ -> raise (PoussinException (FreeError "unification_term_term catastrophic: TName in te1 "))
 	  
 	(* Prop and Set are imcompatible *)
 	| Universe (Set, _) , Universe (Prop, _)  ->
@@ -605,7 +565,6 @@ and unification
 	  te2
 	)
 	| Var i1, _ when i1 < 0 && (IndexSet.mem i1 (fv_term te2)) -> (
-	  (*printf "%s \\in %s\n" (string_of_int i1) (term2string ctxt te2); flush stdout;*)
 	  raise (PoussinException (NoUnification (!ctxt, te1, te2)))
 	)
 	| _, Var i2 when i2 < 0 && not (IndexSet.mem i2 (fv_term te1)) -> (
@@ -615,7 +574,6 @@ and unification
 	  te1
 	)
 	| _, Var i2 when i2 < 0 && (IndexSet.mem i2 (fv_term te1)) -> (
-	  (*printf "%s \\in %s\n" (string_of_int i2) (term2string ctxt te1); flush stdout;*)
 	  raise (PoussinException (NoUnification (!ctxt, te1, te2)))
 	)
 
@@ -683,7 +641,6 @@ and unification
 	  higher_order_unification defs ctxt ~polarity:polarity i arg n args te2 te1 te2
 	| _, App ({ ast = Var i; _}, (arg, n)::args) when i < 0 ->
 	  higher_order_unification defs ctxt ~polarity:polarity i arg n args te1 te1 te2
-
 
 	(* this is really conservatives ... *)
 	| Match (t1, des1), Match (t2, des2) when List.length des1 = List.length des2 ->
@@ -755,12 +712,9 @@ and unification
 
       | (PoussinException (UnknownUnification (ctxt', te1', te2'))) when polarity ->
 	let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
-	(*printf "(1)\n%s =?= %s\n\nl := %s \n==========> \ns := %s, \nl:= %s\n\n" (term2string ctxt te1) (term2string ctxt te2) (conversion_hyps2string ctxt (!ctxt.conversion_hyps)) (substitution2string ctxt s) (conversion_hyps2string ctxt l); flush stdout;*)
 	if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then (
-	  (*if !mk_trace then trace := (Free (conversion_hyps2string ctxt !ctxt.conversion_hyps)) :: !trace;*)
 	  let te1' = term_substitution s te1 in
 	  let te2' = term_substitution s te2 in
-	  (*printf "==> %s =?= %s\n\n" (term2string ctxt te1') (term2string ctxt te2');*)
 	  let ctxt' = ref { !ctxt with conversion_hyps = l } in
 	  let res = unification defs ctxt' ~polarity:polarity te1' te2' in
 	  ctxt := { !ctxt' with conversion_hyps = !ctxt.conversion_hyps };
@@ -771,7 +725,6 @@ and unification
 	    | (hd1, hd2)::tl -> 
 	      let te1' = rewrite_term defs ctxt hd1 hd2 te1 in
 	      let te2' = rewrite_term defs ctxt hd1 hd2 te2 in
-	      (*printf "==> %s =?= %s\n\n" (term2string ctxt te1') (term2string ctxt te2');*)
 	      let tl' = List.map (fun (te1, te2) -> rewrite_term defs ctxt hd1 hd2 te1, rewrite_term defs ctxt hd1 hd2 te2) tl in
 	      let ctxt' = ref { !ctxt with conversion_hyps = tl' } in
 	      let res = unification defs ctxt' ~polarity:polarity te1' te2' in
@@ -807,14 +760,11 @@ and higher_order_unification (defs: defs) (ctxt: context ref) ?(polarity : bool 
   let res = lambda_ "X" ~nature:n ~ty:ty body in
   let res = typeinfer defs ctxt ~polarity:polarity res in
   context_add_substitution defs ctxt (IndexMap.singleton i res);
-  printf "(%s Vs %s) -> %s\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt (app_ res ((arg, n)::[])));
   te
-
 
 (* some basic rewriting *)
 (* two mode: structural equality or unification *)
 and rewrite_term defs ctxt ?(struct_eq: bool = true) (lhs: term) (rhs: term) (te: term) : term =
-  (*printf "rewrite [%s => %s] in %s\n" (term2string ctxt lhs) (term2string ctxt rhs) (term2string ctxt te);*)
   if (
     if struct_eq then 
       term_equal lhs te
@@ -854,12 +804,7 @@ and rewrite_term defs ctxt ?(struct_eq: bool = true) (lhs: term) (rhs: term) (te
       | {ast = Universe _; _} -> { te with ast = ast }
       | ty -> { te with ast = ast; annot = Typed (rewrite_term defs ctxt lhs rhs ty) }
 
-
 (* reduction *)
-(* NB: in order to enhanced reduction, it might be proper have a marker on terms 
-   stating the term is reduced
-*)
-
 
 and reduction_term (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (te: term) : term = 
   if !debug_reduction then printf "reduction: "; flush stdout;
@@ -868,7 +813,6 @@ and reduction_term (defs: defs) (ctxt: context ref) (strat: reduction_strategy) 
   (set_term_reduced ~recursive:true false te')
 and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (te: term) : term = 
   if !debug_reduction then (printf "{ %s }\n" (term2string ctxt te); flush stdout);
-  (*if !mk_trace then trace := (Reduction (!ctxt, te)) :: !trace;*)
   let te' = (
     match te.ast with
       | Universe _ | AVar _ | TName _ -> te
@@ -883,9 +827,6 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 
       | Cste n -> (
 	  match get_cste defs n with
-		(* delta strong -> we return it 
-		   delta_weak -> we make sure the resulting term is 'clean'
-		*)
 	    | Definition te -> (
 	      match strat.delta with
 		| Some _ -> 
@@ -937,11 +878,11 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 	    match pattern_match ctxt p dte with
 	      | None -> Left ()
 	      | Some l ->
-	      (* we will do the same thing as in let, but on the reversed order of the matching list *)
+		(* we will do the same thing as in let, but on the reversed order of the matching list *)
 		let te = List.fold_left (fun acc te -> 
-		(* rewrite the var 0 *)
+		  (* rewrite the var 0 *)
 		  let acc = term_substitution (IndexMap.singleton 0 te) acc in
-		(* shift the term by -1 *)
+		  (* shift the term by -1 *)
 		  let acc = shift_term acc (-1) in
 		  acc
 		) 
@@ -954,11 +895,6 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 	  | Left () -> set_term_reduced true te
 	  | Right te -> reduction_term_loop defs ctxt strat te
       )
-
-	(*
-      | App (App (f, args1, ty1, pos1, _), args2, ty2, pos2, _) ->
-	reduction_term_loop defs ctxt strat (App (f, args1 @ args2, ty2, pos2, false))
-	*)
 
       | App ({ ast = Lambda ((n, ty, nature), body); _}, (hd1, hd2)::tl) when strat.beta != None ->
 	let hd1 = shift_term (reduction_term_loop defs ctxt strat hd1) 1 in
@@ -986,10 +922,6 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 	let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
 	(*  if its not empty and the bv_term + fv_term has an intersection with the domain of the substitution -> apply *)
 	if not (IndexMap.is_empty s) then (
-	  (*
-	  printf "reduction of %s\n" (term2string ctxt te);
-	  printf "rewriting s for reduction := %s\n" (substitution2string ctxt s);
-	  *)
 	  let vars = IndexSet.union (bv_term te) (fv_term te) in
 	  let intersect = 
 	    match fold_stop (fun () i -> 
@@ -1013,7 +945,6 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
       | _ -> set_term_reduced true te      
   in
   if !debug_reduction then (printf "{ %s }\n" (term2string ctxt te'); flush stdout);
-  (*if !mk_trace then trace := List.tl !trace;*)
   te'
 
 and reduction_typeannotation (defs: defs) (ctxt: context ref) (strat: reduction_strategy) (ty: typeannotation) : typeannotation =
