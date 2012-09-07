@@ -90,33 +90,7 @@ let rec conversion_hyps2subst ?(dec_order: bool = false) (cv: (term * term) list
 
 
 (**)
-let context_add_substitution (ctxt: context ref) (s: substitution) : unit =
-  (* computes the needed shited substitution *)
-  let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.bvs) in
-  ctxt := { !ctxt with
-    bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss;
 
-    fvs = 
-      List.map (fun (i, ty, te, n) -> 
-	if IndexMap.mem i s then (
-	match te with
-	  | None -> (i, term_substitution s ty, Some (IndexMap.find i s), n)
-	    (* here we should to the unification between both values (maybe not necessary as addition is always on a singleton ...) *)
-	  | Some te -> (i, term_substitution s ty, Some (term_substitution s te), n)
-	) else (
-	match te with
-	  | None -> (i, term_substitution s ty, None, n)
-	  | Some te -> (i, term_substitution s ty, Some (term_substitution s te), n)
-	)
-      ) !ctxt.fvs;
-
-    conversion_hyps = 
-      List.map (fun (te1, te2) -> 
-	(term_substitution s te1, term_substitution s te2)
-      ) !ctxt.conversion_hyps;
-  }
-
-    
 let substitution_vars (s: substitution) =
   IndexMap.fold (fun k _ acc -> IndexSet.add k acc) s IndexSet.empty
 
