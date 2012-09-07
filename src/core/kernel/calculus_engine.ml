@@ -48,7 +48,6 @@ let simplification_strat = {
   eta = false;
 }
 
-
 let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
   let s, ty, n = q in
   ctxt := { !ctxt with
@@ -57,7 +56,37 @@ let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
     conversion_hyps = List.map (fun (hd1, hd2) -> (shift_term hd1 1, shift_term hd2 1)) !ctxt.conversion_hyps
   }
 
-let rec flush_interactives (defs: defs) (ctxt: context ref) (tes: term list) : term list =
+let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substitution) : unit =
+  (* computes the needed shited substitution *)
+  let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.bvs) in
+  ctxt := { !ctxt with
+    bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss;
+
+    fvs = 
+      List.map (fun (i, ty, te, n) -> 
+	if IndexMap.mem i s then (
+	match te with
+	  | None -> (i, term_substitution s ty, Some (IndexMap.find i s), n)
+	  | Some te -> (i, term_substitution s ty, Some (unification defs ctxt te (IndexMap.find i s)), n)
+	) else (
+	match te with
+	  | None -> (i, term_substitution s ty, None, n)
+	  | Some te -> (i, term_substitution s ty, Some (term_substitution s te), n)
+	)
+      ) !ctxt.fvs;
+
+    conversion_hyps = 
+      List.map (fun (te1, te2) -> 
+	(* we substitute *)
+	let te1' = term_substitution s te1 in
+	let te2' = term_substitution s te2 in
+	(* and try to unify both (gaining more precise knowledge, or aborting if the substitution introduce a false conversion) *)
+	let _ = unification defs ctxt ~polarity:false te1' te2' in
+	(te1', te2')
+      ) !ctxt.conversion_hyps;
+  }
+
+and flush_interactives (defs: defs) (ctxt: context ref) (tes: term list) : term list =
   (* we rewrite the conversion hypothesis in increasing order in the free vars *)
   let s, _ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
   let fvs = List.map (fun (i, ty, te, n) ->
@@ -560,14 +589,14 @@ and unification
 	  let imax = max i1 i2 in
 	  let vmax = var_ ~annot:(Typed ty) ~pos:(pos_to_position (best_pos (pos_from_position te1.tpos) (pos_from_position te2.tpos))) imax in
 	  let s = IndexMap.singleton imin vmax in
-	  context_add_substitution ctxt s;
+	  context_add_substitution defs ctxt s;
 	  vmax
 
 	(* one free variable and one bounded *)
 	| Var i1, _ when i1 < 0 && not (IndexSet.mem i1 (fv_term te2)) -> (
 	  let ty = unification defs ctxt ~polarity:polarity (get_type te1) (get_type te2) in
 	  let s = IndexMap.singleton i1 (set_term_typed te2 ty) in
-	  context_add_substitution ctxt s;
+	  context_add_substitution defs ctxt s;
 	  te2
 	)
 	| Var i1, _ when i1 < 0 && (IndexSet.mem i1 (fv_term te2)) -> (
@@ -577,7 +606,7 @@ and unification
 	| _, Var i2 when i2 < 0 && not (IndexSet.mem i2 (fv_term te1)) -> (
 	  let ty = unification defs ctxt ~polarity:polarity (get_type te1) (get_type te2)  in
 	  let s = IndexMap.singleton i2 (set_term_typed te1 ty) in
-	  context_add_substitution ctxt s;
+	  context_add_substitution defs ctxt s;
 	  te1
 	)
 	| _, Var i2 when i2 < 0 && (IndexSet.mem i2 (fv_term te1)) -> (
@@ -772,7 +801,7 @@ and higher_order_unification (defs: defs) (ctxt: context ref) ?(polarity : bool 
   (* we build the lambda, and add the substitution to i *)
   let res = lambda_ "X" ~nature:n ~ty:ty body in
   let res = typeinfer defs ctxt ~polarity:polarity res in
-  context_add_substitution ctxt (IndexMap.singleton i res);
+  context_add_substitution defs ctxt (IndexMap.singleton i res);
   printf "(%s Vs %s) -> %s\n" (term2string ctxt te1) (term2string ctxt te2) (term2string ctxt (app_ res ((arg, n)::[])));
   te
 
