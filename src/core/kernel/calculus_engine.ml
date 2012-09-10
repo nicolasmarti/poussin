@@ -456,7 +456,6 @@ and typeinfer
 	      (* and finally returns all the constructors *)
 	      List.map2 (fun hd1 hd2 -> [hd1], hd2) ps des
 	    ) des in
-	    (*printf "********************************************************************\n";*)
 	    let ret_ty = typecheck defs ctxt ~polarity:polarity ret_ty (type_ (UName "")) in
 	    { te with ast = Match (m, List.concat des); annot = Typed ret_ty }
 	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
