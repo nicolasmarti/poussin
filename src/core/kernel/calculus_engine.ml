@@ -385,8 +385,8 @@ and typeinfer
 	    let hd_ty = unification defs ctxt ~polarity:polarity (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
 	    let { ast = Forall ((_, _, n'), _); _ } = hd_ty in
 	    (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
-	    if n' = Implicit && n = Explicit then (
-	      let new_arg = add_fvar ctxt in
+	    if (n' = Implicit || n' = Oracled) && n = Explicit then (
+	      let new_arg = add_fvar ~oracled:(n' = Oracled) ctxt in
 	      (* and retypeinfer the whole *)
 	      typeinfer defs ctxt ~polarity:polarity {te with ast = App (hd, (new_arg, n')::(arg, n)::args) }
 	    ) else (
@@ -463,20 +463,14 @@ and typeinfer
       ) in 
       match mty with
 	| Some ty -> (
-	  (* we can check if we need to add Implicit arguments *)
-	  match nb_first_implicits (get_type te'),  nb_first_implicits ty with
-	    | Some i, Some j when i > j ->
-	      let new_args = foldi (fun l -> (add_fvar ctxt, Implicit)::l) [] (i - j) in
+	  match compute_nature_prefix (args_nature (get_type te')) (args_nature ty) with
+	    | [] -> te'
+	    | l -> 
+	      let new_args = List.fold_right ( fun n acc ->
+		(add_fvar ~oracled:(n = Oracled) ctxt, n)::acc
+	      ) l [] in
 	      let te = { ast = App (te', new_args); annot = TypedAnnotation ty; tpos = NoPosition; reduced = false } in
-	      (*printf "%s ~~> %s\n" (term2string ctxt te') (term2string ctxt te);*)
 	      typeinfer defs ctxt ~polarity:polarity te
-	    | Some i, None when i > 0 ->
-	      let new_args = foldi (fun l -> (add_fvar ctxt, Implicit)::l) [] i in
-	      let te = { ast = App (te', new_args); annot = TypedAnnotation ty; tpos = NoPosition; reduced = false } in
-	      (*printf "%s ~~> %s\n" (term2string ctxt te') (term2string ctxt te);*)
-	      typeinfer defs ctxt ~polarity:polarity te
-	    | _ -> te'
-
 	)
 
 	| _ -> te'

@@ -38,7 +38,8 @@ module IndexMap = Map.Make(
 );;
 
 type nature = Explicit
-	      | Implicit
+	      | Implicit (* arguments which value can be inferred by unification *)
+	      | Oracled (* arguments which value need to be infered by an oracle *)
 	      | NJoker (* used for unification *)
 
 type uType = Type | Set | Prop 

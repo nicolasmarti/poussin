@@ -272,6 +272,20 @@ let nb_first_implicits (te: term) : int option =
       List.fold_left (fun acc ((_, _, n), _, _) -> if n = Implicit then acc + 1 else acc) 0 qs
     )
   
+(* computing the nature of the arguments *)
+let args_nature (te: term) : nature list =
+  let qs, _ = destruct_forall te in
+  List.map (fun ((_, _, n), _, _) -> n) qs
+
+(* computing the prefix of the first list of nature w.r.t. the second *)
+let rec compute_nature_prefix (l1: nature list) (l2: nature list) : nature list =
+  List.rev (compute_nature_prefix_loop (List.rev l1) (List.rev l2)) 
+and compute_nature_prefix_loop (l1: nature list) (l2: nature list) : nature list =
+  match l1, l2 with
+    | _, [] -> l1
+    | hd1::tl1, hd2::tl2 when hd1 = hd2 -> compute_nature_prefix_loop tl1 tl2
+    | _, _ -> []
+
 (* returns if a term is reduced *)
 let get_term_reduced (te: term) : reduced =
   te.reduced
@@ -337,11 +351,12 @@ let is_irreducible (defs: defs) (te: term) : bool =
 
 let nature_unify (n1: nature) (n2: nature) : nature option =
   match n1, n2 with
-    | NJoker, NJoker | Explicit, Implicit | Implicit, Explicit -> None
     | NJoker, _ -> Some n2
     | _, NJoker -> Some n1
     | Explicit, Explicit -> Some Explicit
     | Implicit, Implicit -> Some Implicit
+    | Oracled, Oracled -> Some Oracled
+    | _, _ -> None
 
 let rec app_head (te: term) : term =
   match te.ast with

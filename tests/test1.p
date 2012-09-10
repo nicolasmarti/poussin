@@ -298,4 +298,8 @@ exact match x with | O := ? | S x := ? end
 exact y
 exact x
 
+Inductive uniqNat : Nat -> Set
+Constructor uniqnat {sz: Nat}: (n: Nat) -> [H: eq sz n] -> uniqNat sz
 
+Definition zero_uniqnat : uniqNat (S O) := uniqnat (S O)
+exact eq_refl

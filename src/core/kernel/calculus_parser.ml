@@ -150,6 +150,23 @@ and parse_impl_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : ((n
     (List.map (fun (n, p) -> n, p) names, ty, Implicit)
   )
   )
+  (* or the same but with square bracket *)
+  <|> tryrule (square_bracket (fun pb ->
+    let names = many1 (fun pb ->
+    let () = whitespaces pb in
+    let startpos = cur_pos pb in
+    let n = at_start_pos leftmost name_parser pb in
+    let endpos = cur_pos pb in
+    let () = whitespaces pb in
+    n, (startpos, endpos)
+    ) pb in
+    let () = whitespaces pb in
+    let () = at_start_pos leftmost (word ":") pb in
+    let () = whitespaces pb in
+    let ty = parse_term defs leftmost pb in
+    (List.map (fun (n, p) -> n, p) names, ty, Oracled)
+  )
+  )
   (* or just a type -> anonymous arguments *)
   <|> (fun pb -> 
     let ty = parse_term_lvl0 defs leftmost pb in

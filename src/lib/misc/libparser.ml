@@ -306,7 +306,7 @@ let words (s: string) : string parsingrule =
 let paren (p: 'a parsingrule) : 'a parsingrule =
   spaces >>> (
     fun pb ->
-      let _ = applylexingrule (regexp "(", fun (s:string) -> ()) pb in
+      let _ = word "(" pb in
       let _ = whitespaces pb in
       let res = 
 	try 
@@ -315,7 +315,7 @@ let paren (p: 'a parsingrule) : 'a parsingrule =
 	  | NoMatch -> raise NoMatch
       in
       let _ = whitespaces pb in
-      let _ = applylexingrule (regexp ")", fun (s:string) -> ()) pb in
+      let _ = word ")" pb in
       res
   )
 ;;
@@ -324,7 +324,7 @@ let bracket (p: 'a parsingrule) : 'a parsingrule =
   spaces >>> (
     fun pb ->
       let _ = whitespaces pb in
-      let _ = applylexingrule (regexp "{", fun (s:string) -> ()) pb in
+      let _ = word "{" pb in
       let _ = whitespaces pb in
       let res = 
 	try 
@@ -333,7 +333,25 @@ let bracket (p: 'a parsingrule) : 'a parsingrule =
 	  | NoMatch -> raise NoMatch
       in
       let _ = whitespaces pb in
-      let _ = applylexingrule (regexp "}", fun (s:string) -> ()) pb in
+      let _ = word "}" pb in
+      res
+  )
+;;
+
+let square_bracket (p: 'a parsingrule) : 'a parsingrule =
+  spaces >>> (
+    fun pb ->
+      let _ = whitespaces pb in
+      let _ = word "[" pb in
+      let _ = whitespaces pb in
+      let res = 
+	try 
+	  p pb 
+	with 
+	  | NoMatch -> raise NoMatch
+      in
+      let _ = whitespaces pb in
+      let _ = word "]" pb in
       res
   )
 ;;
