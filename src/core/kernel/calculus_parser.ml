@@ -332,7 +332,7 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
     let () = whitespaces pb in
     let n, pos = at_start_pos leftmost (with_pos (word "?")) pb in
     let () = whitespaces pb in
-    { ast = Interactive; annot = NoAnnotation; tpos = (pos_to_position pos); reduced = false }
+    avar_ ~pos:(pos_to_position pos) ~oracled:true ()
   )
   <|> (fun pb -> 
     let () = whitespaces pb in

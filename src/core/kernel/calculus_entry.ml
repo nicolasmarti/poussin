@@ -115,7 +115,7 @@ let process_definition (def: definition) : unit =
       Hashtbl.add env.defs n (Definition te);
       let time_end = Sys.time () in
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
-      printf "Definition %s:= %s : %s \n\n" n (term2string ctxt te) (term2string ctxt (get_type te)); flush stdout
+      printf "Definition %s := %s\n: %s \n\n" n (term2string ctxt te) (term2string ctxt (get_type te)); flush stdout
     | DefCompute te ->
       let te = typeinfer env.defs ctxt te in
       let [te] = flush_fvars env.defs ctxt [te] in 

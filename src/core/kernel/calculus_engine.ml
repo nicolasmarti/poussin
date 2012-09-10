@@ -86,7 +86,7 @@ let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substituti
       ) !ctxt.conversion_hyps;
   }
 
-and flush_interactives (defs: defs) (ctxt: context ref) (tes: term list) : term list =
+and flush_oracled (defs: defs) (ctxt: context ref) (tes: term list) : term list =
   (* we rewrite the conversion hypothesis in increasing order in the free vars *)
   let s, _ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
   let fvs = List.map (fun (i, ty, te, n) ->
@@ -105,13 +105,13 @@ and flush_interactives (defs: defs) (ctxt: context ref) (tes: term list) : term 
   let lfvs = List.fold_left (fun acc te -> 
     IndexSet.union acc (fv_term te)
   ) IndexSet.empty tes in  
-  (* we ask for the oracles to solve the free variables introduced by interactive and present in the term *)
+  (* we ask for the oracles to solve the free variables marked as oracled and present in the term *)
   let fvs = List.fold_left (fun acc ((i, ty, te, n) as var) ->
-    (* is the current variable an interactive one and present in the terms? *)
+    (* is the current variable an oracled one and present in the terms? *)
     if n && IndexSet.mem i lfvs then (
       (* yes, next we look if we were able to give it a value *)
       match te with
-	| Some _ -> (* yes, so we just return it as a non-interactive variable *) (i, ty, te, false)::acc
+	| Some _ -> (* yes, so we just return it as a non-oracled variable *) (i, ty, te, false)::acc
 	| None -> (* nop, so here we need to ask the oracles for a candidate *)
 	  match oracles_call defs ctxt ~var:(Some i) ty with
 	    | None -> (* nothing there, here there is two possibility: 
@@ -136,8 +136,8 @@ and flush_interactives (defs: defs) (ctxt: context ref) (tes: term list) : term 
   ctxt := {!ctxt with fvs = fvs};
   tes
 
-and flush_fvars ?(interactive_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) : term list =
-  let tes = if interactive_pushed then tes else flush_interactives defs ctxt tes in  
+and flush_fvars ?(oracled_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) : term list =
+  let tes = if oracled_pushed then tes else flush_oracled defs ctxt tes in  
   (* we compute the fvars of the terms *)
   let lfvs = List.fold_left (fun acc te -> IndexSet.union acc (fv_term te)) IndexSet.empty tes in  
   (* we shift the freevars, and allow removing does who does not appears *)
@@ -171,10 +171,10 @@ and flush_fvars ?(interactive_pushed: bool = false) (defs: defs) (ctxt: context 
   tes
 
 
-and pop_quantification ?(interactive_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature) * term list =
-  let tes = if interactive_pushed then tes else flush_interactives defs ctxt tes in  
+and pop_quantification ?(oracled_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature) * term list =
+  let tes = if oracled_pushed then tes else flush_oracled defs ctxt tes in  
   (* we flush the vars *)
-  let tes = flush_fvars ~interactive_pushed:true defs ctxt tes in
+  let tes = flush_fvars ~oracled_pushed:true defs ctxt tes in
   (* we grab the remaining context and the popped frame *)
   let frame = List.hd (!ctxt.bvs) in
   (* we set the context *)
@@ -194,14 +194,14 @@ and pop_quantification ?(interactive_pushed: bool = false) (defs: defs) (ctxt: c
   (* and returns the quantifier *)
   (frame.name, shift_term frame.ty (-1), frame.nature), tes  
 
-and pop_quantifications ?(interactive_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) (n: int) : (name * term * nature) list * term list =
-  let tes = if interactive_pushed then tes else flush_interactives defs ctxt tes in  
+and pop_quantifications ?(oracled_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) (n: int) : (name * term * nature) list * term list =
+  let tes = if oracled_pushed then tes else flush_oracled defs ctxt tes in  
   match n with
     | _ when n < 0 -> raise (PoussinException (FreeError "Catastrophic: negative n in pop_quantifications"))
     | 0 -> [], tes
     | _ ->
-      let hd, tes = pop_quantification ~interactive_pushed:true defs ctxt tes in
-      let tl, tes = pop_quantifications ~interactive_pushed:true defs ctxt tes (n-1) in
+      let hd, tes = pop_quantification ~oracled_pushed:true defs ctxt tes in
+      let tl, tes = pop_quantifications ~oracled_pushed:true defs ctxt tes (n-1) in
       hd::tl, tes
 
 (* calls for oracles for a given type *)
@@ -218,7 +218,7 @@ and oracles_call (defs: defs) (ctxt: context ref) ?(var: index option = None) (t
 	| Some te -> (* yep, look if the oracle's answer is correct *)
 	  (* typecheck it's untype version for the wanted type, and that if it is suppose to be some free var instantiation then it is consistent with the context *)
 	  let te = typecheck defs ctxt' (untype_term te) ty in
-	  let [te] = flush_interactives defs ctxt' [te] in
+	  let [te] = flush_oracled defs ctxt' [te] in
 	  let () = match var with
 	    | None -> ()
 	    | Some i -> context_add_substitution defs ctxt' (IndexMap.singleton i te) 
@@ -301,11 +301,8 @@ and typeinfer
 	  | Var i when i >= 0 ->
 	    { te with annot = Typed (bvar_type ctxt i) }
 
-	  | AVar  ->
-	    add_fvar ~pos:te.tpos ctxt
-
-	  | Interactive -> 
-	    add_fvar ~pos:te.tpos ~interactive:true ctxt
+	  | AVar b ->
+	    add_fvar ~pos:te.tpos ~oracled:b ctxt
 
 	  | TName n -> (
 	    (* we first look for a variable *)
@@ -498,8 +495,8 @@ and unification
       match te1.ast, te2.ast with
 	  
 	(* AVar is just a wildcard for unification *)
-	| AVar, _ -> te2
-	| _, AVar -> te1
+	| AVar _, _ -> te2
+	| _, AVar _ -> te1
 
 	(* the error case for AVar *)
 	| TName _, _ | _, TName _ -> raise (PoussinException (FreeError "unification_term_term catastrophic: TName in te1 "))

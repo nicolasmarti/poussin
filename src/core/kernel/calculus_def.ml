@@ -66,7 +66,7 @@ type term_ast = Universe of uType * uLevel
 	    | Var of index
 		
 	    (* these constructors are only valide after parsing, and removed by typechecking *)
-	    | AVar (* _ *)
+	    | AVar (* _ *) of bool (* oracled ? *)
 	    | TName of name
 
 	    (* quantifiers *)
@@ -79,9 +79,6 @@ type term_ast = Universe of uType * uLevel
 
 	    (* destruction *)
 	    | Match of term * (pattern list * term) list
-
-            (* this is only for internall use: interactive construction of terms *)
-	    | Interactive
 
 and term = 
 { ast: term_ast;

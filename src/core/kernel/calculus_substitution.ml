@@ -13,7 +13,7 @@ open Printf
 let rec term_substitution (s: substitution) (te: term) : term =
   let te = 
     match te.ast with
-      | Universe _ | Cste _ | AVar | Interactive -> te
+      | Universe _ | Cste _ | AVar _ -> te
       | Var i -> 
 	(
 	  try 

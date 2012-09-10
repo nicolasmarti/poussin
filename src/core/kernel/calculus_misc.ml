@@ -22,8 +22,8 @@ let cste_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) 
 let var_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (idx: index) : term =
   { ast = Var idx; annot = annot; tpos = pos; reduced = false }
 
-let avar_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) () : term =
-  { ast = AVar; annot = annot; tpos = pos; reduced = false }
+let avar_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) ?(oracled: bool = false) () : term =
+  { ast = AVar oracled; annot = annot; tpos = pos; reduced = false }
 
 let name_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (name: name) : term =
   { ast = TName name; annot = annot; tpos = pos; reduced = false }
@@ -105,7 +105,7 @@ let rec patterns_vars (ps: pattern list) : name list =
 (* the set of free variable in a term *)
 let rec fv_term (te: term) : IndexSet.t =
   match te.ast with
-    | Universe _ | AVar _ | TName _ | Cste _ | Interactive -> fv_typeannotation te.annot
+    | Universe _ | AVar _ | TName _ | Cste _ -> fv_typeannotation te.annot
     | Var i when i < 0 -> IndexSet.add i (fv_typeannotation te.annot)
     | Var i when i >= 0 -> fv_typeannotation te.annot
     | Lambda ((_, ty, _), body) ->
@@ -128,7 +128,7 @@ and fv_typeannotation (ty: typeannotation) : IndexSet.t =
 (* the set of bounded variable in a term NB: does not take into account vars in type annotation *)
 let rec bv_term (te: term) : IndexSet.t =
   match te.ast with
-    | Universe _ | AVar _ | TName _ | Cste _ | Interactive -> bv_typeannotation te.annot
+    | Universe _ | AVar _ | TName _ | Cste _ -> bv_typeannotation te.annot
     | Var i when i < 0 -> bv_typeannotation te.annot
     | Var i when i >= 0 -> IndexSet.add i (bv_typeannotation te.annot)
     | Lambda ((_, ty, _), body) ->
@@ -155,7 +155,7 @@ and bv_typeannotation (ty: typeannotation) : IndexSet.t =
 (* the set of cste in a term *)
 let rec cste_term (te: term) : NameSet.t =
   match te.ast with
-    | Universe _ | AVar _ | TName _ | Var _ | Interactive -> cste_typeannotation te.annot
+    | Universe _ | AVar _ | TName _ | Var _ -> cste_typeannotation te.annot
     | Cste c ->  NameSet.add c (cste_typeannotation te.annot)
     | Lambda ((_, ty, _), body) ->
       NameSet.union (cste_typeannotation te.annot) (NameSet.union (cste_term ty) (cste_term body))
@@ -177,7 +177,7 @@ and cste_typeannotation (ty: typeannotation) : NameSet.t =
 (* the set of cste in a term *)
 let rec name_term (te: term) : NameSet.t =
   match te.ast with
-    | Universe _ | AVar _ | Cste _ | Var _ | Interactive -> name_typeannotation te.annot
+    | Universe _ | AVar _ | Cste _ | Var _ -> name_typeannotation te.annot
     | TName c ->  NameSet.add c (name_typeannotation te.annot)
     | Lambda ((_, ty, _), body) ->
       NameSet.union (name_typeannotation te.annot) (NameSet.union (name_term ty) (name_term body))
@@ -282,7 +282,7 @@ let rec set_term_reduced ?(recursive: bool = false) (reduced: bool) (te: term) :
   match te.ast with
     | _ when get_term_reduced te = reduced && not recursive -> te
 
-    | Universe _ | Var _ | AVar _ | TName _ | Cste _ | Interactive -> { te with reduced = reduced }
+    | Universe _ | Var _ | AVar _ | TName _ | Cste _ -> { te with reduced = reduced }
     | Lambda (q, body) -> 
       { te with ast = Lambda (q, if recursive then set_term_reduced ~recursive:recursive reduced body else body); reduced = reduced }
     | Forall (q, body) -> 
@@ -414,7 +414,7 @@ let rec shift_term (te: term) (delta: int) : term =
 and leveled_shift_term (te: term) (level: int) (delta: int) : term =
   let te =
     match te.ast with
-      | Universe _ | Cste _ | AVar | TName _ | Interactive -> te
+      | Universe _ | Cste _ | AVar _ | TName _ -> te
 	
       | Var i when i < 0 -> te
 
@@ -549,7 +549,7 @@ let bvar_name (ctxt: context ref) (i: index) : name =
     | Invalid_argument "List.nth" -> raise (PoussinException (NegativeIndexBVar i))
 
 (* we add a free variable *)
-let rec add_fvar ?(pos: position = NoPosition) ?(interactive: bool = false) ?(te: term option = None) ?(ty: term option = None) (ctxt: context ref) : term =
+let rec add_fvar ?(pos: position = NoPosition) ?(oracled: bool = false) ?(te: term option = None) ?(ty: term option = None) (ctxt: context ref) : term =
   let ty = match ty with
     | None -> add_fvar ~ty:(Some (type_ (UName""))) ctxt
     | Some ty -> ty 
@@ -560,7 +560,7 @@ let rec add_fvar ?(pos: position = NoPosition) ?(interactive: bool = false) ?(te
 	| (i, _, _, _)::_ -> (i - 1)
   in
   ctxt := { !ctxt with 
-    fvs = ((next_fvar_index, ty, te, interactive)::!ctxt.fvs)
+    fvs = ((next_fvar_index, ty, te, oracled)::!ctxt.fvs)
   };
   var_ ~annot:(Typed ty) ~pos:pos next_fvar_index
 
@@ -601,7 +601,7 @@ let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
 let rec untype_term (te: term) : term =
   let te =
     match te.ast with
-      | Universe _ | Cste _ | AVar | TName _ | Interactive | Var _ -> te
+      | Universe _ | Cste _ | AVar _ | TName _ | Var _ -> te
 	
       | App (f, args) ->
 	{ te with ast = App (untype_term f,

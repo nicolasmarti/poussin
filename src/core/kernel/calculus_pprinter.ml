@@ -78,7 +78,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
     )
     | Var i when i < 0 -> verbatims ["?"; string_of_int (-i)]
 
-    | AVar  -> Verbatim "_"
+    | AVar b -> Verbatim "_"
     | TName name -> verbatims ["'"; name; "'"]
 
     | Lambda _ ->
@@ -213,8 +213,6 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	  ); Newline; Verbatim "end"	  
 	]
        )
-
-    | Interactive -> Verbatim "?"
 
     | _ -> raise (Failure "term2token: NYI")
 
