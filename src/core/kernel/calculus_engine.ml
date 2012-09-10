@@ -277,9 +277,9 @@ and typeinfer
   let res = 
   match get_term_typeannotation te with
     | Typed ty -> te
-    | Annotation ty ->
+    | Annotation ty -> 
       let ty = typeinfer defs ctxt ~polarity:polarity ty in
-      typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty)
+      typecheck defs ctxt ~polarity:polarity (set_term_typedannotation te ty) ty		       
     | ty ->
       let mty = match ty with | NoAnnotation -> None | TypedAnnotation ty -> Some ty in
       let te' = (
