@@ -43,6 +43,13 @@ let init_interactive =
 	printf "%s: %s\n" (bvar_name ctxt' i') (term2string ctxt' (term_substitution s (bvar_type ctxt' i')))
   ) (List.length !ctxt'.bvs));
     printf "------------------------------------------\n";
+    let fvs = fv_term ty in
+    let fvs = List.map (fun i -> 
+      let (ty, te, oracled) = get_fvar ctxt' i in
+      String.concat "" [string_of_int i; " : "; term2string ctxt' ty; " := "; match te with | None -> "??" | Some te -> term2string ctxt' te]
+    ) (IndexSet.elements fvs) in
+    printf "%s\n" (String.concat "\n" fvs);
+    printf "------------------------------------------\n";
     printf "facts: %s\n" (conversion_hyps2string ctxt' f);
     printf "==========================================\n\n";
     printf "%s\n\n" (term2string ctxt' (term_substitution s ty));
