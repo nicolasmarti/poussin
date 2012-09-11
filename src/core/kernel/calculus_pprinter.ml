@@ -11,6 +11,9 @@ let rec withParen (t: token) : token =
 let rec withBracket (t: token) : token =
   Box [Verbatim "{"; t; Verbatim "}"]
 
+let rec withSquareBracket (t: token) : token =
+  Box [Verbatim "["; t; Verbatim "]"]
+
 (* a data structure to mark the place where the term is *)
 type place = InNotation of op * int (* in the sndth place of the application to the notation with op *)
 	     | InApp (* in the head of application *)
@@ -26,8 +29,8 @@ type pp_option = {
   show_type: bool;
 }
 
-let pp_option = ref {show_implicit = false; 
-		     show_indices = false; 
+let pp_option = ref {show_implicit = true; 
+		     show_indices = true; 
 		     show_position = false; 
 		     show_univ = false;
 		     show_type = false;
@@ -78,7 +81,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
     )
     | Var i when i < 0 -> verbatims ["?"; string_of_int (-i)]
 
-    | AVar b -> Verbatim "_"
+    | AVar b -> if b then Verbatim "?" else Verbatim "_"
     | TName name -> verbatims ["'"; name; "'"]
 
     | Lambda _ ->
@@ -111,7 +114,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	      (tl, 
 	       (s::vars,
 		acc @ 
-		  [Space 1; (if n = Implicit then withBracket else withParen) (Box [Verbatim s; Space 1; Verbatim "::"; Space 1; term2token vars ty Alone])]
+		  [Space 1; (match n with | Implicit -> withBracket | Oracled -> withSquareBracket | _ -> withParen) (Box [Verbatim s; Space 1; Verbatim "::"; Space 1; term2token vars ty Alone])]
 	       )
 	      )
 	    )
@@ -140,12 +143,12 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	    match s with
 	      | _ when not (IndexSet.mem 0 (bv_term te))->
 		(* we only put brackets if implicit *)
-		s, (if nature = Implicit then withBracket else fun x -> x) (term2token vars ty (InArg nature))
+		s, (match nature with | Implicit -> withBracket | Oracled -> withSquareBracket | _ -> fun x -> x) (term2token vars ty (InArg nature))
 	      | _ -> 
 		(* here we put the nature marker, and select a fresh name *)
 		let s = (fresh_name_list ~basename:s vars) in
 		s , 
-		(if nature = Implicit then withBracket else withParen)
+		(match nature with | Implicit -> withBracket | Oracled -> withSquareBracket | _ -> withParen)
 		  (Box [Verbatim s; Space 1; Verbatim "::"; Space 1; term2token vars ty Alone])
 	  in 
 	  (* for computing the r.h.s, we need to push a new frame *)
@@ -185,7 +188,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
       ) (
 	(* simply compute the list of token for the args *)
 	let args = List.map (fun (te, n) -> 
-	  (if n = Implicit then withBracket else (fun x -> x))
+	  (match n with | Implicit -> withBracket | Oracled -> withSquareBracket | _ -> fun x -> x)
 	  (term2token vars te (InArg n))) 
 	  (if !pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args) in
 	(* the token for the function *)
@@ -233,7 +236,7 @@ and pattern2token (vars: name list) (pattern: pattern) (p: place) : token =
       ) (
 	(* simply compute the list of token for the args *)
 	let args = List.map (fun (te, n) -> 
-	  (if n = Implicit then withBracket else (fun x -> x))
+	  (match n with | Implicit -> withBracket | Oracled -> withSquareBracket | _ -> fun x -> x)
 	  (pattern2token vars te (InArg n))
 	) (if !pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args) in
 	(* the token for the function *)

@@ -50,7 +50,7 @@ let init_interactive =
     ) (IndexSet.elements fvs) in
     printf "%s\n" (String.concat "\n" fvs);
     printf "------------------------------------------\n";
-    printf "facts: %s\n" (conversion_hyps2string ctxt' f);
+    printf "facts: %s\n" (conversion_hyps2string ctxt' (!ctxt'.conversion_hyps));
     printf "==========================================\n\n";
     printf "%s\n\n" (term2string ctxt' (term_substitution s ty));
     (* we parse an answer. TODO: better way to manage the input parser *)
