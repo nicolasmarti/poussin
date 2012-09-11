@@ -362,7 +362,7 @@ and typeinfer
 	    (* we pop quantification *)
 	    let q1, [body] = pop_quantification defs ctxt [body] in
 	    (* and we returns the term with type Type *)
-	    let res = { te with ast = Forall ((s, ty, n), body); annot = Typed (type_ (UName "")) } in
+	    let res = { te with ast = Forall (q1, body); annot = Typed (type_ (UName "")) } in
 	    res
 
 	  | Lambda ((s, ty, n), body) ->
@@ -385,7 +385,7 @@ and typeinfer
 		| _ -> typeinfer defs ctxt ~polarity:polarity body
 	    in    	    
 	    (* we pop quantification *)
-	    let q1, [body] = pop_quantification defs ctxt [body] in
+	    let (s, ty, n), [body] = pop_quantification defs ctxt [body] in
 	    (* and we returns the term with type Type *)
 	    let res = forall_ ~annot:(Typed (type_ (UName ""))) s ~nature:n ~ty:ty (get_type body) in
 	    { te with ast = Lambda ((s, ty, n), body); annot = Typed res }
