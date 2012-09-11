@@ -427,7 +427,7 @@ and typeinfer
 	    let hd_ty = unification defs ctxt ~polarity:polarity (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
 	    let { ast = Forall ((_, _, n'), _); _ } = hd_ty in
 	    (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
-	    if (n' = Implicit || n' = Oracled) && n = Explicit then (
+	    if (n' = Implicit && (n = Oracled || n = Explicit)) || (n' = Oracled && (n = Implicit || n = Explicit))then (
 	      let new_arg = add_fvar ~oracled:(n' = Oracled) ctxt in
 	      (* and retypeinfer the whole *)
 	      typeinfer defs ctxt ~polarity:polarity {te with ast = App (hd, (new_arg, n')::(arg, n)::args) }
