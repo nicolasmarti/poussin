@@ -243,27 +243,42 @@ and typecheck
     (ty: term) : term =
   if !mk_trace then trace := (TC (!ctxt, te, ty))::!trace;
   let res = 
-  (* TODO: add oracle calls on error
-     te:ty' --> f: ty' -> ty, returns f te
-  *)
-  match get_term_typeannotation te with
-    | Typed ty' ->
-      ignore(unification defs ctxt ~polarity:polarity ty' ty);
-      te
-    | Annotation ty' ->
-      let ty' = typeinfer defs ctxt ~polarity:polarity ty' in
-      let te = typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty') in
-      ignore(unification defs ctxt ~polarity:polarity (get_type te) ty);
-      te 
-    | TypedAnnotation ty' ->
-      let te = typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty') in
-      ignore(unification defs ctxt ~polarity:polarity (get_type te) ty);
-      te 
-    | NoAnnotation ->
-      let te = typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty) in
+    let te = 
+      match get_term_typeannotation te with
+	| Typed ty' ->
+	  te
+	| Annotation ty' ->
+	  let ty' = typeinfer defs ctxt ~polarity:polarity ty' in
+	  let te = typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty') in
+	  te 
+	| TypedAnnotation ty' ->
+	  let te = typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty') in
+	  te 
+	| NoAnnotation ->
+	  let te = typeinfer defs ctxt ~polarity:polarity (set_term_typedannotation te ty) in
+	  te
+    in
+    (try 
       ignore(unification defs ctxt ~polarity:polarity (get_type te) ty);
       te
-  in
+     with
+       | PoussinException err ->
+	 (* we where not able to unify the infered type and the desired type, let's ask to an oracle *)
+	 (* building and typing the "coercion" function *)
+	 let {ast = Var i; _} as f = add_fvar ctxt in
+	 let te' = (app_ f ((te, Explicit)::[])) in
+	 let _ = typecheck defs ctxt te' ty in
+	 printf "%s : %s ===> " (term2string ctxt te') (term2string ctxt ty);
+	 printf "f : %s\n" (term2string ctxt (fvar_type ctxt i));
+	 let f_ty = forall_ "@coercion" ~ty:(get_type te) ty in
+	 let f_ty = typeinfer defs ctxt ~polarity:polarity f_ty in
+	 match oracles_call defs ctxt f_ty  with
+	   | None -> (* no term, return the same error *) raise (PoussinException err)
+	   | Some f ->
+	     (* we have a term which applied to te give a term of the proper type, we return it *)
+	     app_ ~annot:(Typed ty) f ((te, Explicit)::[])
+	
+    ) in
   if !mk_trace then trace := List.tl !trace;
   res
 
@@ -382,6 +397,7 @@ and typeinfer
 	    let hd = typeinfer defs ctxt ~polarity:polarity hd in
 	    (* we unify the type of hd with a forall *)
 	    let fty = add_fvar ctxt in
+	    (*let ftyte = add_fvar ctxt in*)
 	    let hd_ty = unification defs ctxt ~polarity:polarity (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
 	    let { ast = Forall ((_, _, n'), _); _ } = hd_ty in
 	    (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
@@ -733,7 +749,7 @@ and higher_order_unification (defs: defs) (ctxt: context ref) ?(polarity : bool 
   (* thus we can rewrite (shift arg 1) by TVar 0 *)
   let te' = rewrite_term defs ctxt (shift_term arg 1) (var_ 0) te' in
   (* we just verify that we have some instance of TVar 0 *)
-  if not (IndexSet.mem 0 (bv_term te')) then raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
+  (*if not (IndexSet.mem 0 (bv_term te')) then raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));*)
   (* we push a variable in the environment *)
   push_quantification ("", get_type arg, n) ctxt;
   (* we shift all args *)
