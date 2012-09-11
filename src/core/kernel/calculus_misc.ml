@@ -34,6 +34,9 @@ let lambda_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition
 let forall_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (name: name) ?(nature: nature = Explicit) ?(ty: term = avar_ ()) (body: term) : term =
   { ast = Forall ((name, ty, nature), body); annot = annot; tpos = pos; reduced = false }
 
+let forall2_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (q: name * term * nature) (body: term) : term =
+  { ast = Forall (q, body); annot = annot; tpos = pos; reduced = false }
+
 let let_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (name: name) (value: term) (body: term) : term =
   { ast = Let ((name, value), body); annot = annot; tpos = pos; reduced = false }
 

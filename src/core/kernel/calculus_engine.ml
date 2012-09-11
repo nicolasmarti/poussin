@@ -264,20 +264,21 @@ and typecheck
      with
        | PoussinException err ->
 	 (* we where not able to unify the infered type and the desired type, let's ask to an oracle *)
-	 (* building and typing the "coercion" function *)
-	 let {ast = Var i; _} as f = add_fvar ctxt in
-	 let te' = (app_ f ((te, Explicit)::[])) in
-	 let _ = typecheck defs ctxt te' ty in
-	 printf "%s : %s ===> " (term2string ctxt te') (term2string ctxt ty);
-	 printf "f : %s\n" (term2string ctxt (fvar_type ctxt i));
-	 let f_ty = forall_ "@coercion" ~ty:(get_type te) ty in
-	 let f_ty = typeinfer defs ctxt ~polarity:polarity f_ty in
+	 (* building a dummy variable *)
+	 let {ast = Var i; _} as f_ty = add_fvar ctxt in
+	 (* build a term of the application to the term *)
+	 let te' = (app_ f_ty ((te, Explicit)::[])) in
+	 (* unify: after that, the value of the free variable should be a function from the term to the desired type *)
+	 let _ = unification defs ctxt te' ty in
+	 (*printf "f := %s\n" (match fvar_subst ctxt i with | None -> "??" | Some te -> (term2string ctxt te));*)
+	 (* we just change the Lambda, for a Forall, and we have our desired coercion type *)
+	 let Some {ast = Lambda (q, body); _} = fvar_subst ctxt i in
+	 let f_ty = typeinfer defs ctxt ~polarity:polarity (forall2_ q body) in
 	 match oracles_call defs ctxt f_ty  with
 	   | None -> (* no term, return the same error *) raise (PoussinException err)
 	   | Some f ->
 	     (* we have a term which applied to te give a term of the proper type, we return it *)
 	     app_ ~annot:(Typed ty) f ((te, Explicit)::[])
-	
     ) in
   if !mk_trace then trace := List.tl !trace;
   res
