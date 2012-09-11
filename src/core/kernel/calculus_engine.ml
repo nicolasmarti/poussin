@@ -217,7 +217,6 @@ and oracles_call (defs: defs) (ctxt: context ref) ?(var: index option = None) (t
 	| None -> (* nop, so try next one *) Left ()
 	| Some te -> (* yep, look if the oracle's answer is correct *)
 	  (* typecheck it's untype version for the wanted type, and that if it is suppose to be some free var instantiation then it is consistent with the context *)
-	  printf "oracle answer: %s\n" (term2string ctxt te);
 	  let te = typecheck defs ctxt' (untype_term te) ty in
 	  let [te] = flush_oracled defs ctxt' [te] in
 	  let () = match var with
@@ -229,13 +228,11 @@ and oracles_call (defs: defs) (ctxt: context ref) ?(var: index option = None) (t
 	  Right te
     with
       | PoussinException err -> 
-	printf "oracle error: %s\n" (poussin_error2string err);
 	Left ()
   ) () !oracles in
   match res with
     | Left () -> None
     | Right te -> 
-      printf "oracle (good) answer: %s\n" (term2string ctxt te);
       Some te
 
 (* typechecking, inference and reduction *)
@@ -521,17 +518,6 @@ and unification
     (ctxt: context ref)
     ?(polarity : bool = true)
     (te1: term) (te2: term) : term =
-  let _ = 
-    match te1.ast with
-      | AVar _ -> ()	
-      | _ -> (try ignore(get_type te1) with | _ -> pp_option := { !pp_option with show_type = true }; printf "catastrophic %s\n" (term2string ctxt te1); raise Exit)
-  in
-  let _ = 
-    match te2.ast with
-      | AVar _ -> ()	
-      | _ -> (try ignore(get_type te2) with | _ -> pp_option := { !pp_option with show_type = true }; printf "catastrophic %s\n" (term2string ctxt te2); raise Exit)
-  in
-
   try (
     match te1.ast, te2.ast with
 	
@@ -768,7 +754,7 @@ and higher_order_unification (defs: defs) (ctxt: context ref) ?(polarity : bool 
   (* shift te 1 : now there is no TVar 0 in te *)
   let te' = shift_term te 1 in
   (* thus we can rewrite (shift arg 1) by TVar 0 *)
-  let te' = rewrite_term defs ctxt (shift_term arg 1) (var_ 0) te' in
+  let te' = rewrite_term defs ctxt (shift_term arg 1) (var_ ~annot:(Typed (shift_term (get_type arg) 1)) 0) te' in
   (* we just verify that we have some instance of TVar 0 *)
   (*if not (IndexSet.mem 0 (bv_term te')) then raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));*)
   (* we push a variable in the environment *)

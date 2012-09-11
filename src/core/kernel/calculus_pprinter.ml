@@ -29,8 +29,8 @@ type pp_option = {
   show_type: bool;
 }
 
-let pp_option = ref {show_implicit = true; 
-		     show_indices = true; 
+let pp_option = ref {show_implicit = false; 
+		     show_indices = false; 
 		     show_position = false; 
 		     show_univ = false;
 		     show_type = false;
@@ -44,7 +44,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
     | Typed ty when !pp_option.show_type ->
       Box [Verbatim "(";
 	   term2token vars (set_term_noannotation te) Alone; Space 1;
-	   Verbatim "::"; Space 1;
+	   Verbatim ":"; Space 1;
 	   term2token vars ty Alone;
 	   Verbatim ")"
 	  ]
@@ -114,7 +114,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	      (tl, 
 	       (s::vars,
 		acc @ 
-		  [Space 1; (match n with | Implicit -> withBracket | Oracled -> withSquareBracket | _ -> withParen) (Box [Verbatim s; Space 1; Verbatim "::"; Space 1; term2token vars ty Alone])]
+		  [Space 1; (match n with | Implicit -> withBracket | Oracled -> withSquareBracket | _ -> withParen) (Box [Verbatim s; Space 1; Verbatim ":"; Space 1; term2token vars ty Alone])]
 	       )
 	      )
 	    )
@@ -149,7 +149,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 		let s = (fresh_name_list ~basename:s vars) in
 		s , 
 		(match nature with | Implicit -> withBracket | Oracled -> withSquareBracket | _ -> withParen)
-		  (Box [Verbatim s; Space 1; Verbatim "::"; Space 1; term2token vars ty Alone])
+		  (Box [Verbatim s; Space 1; Verbatim ":"; Space 1; term2token vars ty Alone])
 	  in 
 	  (* for computing the r.h.s, we need to push a new frame *)
 	  let rhs = term2token (s::vars) te Alone in
