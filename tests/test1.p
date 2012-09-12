@@ -303,10 +303,3 @@ Constructor uniqnat {sz: Nat}: (n: Nat) -> [H: eq sz n] -> uniqNat sz
 
 Definition zero_uniqnat : uniqNat (S O) := uniqnat (S O)
 exact eq_refl
-
-Definition zero_uniqnat2 : uniqNat (S O) := S O
-exact (\ x -> ?)
-exact (uniqnat {?} ? [?])
-exact x
-exact x
-exact eq_refl
