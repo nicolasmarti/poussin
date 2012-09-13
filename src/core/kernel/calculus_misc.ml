@@ -412,14 +412,17 @@ and pattern_to_term_loop (defs: defs) (p: pattern) (i: int): term * int =
 
 (* is clean term:
    no lambda, no match, ....
+   + optionnaly: no vars in constructor args
  *)
-let rec is_clean_term (te: term) : bool =
+let rec is_clean_term (defs: defs) ?(strong: bool = false) (te: term) : bool =
   match te.ast with
     | Universe _ | Cste _ | Var _ | AVar _ | TName _ -> true
     | Let _ | Lambda _ | Match _ -> false
-    | Forall (_, te) -> is_clean_term te
-    | App (f, args) ->
-      List.fold_left (fun acc (hd, _) -> acc && is_clean_term hd) (is_clean_term f) args
+    | Forall (_, te) -> is_clean_term defs ~strong:strong te
+    | App (f, args) when is_irreducible defs f && strong ->
+      List.fold_left (fun acc (hd, _) -> acc && IndexSet.is_empty (bv_term hd)) true args
+    | App (f, args)  ->
+      List.fold_left (fun acc (hd, _) -> acc && is_clean_term defs ~strong:strong hd) (is_clean_term defs ~strong:strong f) args
 
 (* does a constante appears negatively *)	  
 let rec neg_occur_cste (te: term) (n: name) : bool = false

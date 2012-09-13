@@ -15,6 +15,7 @@ type beta_strength =
 type delta_strength =
   | DeltaStrong (* always unfold *)
   | DeltaWeak (* unfold a term only if the following reduction does not have lambdas or match *)
+  | DeltaUWeak (* unfold a term only if the following reduction does not have lambdas or match *)
 
 type reduction_strategy = {
   beta: beta_strength option;
@@ -950,7 +951,8 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
   ) in
   let te' = 
     match strat.delta with
-      | Some DeltaWeak when is_clean_term te' -> te'
+      | Some DeltaWeak when is_clean_term defs te' -> te'
+      | Some DeltaUWeak when is_clean_term defs ~strong:true te' -> te'
       | Some DeltaStrong -> set_term_reduced true te'
       | _ -> set_term_reduced true te      
   in
