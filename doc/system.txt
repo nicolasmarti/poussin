@@ -1,0 +1,66 @@
+Definition / Description Language
+---------------------------------
+
+--
+
+[inversion, injection, induction]
+Inductive Type <name> <args> [build a Set from args in Set] 
+Inductive Predicate <name> <args> [build a Prop from args in Set]
+Inductive Connective <name> <args> [build a Prop from args in Prop] [intro, elim]
+Inductive Set <name> <arg> [build a Set parameterized by a Set with a Predicate]
+Constructor <name>: <type>
+
+--
+
+[inductive equivalence, reflection lemmas, Simp]
+Function Type <name> <args>
+Function Predicate <name> <args>
+Function <name> <args>: <type>
+Equation <pattern> := <term>
+
+--
+
+<here something for args/ret size equation for termination>
+
+--
+
+[relation (predicate) declaration, leaves goals]
+Order <name> [anti-reflexive, anti-symmetric, transitive]
+Preorder <name> [reflexive, transitive]
+Equivalence <name> [reflexive, symmetric, transitive]
+[on function + predicate]
+Morphism <name> <relation> [extends rewriter possibility]
+
+--
+
+[adding rule for tactics]
+Simp <> [add rewriting rule (depends on relation)]
+Intro <> [add intro rule]
+Elim <> [add elim rule]
+Lemma <> [add a lemma]
+
+--
+
+[when model realization fails ...]
+Model <name> := <poussin term>
+
+-- 
+
+reflection
+
+--
+
+<something about promotion/demotion> 
+
+--
+
+<something about overloading>
+
+----------
+Proof mode
+----------
+
+based on derivation tree (each step is justify by one "function", only types is kept, the terms need just to be typed, yet we keep dependencies for pushing proved goals)
+solved subgoal are pushed as far as possible (using dependencies for generalizing), for reuse in other subgoals
+only well-formed types/terms accepted (terminating, total, positives, proof-irrelevant, well stratified)
+
