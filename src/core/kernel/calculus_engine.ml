@@ -49,10 +49,11 @@ let simplification_strat = {
   eta = false;
 }
 
+(* this is a list of contexted unmatch patterns (with the destructed term type, and the desired return type) *)
+let unmatched_pattern : (context * pattern * term * term) list ref = ref []
 
-let unmatched_pattern : (context * pattern) list ref = ref []
-
-let recursive_calls : (context * name * term list) list ref = ref []
+(* this is the list of all non irreducible name called *)
+let registered_calls : (context * name * (term * nature) list) list ref = ref []
 
 let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
   let s, ty, n = q in
@@ -247,6 +248,7 @@ and typecheck
     (defs: defs)
     (ctxt: context ref)
     ?(polarity: bool = true)
+    ?(coercion: bool = true)
     (te: term)
     (ty: term) : term =
   let te = 
@@ -268,7 +270,7 @@ and typecheck
     ignore(unification defs ctxt ~polarity:polarity (get_type te) ty);
     te
   with
-    | PoussinException err ->
+    | PoussinException err when coercion ->
       (* we where not able to unify the infered type and the desired type, let's ask to an oracle *)
       (* building a dummy variable *)
       let {ast = Var i; _} as f_ty = add_fvar ctxt in
@@ -413,12 +415,23 @@ and typeinfer
 	    (* we returns the the let with the type of te2 shifted (god help us all ...) *)
 	    { te with ast = Let ((n, value), body); annot = Typed (shift_term (get_type body) (-1)) }
 
+	  (* this act as some kind of normalization *)
 	  | App (hd, []) -> (
+	    (* typecheck the head *)
 	    let hd = typeinfer defs ctxt ~polarity:polarity hd in
-	    match app_args hd with
-	      | [] -> hd
-	      | args ->
-		{ te with ast = App (app_head hd, args); annot = Typed (get_type hd) }
+	    (* split between a head and args *)
+	    let app_head_ = app_head hd in
+	    let app_args_ = app_args hd in
+	    (* is the head is reducible def -> we register it as a call *)
+	    if is_reducible_def defs app_head_ then (
+	      let {ast = Cste c; _} = app_head_ in
+	      registered_calls := (!ctxt, c, app_args_)::!registered_calls;
+	      printf "warning: registered call to reducible def (might require terminaison proof): %s\n" (term2string ctxt (app_ app_head_ app_args_))
+	    );
+	    match app_args_ with
+	      | [] -> app_head_
+	      | _ ->
+		{ te with ast = App (app_head_, app_args_); annot = Typed (get_type hd) }
 	  )
 
 	  | App (hd, (arg, n)::args) ->	  
@@ -510,15 +523,15 @@ and typeinfer
 		push_quantification (v, ty, Explicit (*dummy*)) ctxt'
 	      ) vars;
 	      (* we need to shift the destructed term type *)
-	      let mty = shift_term mty (List.length vars) in
+	      let mty' = shift_term mty (List.length vars) in
 	      (* we create the term corresponding to the pattern *)
 	      let p_te = pattern_to_term defs p in	      
 	      (* we try to typecheck the termed pattern against the type of the destructed term *)
 	      try
-		let p_te = typecheck defs ctxt' ~polarity:false p_te mty in
+		let p_te = typecheck defs ctxt' ~polarity:false ~coercion:false p_te mty' in
 		(* it typecheck -> the pattern is valid: we record it as unmatched *)
-		unmatched_pattern := (!ctxt, p)::!unmatched_pattern;
-		printf "warning: unmatched pattern: %s : %s (== %s)\n" (pattern2string ctxt p) (term2string ctxt' (get_type p_te)) (term2string ctxt' mty)
+		unmatched_pattern := (!ctxt, p, mty', ret_ty)::!unmatched_pattern;
+		printf "warning: unmatched pattern: %s : %s (== %s)\n" (pattern2string ctxt p) (term2string ctxt' (get_type p_te)) (term2string ctxt' mty')
 	      with
 		| PoussinException (NoUnification _) ->
 		  (* the term mismatch the type -> this is not a possible pattern, thus we skip it*)

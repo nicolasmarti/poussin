@@ -343,11 +343,20 @@ let empty_context = {
 (* returns if a term is irreducible *)
 let is_irreducible (defs: defs) (te: term) : bool =
   match te.ast with
-    | Universe _ -> true
     | Cste c -> (
       match Hashtbl.find defs c with
 	| Inductive _ | Constructor _ -> true
 	| Axiom _ | Definition _ -> false
+    ) 
+    | _ -> false
+
+(* returns if a term is a reducible definition *)
+let is_reducible_def (defs: defs) (te: term) : bool =
+  match te.ast with
+    | Cste c -> (
+      match Hashtbl.find defs c with
+	| Inductive _ | Constructor _ -> false
+	| Axiom _ | Definition _ -> true
     ) 
     | _ -> false
 

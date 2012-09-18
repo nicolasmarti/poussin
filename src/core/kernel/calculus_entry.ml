@@ -29,6 +29,8 @@ let process_definition (def: definition) : unit =
   if !mk_trace then trace := [];
   let time_start = Sys.time () in
   (* initialization of a few globals *)
+  unmatched_pattern := [];
+  registered_calls := [];
   (* *)
   match def with
     | DefSignature (n, ty) -> 	
