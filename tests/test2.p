@@ -26,10 +26,19 @@ Definition caca: Peano := S (S O)
 Signature even: Peano -> Bool
 Definition even (n: Peano) :=
   match n with
-     | S (S n) := even n
      | O := true
      | S O := false
+     | S (S O) := even n
 end
+
+Inductive Vector (A: Set): Peano -> Set
+Constructor nil {A: Set}: Vector A O
+Constructor cons {A: Set} {n}: A -> Vector A n -> Vector A (S n)
+
+Definition head {A: Set} {n} (v: Vector A (S n)) : A :=
+  match v with
+     | cons {_} {_} hd _ := hd
+  end
 
 Inductive evenPeano : Set
 Constructor evP: (x: Peano) -> [H: eq (even x) true] -> evenPeano

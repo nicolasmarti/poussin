@@ -50,6 +50,10 @@ let simplification_strat = {
 }
 
 
+let unmatched_pattern : (context * pattern) list ref = ref []
+
+let recursive_calls : (context * name * term list) list ref = ref []
+
 let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
   let s, ty, n = q in
   ctxt := { !ctxt with
@@ -494,9 +498,32 @@ and typeinfer
 		[p], des
 	      ) ps
 	    ) des in
-	    (* for now we just exit, but we should call oracles here *)
-	    if List.length !patlst <> 0 then 
-	      (printf "this patterns are unmatched:%s\n" (String.concat "\n" (List.map (pattern2string ctxt) !patlst)); raise Exit);
+	    (* for each unmatch pattern we try to find if it is compatible with the type of m, if not we discard it, else we register it as unmatched *)
+	    List.iter (fun p -> 
+	      (* first we make a copy of the context *)
+	      let ctxt' = ref !ctxt in
+	      (* we grab the vars of the patterns *)
+	      let vars = pattern_vars p in
+	      (* we push quantification corresponding to the pattern vars *)		
+	      List.iter (fun v -> 
+		let ty = add_fvar ctxt in
+		push_quantification (v, ty, Explicit (*dummy*)) ctxt'
+	      ) vars;
+	      (* we need to shift the destructed term type *)
+	      let mty = shift_term mty (List.length vars) in
+	      (* we create the term corresponding to the pattern *)
+	      let p_te = pattern_to_term defs p in	      
+	      (* we try to typecheck the termed pattern against the type of the destructed term *)
+	      try
+		let p_te = typecheck defs ctxt' ~polarity:false p_te mty in
+		(* it typecheck -> the pattern is valid: we record it as unmatched *)
+		unmatched_pattern := (!ctxt, p)::!unmatched_pattern;
+		printf "warning: unmatched pattern: %s : %s (== %s)\n" (pattern2string ctxt p) (term2string ctxt' (get_type p_te)) (term2string ctxt' mty)
+	      with
+		| PoussinException (NoUnification _) ->
+		  (* the term mismatch the type -> this is not a possible pattern, thus we skip it*)
+		  ()
+	    ) !patlst;
 	    let ret_ty = typecheck defs ctxt ~polarity:polarity ret_ty (type_ (UName "")) in
 	    { te with ast = Match (m, List.concat des); annot = Typed ret_ty }
 	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
@@ -554,7 +581,7 @@ and unification
 	cste_ ~annot:(Typed ty) ~pos:(pos_to_position (best_pos (pos_from_position te1.tpos) (pos_from_position te2.tpos))) c1
 	  
 	(* a bit better *)
-      | _ when (is_irreducible defs te1 && is_irreducible defs te2 && not (term_equal te1 te2)) ->
+      | _ when (is_irreducible defs (app_head te1) && is_irreducible defs (app_head te2) && not (term_equal (app_head te1) (app_head te2))) ->
 	raise (PoussinException (NoUnification (!ctxt, te1, te2)))
 	(* a few other NoUnification Cases *)
       | Lambda _, _ | Forall _, _ | Universe _, _ when is_irreducible defs te2 -> raise (PoussinException (NoUnification (!ctxt, te1, te2)))
