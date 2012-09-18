@@ -92,7 +92,7 @@ let rec patterns_size (ps: pattern list) : int =
 (* list of names in a pattern *)
 let rec pattern_vars (p: pattern) : name list =
   match p with
-    | PAvar -> [""]
+    | PAvar -> ["_"]
     | PName s -> [s]
     | PCste _ -> []
     | PApp (_, args) ->
@@ -401,7 +401,8 @@ and pattern_to_term_loop (defs: defs) (p: pattern) (i: int): term * int =
   match p with
     | PAvar -> (var_ i, i - 1)
     | PName s -> (var_ i, i-1)
-    | PCste c -> (get_constructor defs c, i)
+    | PCste c when is_irreducible defs (cste_ c) -> (cste_ c, i)
+    | PCste c -> raise (PoussinException (FreeError (String.concat "" [c; " is not a constante suitable for a pattern"])))
     | PApp (n, args) ->
       let args, i = List.fold_left (fun (hds, i) (p, n) ->
 	let p, i = pattern_to_term_loop defs p i in
@@ -673,6 +674,7 @@ let build_inductive_pattern (defs: defs) (indty: name) : pattern list =
 let rec pattern_equiv (p1: pattern) p2 : bool =
   match p1, p2 with
     | PAvar, PName _ | PName _, PAvar | PAvar, PAvar | PName _, PName _ -> true
+    | PAvar, PCste _ | PName _, PCste _ | PCste _, PAvar | PCste _, PName _ -> true
     | PCste n1, PCste n2 -> n1 = n2
     | PApp (n1, args1), PApp (n2, args2) when List.length args1 = List.length args2 && n1 = n2 -> 
       List.fold_left (fun acc (p1, p2) -> acc && pattern_equiv p1 p2) true (List.map2 (fun (p1,_) (p2,_) -> p1, p2) args1 args2)
@@ -711,17 +713,24 @@ let rec update_pattern_list (defs: defs) (lst: pattern list) (p: pattern) : patt
 	*)
 	let res = fold_stop (fun i te ->
 	  match (app_head te).ast with
-	    | Cste n -> let Constructor (indty, _) = Hashtbl.find defs n in Right (i, indty)
+	    | Cste n -> 
+	      (match Hashtbl.find defs n with
+		| Constructor (indty, _) -> 
+		  (* we build the list of patten for the type *)
+		  let patts = build_inductive_pattern defs indty in
+		  (* we derive the patterns for the currents p' *)
+		  let ps' = List.map (pattern_rewrite p' i) patts in
+		  Right ps'	  
+		| Inductive _ -> 
+		  (* we just rewrite the pattern *)
+		  Right [pattern_rewrite p' i (PCste n)]
+	      )
 	    | _ -> Left (i+1)
 
 	) 0 l in
 	match res with
 	  | Left _ -> (* seems to be a complete match *) p'::acc
-	  | Right (i, indtype) -> (* the var i should be case splitted *) 
-	    (* we build the list of patten for the type *)
-	    let patts = build_inductive_pattern defs indtype in
-	    (* we derive the patterns for the currents p' *)
-	    let ps' = List.map (pattern_rewrite p' i) patts in
+	  | Right ps' -> 
 	    ps' @ acc
 	    
   ) lst [] in
@@ -734,4 +743,17 @@ let rec update_pattern_list (defs: defs) (lst: pattern list) (p: pattern) : patt
   List.fold_right (fun p' acc -> 
     if pattern_equiv p' p then acc else p'::acc
   ) lst' []
+
+(* build a pattern from a term *)
+let rec term_to_pattern (ctxt: context ref) (te: term) : pattern =
+  match te.ast with
+    | Cste n -> PCste n
+    | Var i when i >= 0 -> PName (bvar_name ctxt i)
+    | Var i -> PAvar
+    | App ({ast = Cste n; _}, args) ->
+      PApp (n, List.map (fun (te, n) -> (term_to_pattern ctxt te), n) args)
+    | _ -> raise (PoussinException (FreeError "not a term suitable to translate to pattern"))
+
+
+
 
