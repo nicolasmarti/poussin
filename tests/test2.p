@@ -29,4 +29,17 @@ Definition even (n: Peano) :=
      | S (S n) := even n
      | O := true
      | S O := false
+end
+
+Inductive evenPeano : Set
+Constructor evP: (x: Peano) -> [H: eq (even x) true] -> evenPeano
+
+Definition evenPeano_num (x: evenPeano) : Peano :=
+  match x with
+     | evP x [_] := x
+  end
+
+Definition evenPeano_iseven (x: evenPeano) : eq (even (evenPeano_num x)) true :=
+  match x with
+     | evP _ [P] := P
   end
