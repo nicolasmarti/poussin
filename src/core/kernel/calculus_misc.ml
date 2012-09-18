@@ -495,14 +495,14 @@ let rec shift_substitution (s: substitution) (delta: int) : substitution =
 
 
 (* simpl pattern match *)
-let rec pattern_match (ctxt: context ref) (p: pattern) (te: term) : (term list) option =
+let rec pattern_match (p: pattern) (te: term) : (term list) option =
   match p with
     | PAvar -> Some [te]
     | PName s -> Some [te]
     | PCste c -> (
       match te.ast with
 	| Cste c2 when c = c2 -> Some []
-	| _ -> (*printf "%s <> %s (1)\n" (pattern2string ctxt p) (term2string ctxt te);*) None
+	| _ -> None
     )
     | PApp (c, args) ->
       match te.ast with
@@ -512,11 +512,11 @@ let rec pattern_match (ctxt: context ref) (p: pattern) (te: term) : (term list) 
 	    match acc with
 	      | None -> None
 	      | Some l ->
-		match pattern_match ctxt hd1 hd2 with
+		match pattern_match hd1 hd2 with
 		  | None -> None
 		  | Some l' -> Some (l @ l')
 	  ) (Some []) (List.map2 (fun hd1 hd2 -> (fst hd1, fst hd2)) args args2)
-	| _ -> (*printf "%s <> %s (2)\n" (* (term2string ctxt te)*) (pattern2string ctxt p) (term2string ctxt te);*) None
+	| _ -> None
 
 
 (**)
@@ -647,3 +647,88 @@ and untype_typeannotation (ty: typeannotation) : typeannotation =
   match ty with
     | NoAnnotation -> NoAnnotation
     | Annotation te | TypedAnnotation te | Typed te -> Annotation (untype_term te)
+
+(* Functions related with the totality of inductive case *)
+
+(* function which given an inductive type, create an exhaustive list of basic pattern *)
+let build_inductive_pattern (defs: defs) (indty: name) : pattern list =
+  try 
+    (* we grab the list of constructors *)
+    let Inductive (cstors, _) = Hashtbl.find defs indty in
+    (* and we do a traversal on it *)
+    List.map (fun cstor -> 
+      (* we grab the list of nature of the constructor type *)
+      let Constructor (_, cstor_ty) = Hashtbl.find defs cstor in
+      let nats = args_nature cstor_ty in
+      (* if it does not have any constructor we just return a cste *)
+      if List.length nats = 0 then
+	PCste cstor
+      else
+	(* else we build an app of avars with proper nature *)
+	PApp (cstor, List.map (fun n -> PAvar, n) nats)
+    ) cstors
+  with
+    | _ -> raise (PoussinException (CsteNotInductive indty))
+
+let rec pattern_equiv (p1: pattern) p2 : bool =
+  match p1, p2 with
+    | PAvar, PName _ | PName _, PAvar | PAvar, PAvar | PName _, PName _ -> true
+    | PCste n1, PCste n2 -> n1 = n2
+    | PApp (n1, args1), PApp (n2, args2) when List.length args1 = List.length args2 && n1 = n2 -> 
+      List.fold_left (fun acc (p1, p2) -> acc && pattern_equiv p1 p2) true (List.map2 (fun (p1,_) (p2,_) -> p1, p2) args1 args2)
+    | _ -> false
+
+
+(* rewrite a var in pattern *)      
+let rec pattern_rewrite (p: pattern) (i: index) (p': pattern) : pattern =
+  fst (pattern_rewrite_loop p i p' )
+and pattern_rewrite_loop (p: pattern) (i: index) (p': pattern) : pattern * int =
+  match p with
+    | PAvar | PName _ when i = 0 -> p', -1
+    | PAvar | PName _ -> p, i - 1
+    | PCste _ -> p, i - 1
+    | PApp (c, args) ->
+      let i, args = List.fold_left (fun (i, acc) (arg, n) ->
+	let arg, i = pattern_rewrite_loop arg i p' in
+	(i, acc @ [arg, n])
+      ) (i, []) args in
+      PApp (c, args), i
+
+(* remove, or extends a pattern list using another pattern *)
+let rec update_pattern_list (defs: defs) (lst: pattern list) (p: pattern) : pattern list =
+  (* first build a term from the pattern *)
+  let te = pattern_to_term defs p in
+  (* then we extends the pattern list such that the pattern p will be in it *)
+  let lst' = List.fold_right (fun p' acc ->
+    (* we try to pattern match *)
+    match pattern_match p' te with
+      (* if we have no match -> continue *)
+      | None -> p'::acc
+      (* if we have a match, the pattern is either partially or completely matched *)
+      | Some l -> 
+	(* if we have a term which is either a Cste or an App (Cste, ...)
+	   then we need to expands the pattern in consequence
+	*)
+	let res = fold_stop (fun i te ->
+	  match (app_head te).ast with
+	    | Cste n -> let Constructor (indty, _) = Hashtbl.find defs n in Right (i, indty)
+	    | _ -> Left (i+1)
+
+	) 0 l in
+	match res with
+	  | Left _ -> (* seems to be a complete match *) p'::acc
+	  | Right (i, indtype) -> (* the var i should be case splitted *) 
+	    (* we build the list of patten for the type *)
+	    let patts = build_inductive_pattern defs indtype in
+	    (* we derive the patterns for the currents p' *)
+	    let ps' = List.map (pattern_rewrite p' i) patts in
+	    ps' @ acc
+	    
+  ) lst [] in
+  (* if we have to extends the list, we recall recursively to reach the fixpoint *)
+  (*let lst' = if lst' != lst then update_pattern_list defs lst' p else lst' in*)
+  (* we remove any term that is equal to p *)
+  List.fold_right (fun p' acc -> 
+    if pattern_equiv p' p then acc else p'::acc
+  ) lst' []
+

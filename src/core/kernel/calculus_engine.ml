@@ -445,8 +445,8 @@ and typeinfer
 	    let m = typeinfer defs ctxt m in
 	    (* then we assure ourselves that it is an inductive *)
 	    let mty = (get_type m) in
-	    let _ = match (app_head (reduction_term defs ctxt typeinfer_strat mty)).ast with 
-	      | Cste n -> (match get_cste defs n with | Inductive _ as ty -> ty | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, m))))
+	    let indname = match (app_head (reduction_term defs ctxt typeinfer_strat mty)).ast with 
+	      | Cste n -> (match get_cste defs n with | Inductive _ -> n | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, m))))
 	      | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, m)))
 	    in
 	    (* we create a type for the return value *)
@@ -455,6 +455,10 @@ and typeinfer
 		| TypedAnnotation ty -> ty
 		| _ -> add_fvar ctxt
 	    in
+	    (* we create a list of exhaustive pattern *)
+	    let patlst = ref (build_inductive_pattern defs indname) in
+	    printf "match .. with for inductive type %s, pattern list ==>\n[%s]\n" indname 
+	      (String.concat ", " (List.map (pattern2string ctxt) !patlst));
 	    (* then we traverse the destructors *)
 	    let des = List.map (fun (ps, des) ->
 	      (* saves the conversion *)
@@ -471,11 +475,16 @@ and typeinfer
 	      let mty = shift_term mty (List.length vars) in
 	      let m = shift_term m (List.length vars) in
 	      (* then we create the terms corresponding to the patterns *)
-	      let tes = List.map (fun p -> pattern_to_term defs p) ps in
+	      let tes = List.map (fun p -> p, pattern_to_term defs p) ps in
 	      (* then, for each patterns, we typecheck against tety *)
 	      (* for each pattern that do not unify we remove it *)
-	      let tes = List.rev (
-		List.fold_left (fun acc te -> 
+	      let tes = List.rev (		
+		List.fold_left (fun acc (p, te) -> 
+		  (* we update the pattern list *)
+		  patlst := update_pattern_list defs !patlst p;
+		  printf "update with %s ==>\n[%s]\n" (pattern2string ctxt p) 
+		    (String.concat ", " (List.map (pattern2string ctxt) !patlst));
+
 		  try let te = typecheck defs ctxt ~polarity:false te mty in te::acc
 		  with
 		    | PoussinException _ -> acc
@@ -886,7 +895,7 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 	let dte = reduction_term_loop defs ctxt strat dte in
 	let res = fold_stop (fun () (ps, body) ->
 	  fold_stop (fun () p ->
-	    match pattern_match ctxt p dte with
+	    match pattern_match p dte with
 	      | None -> Left ()
 	      | Some l ->
 		(* we will do the same thing as in let, but on the reversed order of the matching list *)

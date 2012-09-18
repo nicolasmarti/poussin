@@ -93,8 +93,10 @@ let process_definition (def: definition) : unit =
       if neg_occur_cste ty ind then raise (PoussinException (FreeError (
 	String.concat "" ["constructor type has a negative occurence of the Inductive"]
       )));
-      (* everything is ok *)
+      (* everything is ok, add the constructor and update the type *)      
       Hashtbl.add env.defs n (Constructor (ind, ty));
+      let Inductive (lst, ty) = Hashtbl.find env.defs ind in
+      Hashtbl.add env.defs ind (Inductive (lst @ [n], ty));
       let time_end = Sys.time () in
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "Constructor %s: %s\n\n" n (term2string ctxt ty); flush stdout
