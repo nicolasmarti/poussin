@@ -464,43 +464,33 @@ and typeinfer
 	      let convs = !ctxt.conversion_hyps in
 	      (* first grab the vars of the patterns *)
 	      let vars = patterns_vars ps in
-	      (* we push quantification corresponding to the pattern vars *)
-	      List.iter (fun v -> 
-		let ty = add_fvar ctxt in
-		push_quantification (v, ty, Explicit (*dummy*)) ctxt
-	      ) vars;
-	      (* we need to shift ret_ty, te, and tety to be at the same level *)
-	      let ret_ty = shift_term ret_ty (List.length vars) in
-	      let mty = shift_term mty (List.length vars) in
-	      let m = shift_term m (List.length vars) in
-	      (* then we create the terms corresponding to the patterns *)
-	      let tes = List.map (fun p -> p, pattern_to_term defs p) ps in
-	      (* then, for each patterns, we typecheck against tety *)
-	      (* for each pattern that do not unify we remove it *)
-	      let tes = List.rev (		
-		List.fold_left (fun acc (p, te) -> 
-		  (* we update the pattern list *)
-		  patlst := update_pattern_list defs !patlst p;
-		  try let te = typecheck defs ctxt ~polarity:false te mty in te::acc
-		  with
-		    | PoussinException err -> 
-		      acc
-		) [] tes) in
-	      (* then, for each pattern *)
-	      let des = List.map (fun hd ->
-		(* we unify it (with negative polarity) with te *)
-		let _ = unification defs ctxt ~polarity:false hd m in
-		(* and typecheck des against ret_ty *)
-		let s = context2subst ctxt in
-		let ret_ty = term_substitution s ret_ty in
-		typecheck defs ctxt des ret_ty
-	      ) tes in
-	      (* we pop all quantifiers *)
-	      let _, des = pop_quantifications defs ctxt des (List.length vars) in
-	      (* restore old conversions *)
-	      ctxt := { !ctxt with conversion_hyps = convs };
-	      (* and finally returns all the constructors *)
-	      List.map2 (fun hd1 hd2 -> [hd1], hd2) ps des
+	      (* we traverse the patterns *)
+	      List.map (fun p ->
+		(* we push quantification corresponding to the pattern vars *)		
+		List.iter (fun v -> 
+		  let ty = add_fvar ctxt in
+		  push_quantification (v, ty, Explicit (*dummy*)) ctxt
+		) vars;
+		(* we need to shift ret_ty, te, and tety to be at the same level *)
+		let ret_ty = shift_term ret_ty (List.length vars) in
+		let mty = shift_term mty (List.length vars) in
+		let m = shift_term m (List.length vars) in
+		(* we create the term corresponding to the pattern *)
+		let p_te = pattern_to_term defs p in
+		(* we update the list of visited pattern with p *)
+		patlst := update_pattern_list defs !patlst p;
+		(* we typecheck the termed pattern against the type of the destructed term *)
+		let p_te = typecheck defs ctxt ~polarity:false p_te mty in
+		(* we unify it with the destructed term *)
+		let _ = unification defs ctxt ~polarity:false p_te m in
+		(* we typecheck the destructor body against the returned_type *)
+		let des = typecheck defs ctxt des ret_ty in
+		(* we pop_quantifications *)
+		let _, [des] = pop_quantifications defs ctxt [des] (List.length vars) in
+		(* restore old conversions (current ones are only valid for this pattern) *)
+		ctxt := { !ctxt with conversion_hyps = convs };
+		[p], des
+	      ) ps
 	    ) des in
 	    (* for now we just exit, but we should call oracles here *)
 	    if List.length !patlst <> 0 then 
