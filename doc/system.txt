@@ -7,6 +7,7 @@ Definition / Description Language
 Inductive Type <name> <args> [build a Set from args in Set] 
 Inductive Predicate <name> <args> [build a Prop from args in Set]
 Inductive Connective <name> <args> [build a Prop from args in Prop] [intro, elim]
+<what about lifted connective ? e.g.: assert of separation logic>
 Inductive Set <name> <arg> [build a Set parameterized by a Set with a Predicate]
 Constructor <name>: <type>
 
