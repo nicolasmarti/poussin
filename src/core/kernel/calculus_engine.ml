@@ -49,6 +49,7 @@ let simplification_strat = {
   eta = false;
 }
 
+
 let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
   let s, ty, n = q in
   ctxt := { !ctxt with
@@ -457,8 +458,6 @@ and typeinfer
 	    in
 	    (* we create a list of exhaustive pattern *)
 	    let patlst = ref (build_inductive_pattern defs indname) in
-	    printf "match .. with for inductive type %s, pattern list ==>\n[%s]\n" indname 
-	      (String.concat ", " (List.map (pattern2string ctxt) !patlst));
 	    (* then we traverse the destructors *)
 	    let des = List.map (fun (ps, des) ->
 	      (* saves the conversion *)
@@ -482,12 +481,10 @@ and typeinfer
 		List.fold_left (fun acc (p, te) -> 
 		  (* we update the pattern list *)
 		  patlst := update_pattern_list defs !patlst p;
-		  printf "update with %s ==>\n[%s]\n" (pattern2string ctxt p) 
-		    (String.concat ", " (List.map (pattern2string ctxt) !patlst));
-
 		  try let te = typecheck defs ctxt ~polarity:false te mty in te::acc
 		  with
-		    | PoussinException _ -> acc
+		    | PoussinException err -> 
+		      acc
 		) [] tes) in
 	      (* then, for each pattern *)
 	      let des = List.map (fun hd ->
@@ -505,6 +502,9 @@ and typeinfer
 	      (* and finally returns all the constructors *)
 	      List.map2 (fun hd1 hd2 -> [hd1], hd2) ps des
 	    ) des in
+	    (* for now we just exit, but we should call oracles here *)
+	    if List.length !patlst <> 0 then 
+	      (printf "this patterns are unmatched:%s\n" (String.concat "\n" (List.map (pattern2string ctxt) !patlst)); raise Exit);
 	    let ret_ty = typecheck defs ctxt ~polarity:polarity ret_ty (type_ (UName "")) in
 	    { te with ast = Match (m, List.concat des); annot = Typed ret_ty }
 	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))

@@ -237,9 +237,9 @@ Definition eq_implb_orb_notb (b1 b2: bool) :=
 Signature eq_implb_orb_notb2 (b1 b2: bool): eq (implb b1 b2) (orb (notb b1) b2)
 Definition eq_implb_orb_notb2 (b1 b2: bool) :=
   match prod b1 b2 with
-     | prod true true := eq_refl true 
-     | prod true false := eq_refl false
-     | prod false _ := eq_refl true
+     | prod {_} {_} true true := eq_refl true 
+     | prod {_} {_} true false := eq_refl false
+     | prod {_} {_} false _ := eq_refl true
   end
 
 Definition eq_trans2 {A} (x y z: A) (Hxy: eq x y) (Hyz: eq y z) : eq x z :=

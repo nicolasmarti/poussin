@@ -686,7 +686,7 @@ and pattern_rewrite_loop (p: pattern) (i: index) (p': pattern) : pattern * int =
   match p with
     | PAvar | PName _ when i = 0 -> p', -1
     | PAvar | PName _ -> p, i - 1
-    | PCste _ -> p, i - 1
+    | PCste _ -> p, i
     | PApp (c, args) ->
       let i, args = List.fold_left (fun (i, acc) (arg, n) ->
 	let arg, i = pattern_rewrite_loop arg i p' in
@@ -726,7 +726,10 @@ let rec update_pattern_list (defs: defs) (lst: pattern list) (p: pattern) : patt
 	    
   ) lst [] in
   (* if we have to extends the list, we recall recursively to reach the fixpoint *)
-  (*let lst' = if lst' != lst then update_pattern_list defs lst' p else lst' in*)
+  let updated = (List.length lst <> List.length lst') or not (List.fold_left (fun acc (hd1, hd2) -> 
+    (acc && pattern_equiv hd1 hd2)     
+  ) true (List.combine lst lst')) in
+  let lst' = if updated then update_pattern_list defs lst' p else lst' in
   (* we remove any term that is equal to p *)
   List.fold_right (fun p' acc -> 
     if pattern_equiv p' p then acc else p'::acc

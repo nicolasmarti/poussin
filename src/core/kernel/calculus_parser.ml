@@ -402,31 +402,15 @@ end pb
 
 
 and parse_pattern_arguments (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : (pattern * nature) list = begin
-  tryrule (paren (fun pb ->
-    let patterns = many1 (fun pb ->
-      let () = whitespaces pb in
-      let n = parse_pattern_lvl1 defs leftmost pb in
-      let () = whitespaces pb in
-      n
-    ) pb in
-    List.map (fun p -> p, Explicit) patterns
-  )
-  )
-  (* or the same but with bracket *)
-  <|> tryrule (bracket (fun pb ->
-    let patterns = many1 (fun pb ->
-    let () = whitespaces pb in
-    let n =  parse_pattern_lvl1 defs leftmost pb in
-    let () = whitespaces pb in
-    n
-    ) pb in
-    List.map (fun p -> p, Implicit) patterns
-  )
-  )
-  <|>(fun pb -> 
+  (fun pb -> 
     let () = whitespaces pb in
     let te = at_start_pos leftmost (bracket (parse_pattern defs leftmost)) pb in
     [te, Implicit]
+  )
+  <|>(fun pb -> 
+    let () = whitespaces pb in
+    let te = at_start_pos leftmost (square_bracket (parse_pattern defs leftmost)) pb in
+    [te, Oracled]
   )
   <|>(fun pb -> 
     let () = whitespaces pb in

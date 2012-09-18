@@ -29,8 +29,8 @@ type pp_option = {
   show_type: bool;
 }
 
-let pp_option = ref {show_implicit = false; 
-		     show_indices = false; 
+let pp_option = ref {show_implicit = true; 
+		     show_indices = true; 
 		     show_position = false; 
 		     show_univ = false;
 		     show_type = false;
@@ -184,6 +184,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
       *)
       (match p with
 	| InArg Explicit -> withParen
+	| InArg _ -> withParen
 	| _ -> fun x -> x
       ) (
 	(* simply compute the list of token for the args *)
