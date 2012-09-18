@@ -30,7 +30,7 @@ type pp_option = {
 }
 
 let pp_option = ref {show_implicit = true; 
-		     show_indices = true; 
+		     show_indices = false; 
 		     show_position = false; 
 		     show_univ = false;
 		     show_type = false;
@@ -307,6 +307,8 @@ let poussin_error2token (err: poussin_error) : token =
 	   term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
 	   Verbatim " And "; Newline;
 	   term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
+    | CsteNotConstructor n -> Verbatim "CsteNotConstructor"
+    | CsteNotInductive n -> Verbatim "CsteNotInductive"
     | NegativeIndexBVar  _ -> Verbatim "NegativeIndexBVar"
     | UnknownBVar  _ -> Verbatim "UnknownBVar"
     | UnknownFVar _ -> Verbatim "UnknownFVar"
