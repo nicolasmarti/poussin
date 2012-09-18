@@ -384,6 +384,13 @@ let get_cste (defs: defs) (n: name) : value =
   with
     | Not_found -> raise (PoussinException (UnknownCste n))
 
+let get_cste_type (defs: defs) (n: name) : term =
+  match get_cste defs n with
+    | Inductive (_, ty) -> ty
+    | Constructor (_, ty) -> ty
+    | _ -> raise (PoussinException (FreeError "constante neither a constructor or an inductive"))
+
+
 let get_constructor (defs: defs) (n: name) : term =
   match get_cste defs n with
     | Constructor _ -> cste_ n
@@ -754,6 +761,12 @@ let rec term_to_pattern (ctxt: context ref) (te: term) : pattern =
       PApp (n, List.map (fun (te, n) -> (term_to_pattern ctxt te), n) args)
     | _ -> raise (PoussinException (FreeError "not a term suitable to translate to pattern"))
 
-
-
+(* pattern wellformness: the nature of arguments of constante match the type *)
+let rec pattern_wf (defs: defs) (p: pattern) : bool =
+  match p with
+    | PCste _ | PAvar | PName _ -> true
+    | PApp (c, args) ->
+      List.fold_left (fun acc (arg, n) ->
+	acc && pattern_wf defs arg
+      ) (List.map snd args = args_nature (get_cste_type defs c)) args
 

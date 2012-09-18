@@ -466,6 +466,8 @@ and typeinfer
 	      let vars = patterns_vars ps in
 	      (* we traverse the patterns *)
 	      List.map (fun p ->
+		(* we verify that the pattern is well formed *)
+		if not (pattern_wf defs p) then raise (PoussinException (FreeError (String.concat " " ["pattern"; (pattern2string ctxt p); "is not well-formed"])));
 		(* we push quantification corresponding to the pattern vars *)		
 		List.iter (fun v -> 
 		  let ty = add_fvar ctxt in
