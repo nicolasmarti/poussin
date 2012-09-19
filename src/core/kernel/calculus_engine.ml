@@ -314,9 +314,20 @@ and typeinfer
     (defs: defs)
     (ctxt: context ref)
     ?(polarity: bool = true)
+    ?(in_app: bool = false)
     (te: term) : term =
   match get_term_typeannotation te with
-    | Typed ty -> te
+    | Typed ty -> 
+      (* we catch any use of cste *)
+      let app_head_ = app_head te in
+      let app_args_ = app_args te in
+      (* is the head is reducible def -> we register it as a call *)
+      if (not in_app) && is_reducible_def defs app_head_ then (
+	let {ast = Cste c; _} = app_head_ in
+	registered_calls := (!ctxt, c, app_args_)::!registered_calls;
+	printf "warning: registered call to reducible def (might require terminaison proof): %s\n" (term2string ctxt (app_ app_head_ app_args_))
+      );      
+      te
     | Annotation ty -> 
       let ty = typeinfer defs ctxt ~polarity:polarity ty in
       typecheck defs ctxt ~polarity:polarity (set_term_typedannotation te ty) ty		       
@@ -415,6 +426,14 @@ and typeinfer
 	    (* we returns the the let with the type of te2 shifted (god help us all ...) *)
 	    { te with ast = Let ((n, value), body); annot = Typed (shift_term (get_type body) (-1)) }
 
+	      
+	  (* Normalizing app: only if we are not in_app *)
+	  | App ({ast = App(f, args1); _}, args2) when not in_app ->
+	    let te' = { te with ast = App (f, args1 @ args2) } in
+	    printf "App (App _) _ := %s\n" (term2string ctxt te');
+	    typeinfer defs ctxt ~polarity:polarity te'
+	      
+
 	  (* this act as some kind of normalization *)
 	  | App (hd, []) -> (
 	    (* typecheck the head *)
@@ -422,12 +441,6 @@ and typeinfer
 	    (* split between a head and args *)
 	    let app_head_ = app_head hd in
 	    let app_args_ = app_args hd in
-	    (* is the head is reducible def -> we register it as a call *)
-	    if is_reducible_def defs app_head_ then (
-	      let {ast = Cste c; _} = app_head_ in
-	      registered_calls := (!ctxt, c, app_args_)::!registered_calls;
-	      printf "warning: registered call to reducible def (might require terminaison proof): %s\n" (term2string ctxt (app_ app_head_ app_args_))
-	    );
 	    match app_args_ with
 	      | [] -> app_head_
 	      | _ ->
@@ -436,7 +449,7 @@ and typeinfer
 
 	  | App (hd, (arg, n)::args) ->	  
 	    (* we infer hd *)
-	    let hd = typeinfer defs ctxt ~polarity:polarity hd in
+	    let hd = typeinfer defs ctxt ~polarity:polarity ~in_app:true hd in
 	    (* we unify the type of hd with a forall *)
 	    let fty = add_fvar ctxt in
 	    (*let ftyte = add_fvar ctxt in*)
@@ -446,7 +459,7 @@ and typeinfer
 	    if (n' = Implicit && (n = Oracled || n = Explicit)) || (n' = Oracled && (n = Implicit || n = Explicit))then (
 	      let new_arg = add_fvar ~oracled:(n' = Oracled) ctxt in
 	      (* and retypeinfer the whole *)
-	      typeinfer defs ctxt ~polarity:polarity {te with ast = App (hd, (new_arg, n')::(arg, n)::args) }
+	      typeinfer defs ctxt ~polarity:polarity ~in_app:true {te with ast = App (hd, (new_arg, n')::(arg, n)::args) }
 	    ) else (
 	      (* needs to unify the type properly *)
 	      let { ast = Forall ((q, arg_ty, n'), body); annot = Typed fty; _ } = hd_ty in
@@ -455,7 +468,7 @@ and typeinfer
 	      let new_hd_ty = shift_term (term_substitution (IndexMap.singleton 0 (shift_term arg 1)) body) (-1) in
 	      let new_hd = app_ ~annot:(Typed (new_hd_ty)) hd ((arg, n)::[]) in
 	      let new_hd = reduction_term defs ctxt simplification_strat new_hd in 
-	      typeinfer defs ctxt ~polarity:polarity (app_ ~pos:te.tpos new_hd args)
+	      typeinfer defs ctxt ~polarity:polarity ~in_app:true (app_ ~annot:te.annot ~pos:te.tpos new_hd args)
 	    )
 
 	  | Match (m, des) ->
@@ -553,7 +566,8 @@ and typeinfer
 	      typeinfer defs ctxt ~polarity:polarity te
 	)
 
-	| _ -> te'
+	| _ -> 
+	  te'
 
 and unification 
     (defs: defs)
@@ -970,24 +984,26 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 
       (* using conversion (adhoc) *)
       | _ -> 
-	(* create the substitution *)
-	let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
+	if true then (
+	  (* create the substitution *)
+	  let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
 	(*  if its not empty and the bv_term + fv_term has an intersection with the domain of the substitution -> apply *)
-	if not (IndexMap.is_empty s) then (
-	  let vars = IndexSet.union (bv_term te) (fv_term te) in
-	  let intersect = 
-	    match fold_stop (fun () i -> 
-	      if IndexMap.mem i s then Right () else Left ()
-	    ) () (IndexSet.elements vars) with 
-	      | Left () -> false
-	      | Right () -> true
-	  in
-	  if intersect then
-	    let te = term_substitution s te in
-	    te
-	  else
-	    te
-	) else te	  
+	  if not (IndexMap.is_empty s) then (
+	    let vars = IndexSet.union (bv_term te) (fv_term te) in
+	    let intersect = 
+	      match fold_stop (fun () i -> 
+		if IndexMap.mem i s then Right () else Left ()
+	      ) () (IndexSet.elements vars) with 
+		| Left () -> false
+		| Right () -> true
+	    in
+	    if intersect then
+	      let te = term_substitution s te in
+	      te
+	    else
+	      te
+	  ) else te	  
+	) else te
 
   ) in
   let te' = 
