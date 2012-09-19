@@ -51,9 +51,11 @@ let simplification_strat = {
 
 (* this is a list of contexted unmatch patterns (with the destructed term type, and the desired return type) *)
 let unmatched_pattern : (context * pattern * term * term) list ref = ref []
+let print_unmatched_pattern = false
 
 (* this is the list of all non irreducible name called *)
 let registered_calls : (context * name * (term * nature) list) list ref = ref []
+let print_registered_calls = false
 
 let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
   let s, ty, n = q in
@@ -325,7 +327,7 @@ and typeinfer
       if (not in_app) && is_reducible_def defs app_head_ then (
 	let {ast = Cste c; _} = app_head_ in
 	registered_calls := (!ctxt, c, app_args_)::!registered_calls;
-	printf "warning: registered call to reducible def (might require terminaison proof): %s\n" (term2string ctxt (app_ app_head_ app_args_))
+	if print_registered_calls then printf "warning: registered call to reducible def (might require terminaison proof): %s\n" (term2string ctxt (app_ app_head_ app_args_))
       );      
       te
     | Annotation ty -> 
@@ -337,11 +339,16 @@ and typeinfer
 	match te.ast with
 	  | Universe _ -> te
 	  | Cste n -> (
-	      match get_cste defs n with
-		| Inductive (_, ty) | Axiom ty | Constructor (_, ty) -> 
-		  { te with annot = Typed ty }
-		| Definition te' -> 
-		  { te with annot = Typed (get_type te') }
+	    (* we register the call is needed *)
+	    if (not in_app) && is_reducible_def defs te then (
+	      registered_calls := (!ctxt, n, [])::!registered_calls;
+	      if print_registered_calls then printf "warning: registered call to reducible def (might require terminaison proof): %s\n" (term2string ctxt te)
+	    );      
+	    match get_cste defs n with
+	      | Inductive (_, ty) | Axiom ty | Constructor (_, ty) -> 
+		{ te with annot = Typed ty }
+	      | Definition te' -> 
+		{ te with annot = Typed (get_type te') }
 	  )
 
 	  | Var i when i < 0 -> (
@@ -356,6 +363,7 @@ and typeinfer
 	    add_fvar ~pos:te.tpos ~oracled:b ctxt
 
 	  | TName n -> (
+	    let res = 
 	    (* we first look for a variable *)
 	    match var_lookup ctxt n with
 	      | Some i -> 
@@ -366,6 +374,14 @@ and typeinfer
 		    { te with ast = Cste n; annot = Typed ty }
 		  | Definition te -> 
 		    { te with ast = Cste n; annot = Typed (get_type te) }
+	    in
+	    (* we register the call is needed *)
+	    if (not in_app) && is_reducible_def defs res then (
+	      let {ast = Cste n; _} = res in
+	      registered_calls := (!ctxt, n, [])::!registered_calls;
+	      if print_registered_calls then printf "warning: registered call to reducible def (might require terminaison proof): %s\n" (term2string ctxt te)
+	    ); res
+
 	  )
 
 	  | Forall ((s, ty, n), body) ->
@@ -430,7 +446,6 @@ and typeinfer
 	  (* Normalizing app: only if we are not in_app *)
 	  | App ({ast = App(f, args1); _}, args2) when not in_app ->
 	    let te' = { te with ast = App (f, args1 @ args2) } in
-	    printf "App (App _) _ := %s\n" (term2string ctxt te');
 	    typeinfer defs ctxt ~polarity:polarity te'
 	      
 
@@ -544,7 +559,7 @@ and typeinfer
 		let p_te = typecheck defs ctxt' ~polarity:false ~coercion:false p_te mty' in
 		(* it typecheck -> the pattern is valid: we record it as unmatched *)
 		unmatched_pattern := (!ctxt, p, mty', ret_ty)::!unmatched_pattern;
-		printf "warning: unmatched pattern: %s : %s (== %s)\n" (pattern2string ctxt p) (term2string ctxt' (get_type p_te)) (term2string ctxt' mty')
+		if print_unmatched_pattern then printf "warning: unmatched pattern: %s : %s (== %s)\n" (pattern2string ctxt p) (term2string ctxt' (get_type p_te)) (term2string ctxt' mty')
 	      with
 		| PoussinException (NoUnification _) ->
 		  (* the term mismatch the type -> this is not a possible pattern, thus we skip it*)
@@ -788,7 +803,7 @@ and unification
       if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then (
 	let te1' = term_substitution s te1 in
 	let te2' = term_substitution s te2 in
-	let ctxt' = ref { !ctxt with conversion_hyps = l } in
+	let ctxt' = ref !ctxt in (*{ !ctxt with conversion_hyps = l } in*)
 	let res = unification defs ctxt' ~polarity:polarity te1' te2' in
 	ctxt := { !ctxt' with conversion_hyps = !ctxt.conversion_hyps };
 	res
@@ -984,26 +999,7 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 
       (* using conversion (adhoc) *)
       | _ -> 
-	if true then (
-	  (* create the substitution *)
-	  let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
-	(*  if its not empty and the bv_term + fv_term has an intersection with the domain of the substitution -> apply *)
-	  if not (IndexMap.is_empty s) then (
-	    let vars = IndexSet.union (bv_term te) (fv_term te) in
-	    let intersect = 
-	      match fold_stop (fun () i -> 
-		if IndexMap.mem i s then Right () else Left ()
-	      ) () (IndexSet.elements vars) with 
-		| Left () -> false
-		| Right () -> true
-	    in
-	    if intersect then
-	      let te = term_substitution s te in
-	      te
-	    else
-	      te
-	  ) else te	  
-	) else te
+	te
 
   ) in
   let te' = 
