@@ -52,3 +52,12 @@ Definition evenPeano_iseven (x: evenPeano) : eq (even (evenPeano_num x)) true :=
   match x with
      | evP _ [P] := P
   end
+
+Signature debile: Peano -> Peano
+Definition debile (a: Peano) :=
+let f := debile in
+let g := f a in
+  match f a with
+     | O := O
+     | S x := x
+  end
