@@ -55,8 +55,11 @@ let init_interactive =
     printf "%s\n\n" (term2string ctxt' (term_substitution s ty));
     (* we parse an answer. TODO: better way to manage the input parser *)
     let pb = !global_parserbuffer in
-    let res = parse_interactive defs pb in
-    global_parserbuffer := pb;
-    (* we return the proposed term *)
-    Some res
+    try
+      let res = tryrule (parse_interactive defs) pb in
+      global_parserbuffer := pb;
+      (* we return the proposed term *)
+      Some res
+    with
+      | NoMatch -> None
   )::[];;
