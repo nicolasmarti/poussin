@@ -491,7 +491,6 @@ and typeinfer
 	    (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
 	    if (n' = Implicit && (n = Oracled || n = Explicit)) || (n' = Oracled && (n = Implicit || n = Explicit))then (
 	      let new_arg = add_fvar ~oracled:(n' = Oracled) ctxt in
-	      printf "adding a new arg: %s\n" (term2string ctxt new_arg);
 	      (* and retypeinfer the whole *)
 	      typeinfer defs ctxt ~polarity:polarity ~in_app:true {te with ast = App (hd, (new_arg, n')::(arg, n)::args) }
 	    ) else (
