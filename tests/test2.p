@@ -72,3 +72,30 @@ Definition index {A} {n} (i: Fin n) (v: Vector A n) :=
      | f0 {_} := match v with | cons {_} {_} hd _ := hd end
      | fS {_} i := match v with | cons {_} {_} _ tl := index i tl end
   end
+
+Inductive plus_arg_type: Set
+Constructor plus_arg_Peano: plus_arg_type
+
+Signature plusres (A: plus_arg_type) (B: plus_arg_type) : Set
+Definition plusres A B :=
+  match A with
+    | plus_arg_Peano := match B with
+                 | plus_arg_Peano := Peano -> Peano -> Peano
+	       end
+  end 
+
+Signature plusPeano: Peano -> Peano -> Peano
+Definition plusPeano x y :=
+  match x with
+    | O := y
+    | S x := S (plusPeano x y)
+  end
+
+Signature plus {A: plus_arg_type} {B: plus_arg_type} : plusres A B
+Definition plus {A} {B} :=
+  match A with
+    | plus_arg_Peano :=
+       match B with
+         | plus_arg_Peano := plusPeano
+       end
+  end
