@@ -60,4 +60,15 @@ let g := f a in
   match f a with
      | O := O
      | S x := x
+end
+
+Inductive Fin: Peano -> Set
+Constructor f0 {n}: Fin (S n)
+Constructor fS {n}: Fin n -> Fin (S n)
+
+Signature index {A} {n} (i: Fin n) (v: Vector A n) : A
+Definition index {A} {n} (i: Fin n) (v: Vector A n) :=
+  match i with
+     | f0 {_} := match v with | cons {_} {_} hd _ := hd end
+     | fS {_} i := match v with | cons {_} {_} _ tl := index i tl end
   end

@@ -628,12 +628,6 @@ let rec term_equal (te1: term) (te2: term) : bool =
     | _ -> false
       
 
-(**)
-let context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
-  (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
-  ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
-  (*printf "%s\n"(conversion_hyps2string ctxt (!ctxt.conversion_hyps))*)
-
 (* un-type a term (keeping annotation): used to recheck a term given by an outsider *)
 (* set a term as reduced *)
 let rec untype_term (te: term) : term =

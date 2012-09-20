@@ -51,7 +51,7 @@ let simplification_strat = {
 
 (* this is a list of contexted unmatch patterns (with the destructed term type, and the desired return type) *)
 let unmatched_pattern : (context * pattern * term * term) list ref = ref []
-let print_unmatched_pattern = false
+let print_unmatched_pattern = true
 
 (* this is the list of all non irreducible name called *)
 let registered_calls : (context * name * (term * nature) list) list ref = ref []
@@ -94,6 +94,14 @@ let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substituti
 	(te1', te2')
       ) !ctxt.conversion_hyps;
   }
+
+and context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
+  (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
+  (* first we rewrite (when possible ) *)
+
+  ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
+  (*printf "%s\n"(conversion_hyps2string ctxt (!ctxt.conversion_hyps))*)
+
 
 and flush_oracled (defs: defs) (ctxt: context ref) (tes: term list) : term list =
   (* we rewrite the conversion hypothesis in increasing order in the free vars *)
@@ -559,7 +567,29 @@ and typeinfer
 		let p_te = typecheck defs ctxt' ~polarity:false ~coercion:false p_te mty' in
 		(* it typecheck -> the pattern is valid: we record it as unmatched *)
 		unmatched_pattern := (!ctxt, p, mty', ret_ty)::!unmatched_pattern;
-		if print_unmatched_pattern then printf "warning: unmatched pattern: %s : %s (== %s)\n" (pattern2string ctxt p) (term2string ctxt' (get_type p_te)) (term2string ctxt' mty')
+		if print_unmatched_pattern then (
+		  
+		  let _, frames = List.fold_right (fun ({name = n; ty = ty } as frame) (ln, acc)  ->
+		    let n' = fresh_name_list ~basename:(if String.compare n "_" == 0 then "H" else n) ln in
+		    (n'::ln), {frame with name = n'}::acc
+		  ) !ctxt'.bvs ([], []) in
+		  
+		  let ctxt'' = ref { !ctxt' with bvs = frames } in
+
+		  let s, f = conversion_hyps2subst ~dec_order:true !ctxt''.conversion_hyps in
+		  let s = append_substitution s (context2subst ctxt'') in
+		  (* we show the goal *)
+		  printf "------------------------------------------\n";
+		  ignore(map_nth (fun i -> 
+		    let i' = i - 1 in
+		    printf "%s: %s\n" (bvar_name ctxt'' i') (term2string ctxt'' (term_substitution s (bvar_type ctxt' i')))
+		  ) (List.length !ctxt''.bvs));
+		  printf "------------------------------------------\n";
+		  printf "facts: %s\n" (conversion_hyps2string ctxt'' (!ctxt''.conversion_hyps));
+		  printf "==========================================\n";
+
+		  printf "warning: unmatched pattern: %s : %s (== %s)\n\n" (pattern2string ctxt p) (term2string ctxt'' (get_type p_te)) (term2string ctxt'' mty')
+		)
 	      with
 		| PoussinException (NoUnification _) ->
 		  (* the term mismatch the type -> this is not a possible pattern, thus we skip it*)
@@ -997,7 +1027,6 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 	let args = List.map (fun (te, n) -> reduction_term_loop defs ctxt strat te, n) args in
 	{ te with ast = App (f, args); reduced = true }
 
-      (* using conversion (adhoc) *)
       | _ -> 
 	te
 

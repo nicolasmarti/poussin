@@ -28,7 +28,7 @@ let init_interactive =
   oracles := !oracles @ (fun defs ctxt ty -> 
     (* we just modify the frame of the context, in order to have all bounded variables accessible by a fresh name *)
     let _, frames = List.fold_right (fun ({name = n; ty = ty } as frame) (ln, acc)  ->
-      let n' = fresh_name_list ~basename:(if String.compare n "" == 0 then "H" else n) ln in
+      let n' = fresh_name_list ~basename:(if String.compare n "_" == 0 then "H" else n) ln in
       (n'::ln), {frame with name = n'}::acc
     ) ctxt.bvs ([], []) in
     (* build a ref of the context *)
