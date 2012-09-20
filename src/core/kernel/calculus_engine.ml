@@ -68,10 +68,8 @@ let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
 let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substitution) : unit =
   (* computes the needed shited substitution *)
   let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.bvs) in
-  ctxt := { !ctxt with
-    bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss;
-
-    fvs = 
+  let bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss in
+  let fvs = 
       List.map (fun (i, ty, te, n) -> 
 	if IndexMap.mem i s then (
 	match te with
@@ -82,19 +80,23 @@ let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substituti
 	  | None -> (i, term_substitution s ty, None, n)
 	  | Some te -> (i, term_substitution s ty, Some (term_substitution s te), n)
 	)
-      ) !ctxt.fvs;
-
-    conversion_hyps = 
-      List.map (fun (te1, te2) -> 
-	(* we substitute *)
-	let te1' = term_substitution s te1 in
-	let te2' = term_substitution s te2 in
-	(* and try to unify both (gaining more precise knowledge, or aborting if the substitution introduce a false conversion) *)
-	let _ = unification defs ctxt ~polarity:false te1' te2' in
-	(te1', te2')
-      ) !ctxt.conversion_hyps;
-  }
-
+      ) !ctxt.fvs in
+  ctxt := { !ctxt with fvs = fvs; bvs = bvs };
+  (* we split the conv between those who contain/do not contain vars in the domain of the subtitution *)
+  let untouched_conv, touched_conv = List.fold_right (fun (te1, te2) (untouched, touched) ->
+    if IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2))) then ((te1, te2)::untouched, touched) else (untouched, (te1, te2)::touched)
+  ) !ctxt.conversion_hyps ([], []) in
+  (* just update the context *)
+  ctxt := { !ctxt with conversion_hyps = untouched_conv };
+  (* iter on the substituted conv, and adding them trough unification (thus possibly reducing them) *)
+  List.iter (fun (te1, te2) -> 
+    (* we substitute *)
+    let te1' = term_substitution s te1 in
+    let te2' = term_substitution s te2 in
+    (* and try to unify both (gaining more precise knowledge, or aborting if the substitution introduce a false conversion) *)
+    ignore(unification defs ctxt ~polarity:false te1' te2')
+  ) touched_conv
+  
 and context_add_conversion (defs: defs) (ctxt: context ref) (te1: term) (te2: term) : unit =
   (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
   let s, _ = conversion_hyps2subst !ctxt.conversion_hyps in
