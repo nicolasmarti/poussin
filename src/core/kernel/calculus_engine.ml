@@ -491,6 +491,7 @@ and typeinfer
 	    (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
 	    if (n' = Implicit && (n = Oracled || n = Explicit)) || (n' = Oracled && (n = Implicit || n = Explicit))then (
 	      let new_arg = add_fvar ~oracled:(n' = Oracled) ctxt in
+	      printf "adding a new arg: %s\n" (term2string ctxt new_arg);
 	      (* and retypeinfer the whole *)
 	      typeinfer defs ctxt ~polarity:polarity ~in_app:true {te with ast = App (hd, (new_arg, n')::(arg, n)::args) }
 	    ) else (
@@ -840,9 +841,11 @@ and unification
 
     | (PoussinException (UnknownUnification (ctxt', te1', te2'))) when polarity ->
       let s, l = conversion_hyps2subst !ctxt.conversion_hyps in
-      if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then (
-	let te1' = term_substitution s te1 in
-	let te2' = term_substitution s te2 in
+      let s_in_te1 = not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (bv_term te1))) in
+      let s_in_te2 = not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (bv_term te2))) in
+      if s_in_te1 || s_in_te2 then (
+	let te1' = if s_in_te1 then {(term_substitution s te1) with reduced = false} else te1 in
+	let te2' = if s_in_te2 then {(term_substitution s te2) with reduced = false} else te2 in
 	let ctxt' = ref !ctxt in (*{ !ctxt with conversion_hyps = l } in*)
 	let res = unification defs ctxt' ~polarity:polarity te1' te2' in
 	ctxt := { !ctxt' with conversion_hyps = !ctxt.conversion_hyps };
@@ -926,7 +929,7 @@ and rewrite_term defs ctxt ?(struct_eq: bool = true) (lhs: term) (rhs: term) (te
     in
     match get_type te with
       | {ast = Universe _; _} -> { te with ast = ast }
-      | ty -> { te with ast = ast; annot = Typed (rewrite_term defs ctxt lhs rhs ty) }
+      | ty -> { te with ast = ast; annot = Typed (rewrite_term defs ctxt lhs rhs ty); reduced = false }
 
 (* reduction *)
 
