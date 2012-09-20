@@ -291,38 +291,6 @@ let substitution2string (ctxt: context ref) (s: substitution) : string =
   let box = token2box token 80 2 in
   box2string box
 
-let poussin_error2token (err: poussin_error) : token =
-  match err with
-    | FreeError s -> Verbatim s
-    | Unshiftable_term _ -> Verbatim "Unshiftable_term"
-    | UnknownCste s -> verbatims ["UnknownCste: "; s]
-    | NoUnification (ctxt, te1, te2) -> 
-      Box [Verbatim "NoUnification between"; Newline; 
-	   term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
-	   term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
-
-    | NoNatureUnification  _ -> Verbatim "NoNatureUnification"
-    | UnknownUnification (ctxt, te1, te2) -> 
-      Box [Verbatim "UnknownUnification between"; Newline; 
-	   term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
-	   Verbatim " And "; Newline;
-	   term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
-    | CsteNotConstructor n -> Verbatim "CsteNotConstructor"
-    | CsteNotInductive n -> Verbatim "CsteNotInductive"
-    | NegativeIndexBVar  _ -> Verbatim "NegativeIndexBVar"
-    | UnknownBVar  _ -> Verbatim "UnknownBVar"
-    | UnknownFVar _ -> Verbatim "UnknownFVar"
-    | NotInductiveDestruction (ctxt, te) -> 
-      Box [Verbatim "NotInductiveDestruction: "; Newline; 
-	   term2token (context2namelist (ref ctxt)) te Alone; Space 1; Verbatim ":"; Space 1; term2token (context2namelist (ref ctxt)) (get_type te) Alone; Newline]
-    | InteractiveFailure ->
-      Verbatim "failure in interactive mode"
-	
-let poussin_error2string (err: poussin_error) : string =
-  let token = poussin_error2token err in
-  let box = token2box token 80 2 in
-  box2string box
-
 let trace2token (trace: ty_action list) : token =
   Box (
     intercalates
@@ -386,11 +354,48 @@ let conversion_hyps2string (ctxt: context ref) (conv: (term * term) list) : stri
 let ctxt2token (ctxt: context ref) : token =
   let vars = IBox (
     [Verbatim "------------------------------------"; Newline] @
-    (map_nth (fun i -> Box [ Verbatim (bvar_name ctxt i); Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) (bvar_type ctxt i) Alone; Newline]
-     ) (List.length !ctxt.bvs - 1))  @ [Verbatim "------------------------------------"; Newline]
+    (List.concat (map_nth (fun i -> [ Verbatim (bvar_name ctxt (i - 1)); Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) (bvar_type ctxt (i - 1)) Alone; Newline]
+     ) (List.length !ctxt.bvs)))  @ [Verbatim "------------------------------------"; Newline]
   ) in
   Box [vars; conversion_hyps2token ctxt !ctxt.conversion_hyps; Newline; 
        Verbatim "------------------------------------"; Newline
       ]
 
+let ctxt2string (ctxt: context ref) : string =
+  let token = ctxt2token ctxt in
+  let box = token2box token 150 2 in
+  box2string box
+
+let poussin_error2token (err: poussin_error) : token =
+  match err with
+    | FreeError s -> Verbatim s
+    | Unshiftable_term _ -> Verbatim "Unshiftable_term"
+    | UnknownCste s -> verbatims ["UnknownCste: "; s]
+    | NoUnification (ctxt, te1, te2) -> 
+      Box [Verbatim "NoUnification"; Newline; 
+	   ctxt2token (ref ctxt);
+	   term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
+	   term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
+
+    | NoNatureUnification  _ -> Verbatim "NoNatureUnification"
+    | UnknownUnification (ctxt, te1, te2) -> 
+      Box [Verbatim "UnknownUnification between"; Newline; 
+	   term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
+	   Verbatim " And "; Newline;
+	   term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
+    | CsteNotConstructor n -> Verbatim "CsteNotConstructor"
+    | CsteNotInductive n -> Verbatim "CsteNotInductive"
+    | NegativeIndexBVar  _ -> Verbatim "NegativeIndexBVar"
+    | UnknownBVar  _ -> Verbatim "UnknownBVar"
+    | UnknownFVar _ -> Verbatim "UnknownFVar"
+    | NotInductiveDestruction (ctxt, te) -> 
+      Box [Verbatim "NotInductiveDestruction: "; Newline; 
+	   term2token (context2namelist (ref ctxt)) te Alone; Space 1; Verbatim ":"; Space 1; term2token (context2namelist (ref ctxt)) (get_type te) Alone; Newline]
+    | InteractiveFailure ->
+      Verbatim "failure in interactive mode"
+	
+let poussin_error2string (err: poussin_error) : string =
+  let token = poussin_error2token err in
+  let box = token2box token 80 2 in
+  box2string box
 
