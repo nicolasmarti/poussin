@@ -95,11 +95,19 @@ let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substituti
       ) !ctxt.conversion_hyps;
   }
 
-and context_add_conversion (ctxt: context ref) (te1: term) (te2: term) : unit =
+and context_add_conversion (defs: defs) (ctxt: context ref) (te1: term) (te2: term) : unit =
   (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
-  (* first we rewrite (when possible ) *)
-
-  ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
+  let s, _ = conversion_hyps2subst !ctxt.conversion_hyps in
+  if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then (
+    (* if possible we rewrite the current substitutions given by the conversions *)
+    let te1' = term_substitution s te1 in
+    let te2' = term_substitution s te2 in  
+    (* and we retry to to negatively unify them *)
+    ignore (unification defs ctxt ~polarity:false te1' te2')
+  ) else (
+    (* otherwise , we just add them *)
+    ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
+  )
   (*printf "%s\n"(conversion_hyps2string ctxt (!ctxt.conversion_hyps))*)
 
 
@@ -442,7 +450,7 @@ and typeinfer
 	    (* then we push the quantification *)
 	    push_quantification (n, get_type value, Explicit) ctxt;
 	    (* here we add a conversion rule between the variable and the value *)
-	    context_add_conversion ctxt (var_ ~annot:(Typed (bvar_type ctxt 0)) 0) value;
+	    context_add_conversion defs ctxt (var_ ~annot:(Typed (bvar_type ctxt 0)) 0) value;
 	    (* we infer the body *)
 	    let body = typecheck defs ctxt ~polarity:polarity body (shift_term ret_ty 1) in
 	    (* we pop the quantification *)
@@ -815,7 +823,7 @@ and unification
 
 	(* nothing so far, if the polarity is negative, we add the unification as a converion hypothesis *)
       | _ when not polarity ->
-	context_add_conversion ctxt te1 te2;
+	context_add_conversion defs ctxt te1 te2;
 	te1
 
 	(* we do not know *)
