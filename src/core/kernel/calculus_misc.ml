@@ -285,7 +285,7 @@ let rec compute_nature_prefix (l1: nature list) (l2: nature list) : nature list 
   List.rev (compute_nature_prefix_loop (List.rev l1) (List.rev l2)) 
 and compute_nature_prefix_loop (l1: nature list) (l2: nature list) : nature list =
   match l1, l2 with
-    | _, [] -> l1
+    | n::tl, [] when n = Implicit || n = Oracled -> n::(compute_nature_prefix_loop tl [])
     | hd1::tl1, hd2::tl2 when hd1 = hd2 -> compute_nature_prefix_loop tl1 tl2
     | _, _ -> []
 
