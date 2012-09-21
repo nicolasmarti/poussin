@@ -27,6 +27,7 @@ let init_interactive =
   (* we add the interactive oracle at the end of the list *)
   oracles := !oracles @ (fun defs ctxt ty -> 
     (* we just modify the frame of the context, in order to have all bounded variables accessible by a fresh name *)
+    printf "|frames| = %d\n" (List.length ctxt.bvs);
     let _, frames = List.fold_right (fun ({name = n; ty = ty } as frame) (ln, acc)  ->
       let n' = fresh_name_list ~basename:(if String.compare n "_" == 0 then "H" else n) ln in
       (n'::ln), {frame with name = n'}::acc
@@ -40,7 +41,7 @@ let init_interactive =
     printf "------------------------------------------\n";
     ignore(map_nth (fun i -> 
       let i' = i - 1 in
-	printf "%s: %s\n" (bvar_name ctxt' i') (term2string ctxt' (term_substitution s (bvar_type ctxt' i')))
+	printf "(%d) %s: %s\n" i' (bvar_name ctxt' i') (term2string ctxt' (term_substitution s (bvar_type ctxt' i')))
   ) (List.length !ctxt'.bvs));
     printf "------------------------------------------\n";
     let fvs = fv_term ty in

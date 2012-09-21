@@ -29,7 +29,7 @@ type pp_option = {
   show_type: bool;
 }
 
-let pp_option = ref {show_implicit = false; 
+let pp_option = ref {show_implicit = true; 
 		     show_indices = false; 
 		     show_position = false; 
 		     show_univ = false;
@@ -352,10 +352,19 @@ let conversion_hyps2string (ctxt: context ref) (conv: (term * term) list) : stri
 
 
 let ctxt2token (ctxt: context ref) : token =
-  let vars = IBox (
+  let vars = Box (
     [Verbatim "------------------------------------"; Newline] @
-    (List.concat (map_nth (fun i -> [ Verbatim (bvar_name ctxt (i - 1)); Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) (bvar_type ctxt (i - 1)) Alone; Newline]
-     ) (List.length !ctxt.bvs)))  @ [Verbatim "------------------------------------"; Newline]
+      (List.concat (map_nth (fun i -> 
+	[ Verbatim (bvar_name ctxt (i - 1)); Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) (bvar_type ctxt (i - 1)) Alone; Newline]
+       )(List.length !ctxt.bvs))
+      ) @ 
+      [Verbatim "------------------------------------"; Newline] @
+      (List.concat (List.map (fun (i, ty, te, _) -> 
+	[ Verbatim (string_of_int i); Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone; Space 1; Verbatim ":="; Space 1; 
+	  (match te with | None -> Verbatim "??" | Some te -> term2token (context2namelist ctxt) te Alone); 
+	  Newline]
+       ) !ctxt.fvs)
+      )
   ) in
   Box [vars; conversion_hyps2token ctxt !ctxt.conversion_hyps; Newline; 
        Verbatim "------------------------------------"; Newline
