@@ -25,7 +25,7 @@ end pb
 
 let init_interactive =
   (* we add the interactive oracle at the end of the list *)
-  oracles := !oracles @ (fun defs ctxt ty -> 
+  oracles := !oracles @ (fun defs ctxt var ty -> 
     (* we just modify the frame of the context, in order to have all bounded variables accessible by a fresh name *)
     printf "|frames| = %d\n" (List.length ctxt.bvs);
     let _, frames = List.fold_right (fun ({name = n; ty = ty } as frame) (ln, acc)  ->
@@ -53,7 +53,7 @@ let init_interactive =
     printf "------------------------------------------\n";
     printf "facts: %s\n" (conversion_hyps2string ctxt' (!ctxt'.conversion_hyps));
     printf "==========================================\n\n";
-    printf "%s\n\n" (term2string ctxt' (term_substitution s ty));
+    printf "(%s) : %s\n\n" (match var with | None -> "?" | Some i -> string_of_int i) (term2string ctxt' (term_substitution s ty));
     (* we parse an answer. TODO: better way to manage the input parser *)
     let pb = !global_parserbuffer in
     try

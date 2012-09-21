@@ -211,7 +211,7 @@ and oracles_call (defs: defs) (ctxt: context ref) ?(var: index option = None) (t
       (* save the context *)
       let ctxt' = ref (!ctxt) in
       (* grab an answer from the oracle *)
-      let te = oracle defs !ctxt ty in
+      let te = oracle defs !ctxt var ty in
       (* do we have a result ?*)
       match te with
 	| None -> (* nop, so try next one *) Left ()
@@ -262,7 +262,8 @@ and typecheck
     ignore(unification defs ctxt ~polarity:polarity (get_type te) ty);
     te
   with
-    | PoussinException err when coercion ->
+    (* only coercion on ground types *)
+    | PoussinException err when coercion && IndexSet.is_empty (IndexSet.union (fv_term (get_type te)) (fv_term ty)) ->
       (* we where not able to unify the infered type and the desired type, let's ask to an oracle *)
       (* building a dummy variable *)
       let {ast = Var i; _} as f_ty = add_fvar ctxt in
@@ -800,6 +801,26 @@ and unification
 	context_add_conversion defs ctxt te1 te2;
 	te1
 
+      (* we look if we have one of the term which is a free var applied to a reducible term
+	 we call the oracles to find a proper instance (this is how to implement canonical structure)
+      *)
+      | _, App (f, ({ast = Var i; annot = Typed ty; _}, n)::[])
+      | App (f, ({ast = Var i; annot = Typed ty; _}, n)::[]), _ when i < 0 && is_reducible_def defs f
+	->
+	(* we build a context with the conv as hypothesis *)
+	let ctxt' = ref {!ctxt with conversion_hyps = (te1, te2)::!ctxt.conversion_hyps} in (
+	match oracles_call defs ctxt' ~var:(Some i) ty with
+	  | None -> (* nothing there, we just raise an error *)
+	    raise (PoussinException (FreeError "the oracles failed to infer a free variable (2)"))
+	  | Some te -> (* we just return the answer of the oracles as the free variable value *)
+	    (* we update the context *)
+	    ctxt := { !ctxt' with conversion_hyps = List.tl !ctxt'.conversion_hyps };
+	    (* we add the subtitution *)
+	    let s = (IndexMap.singleton i te) in
+	    context_add_substitution defs ctxt s;
+	    (* and we retry the unification *)
+	    unification defs ctxt (term_substitution s te1) (term_substitution s te2)
+	)
 	(* we do not know *)
       | _ -> raise (PoussinException (UnknownUnification (!ctxt, te1, te2)));
 	
