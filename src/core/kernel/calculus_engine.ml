@@ -123,11 +123,11 @@ and flush_oracled (defs: defs) (ctxt: context ref) (tes: term list) : term list 
      n)
   ) !ctxt.fvs in  
   (* we rewrite all the terms *)
-  let tes = List.fold_left (fun acc (i, ty, te, n) ->
+  let tes = List.fold_right (fun (i, ty, te, n) acc ->
     match te with
       | None -> acc
       | Some te -> List.map (fun te' -> term_substitution (IndexMap.singleton i te) te') acc
-  ) tes fvs in
+  ) fvs tes in
   (* we compute the fvars of the terms *)
   let lfvs = List.fold_left (fun acc te -> 
     IndexSet.union acc (fv_term te)
