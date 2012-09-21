@@ -22,8 +22,8 @@ let cste_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) 
 let var_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (idx: index) : term =
   { ast = Var idx; annot = annot; tpos = pos; reduced = false }
 
-let avar_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) ?(oracled: bool = false) () : term =
-  { ast = AVar oracled; annot = annot; tpos = pos; reduced = false }
+let avar_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) () : term =
+  { ast = AVar; annot = annot; tpos = pos; reduced = false }
 
 let name_ ?(annot: typeannotation = NoAnnotation) ?(pos: position = NoPosition) (name: name) : term =
   { ast = TName name; annot = annot; tpos = pos; reduced = false }
@@ -285,7 +285,7 @@ let rec compute_nature_prefix (l1: nature list) (l2: nature list) : nature list 
   List.rev (compute_nature_prefix_loop (List.rev l1) (List.rev l2)) 
 and compute_nature_prefix_loop (l1: nature list) (l2: nature list) : nature list =
   match l1, l2 with
-    | n::tl, [] when n = Implicit || n = Oracled -> n::(compute_nature_prefix_loop tl [])
+    | Implicit::tl, [] -> Implicit::(compute_nature_prefix_loop tl [])
     | hd1::tl1, hd2::tl2 when hd1 = hd2 -> compute_nature_prefix_loop tl1 tl2
     | _, _ -> []
 
@@ -367,7 +367,6 @@ let nature_unify (n1: nature) (n2: nature) : nature option =
     | _, NJoker -> Some n1
     | Explicit, Explicit -> Some Explicit
     | Implicit, Implicit -> Some Implicit
-    | Oracled, Oracled -> Some Oracled
     | _, _ -> None
 
 let rec app_head (te: term) : term =
@@ -550,21 +549,21 @@ let var_lookup (ctxt: context ref) (n: name) : index option =
     | Left _ -> None
     | Right level -> Some level
 
-let get_fvar (ctxt: context ref) (i: index) : (term * term option * bool) =
-  let lookup = fold_stop (fun () (index, ty, value, name) -> 
-    if index = i then Right (ty, value, name) else Left ()
+let get_fvar (ctxt: context ref) (i: index) : (term * term option) =
+  let lookup = fold_stop (fun () (index, ty, value) -> 
+    if index = i then Right (ty, value) else Left ()
   ) () !ctxt.fvs in
   match lookup with
     | Left _ -> raise (PoussinException (UnknownFVar (!ctxt, i)))
     | Right res -> res
 
 let fvar_subst (ctxt: context ref) (i: index) : term option =
-  let (_, te, _) = get_fvar ctxt i in
+  let (_, te) = get_fvar ctxt i in
   te
 
 (* grab the type of a free var *)
 let fvar_type (ctxt: context ref) (i: index) : term =
-  let (ty, _, _) = get_fvar ctxt i in
+  let (ty, _) = get_fvar ctxt i in
   ty
 
 (* grab the type of a bound var *)
@@ -587,7 +586,7 @@ let bvar_name (ctxt: context ref) (i: index) : name =
     | Invalid_argument "List.nth" -> raise (PoussinException (NegativeIndexBVar i))
 
 (* we add a free variable *)
-let rec add_fvar ?(pos: position = NoPosition) ?(oracled: bool = false) ?(te: term option = None) ?(ty: term option = None) (ctxt: context ref) : term =
+let rec add_fvar ?(pos: position = NoPosition) ?(te: term option = None) ?(ty: term option = None) (ctxt: context ref) : term =
   let ty = match ty with
     | None -> add_fvar ~ty:(Some (type_ (UName""))) ctxt
     | Some ty -> ty 
@@ -595,10 +594,10 @@ let rec add_fvar ?(pos: position = NoPosition) ?(oracled: bool = false) ?(te: te
   let next_fvar_index = 
       match !ctxt.fvs with
 	| [] -> (-1)
-	| (i, _, _, _)::_ -> (i - 1)
+	| (i, _, _)::_ -> (i - 1)
   in
   ctxt := { !ctxt with 
-    fvs = ((next_fvar_index, ty, te, oracled)::!ctxt.fvs)
+    fvs = ((next_fvar_index, ty, te)::!ctxt.fvs)
   };
   var_ ~annot:(Typed ty) ~pos:pos next_fvar_index
 

@@ -39,7 +39,6 @@ module IndexMap = Map.Make(
 
 type nature = Explicit
 	      | Implicit (* arguments which value can be inferred by unification *)
-	      | Oracled (* arguments which value need to be infered by an oracle *)
 	      | NJoker (* used for unification *)
 
 type uType = Type | Set | Prop 
@@ -67,7 +66,7 @@ type term_ast = Universe of uType * uLevel
 	    | Var of index
 		
 	    (* these constructors are only valide after parsing, and removed by typechecking *)
-	    | AVar (* _ *) of bool (* oracled ? *)
+	    | AVar (* _ *)
 	    | TName of name
 
 	    (* quantifiers *)
@@ -107,7 +106,7 @@ and var_frame = {
 (* context *)
 and context = {
   bvs: var_frame list; (* size = n *)
-  fvs: (index * term * term option * bool) list; (*  *)
+  fvs: (index * term * term option) list; (*  *)
   conversion_hyps: (term * term) list; (* *)
   lvl_cste: uLevel_constraints list; (* *)
 }

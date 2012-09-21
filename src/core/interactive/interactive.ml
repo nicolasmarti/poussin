@@ -46,7 +46,7 @@ let init_interactive =
     printf "------------------------------------------\n";
     let fvs = fv_term ty in
     let fvs = List.map (fun i -> 
-      let (ty, te, oracled) = get_fvar ctxt' i in
+      let (ty, te) = get_fvar ctxt' i in
       String.concat "" [string_of_int i; " : "; term2string ctxt' ty; " := "; match te with | None -> "??" | Some te -> term2string ctxt' te]
     ) (IndexSet.elements fvs) in
     printf "%s\n" (String.concat "\n" fvs);

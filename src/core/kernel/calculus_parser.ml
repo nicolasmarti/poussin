@@ -150,23 +150,6 @@ and parse_impl_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : ((n
     (List.map (fun (n, p) -> n, p) names, ty, Implicit)
   )
   )
-  (* or the same but with square bracket *)
-  <|> tryrule (square_bracket (fun pb ->
-    let names = many1 (fun pb ->
-    let () = whitespaces pb in
-    let startpos = cur_pos pb in
-    let n = at_start_pos leftmost name_parser pb in
-    let endpos = cur_pos pb in
-    let () = whitespaces pb in
-    n, (startpos, endpos)
-    ) pb in
-    let () = whitespaces pb in
-    let () = at_start_pos leftmost (word ":") pb in
-    let () = whitespaces pb in
-    let ty = parse_term defs leftmost pb in
-    (List.map (fun (n, p) -> n, p) names, ty, Oracled)
-  )
-  )
   (* or just a type -> anonymous arguments *)
   <|> (fun pb -> 
     let ty = parse_term_lvl0 defs leftmost pb in
@@ -226,28 +209,6 @@ and parse_lambda_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : (
     (List.map (fun (n, p) -> n, p) names, ty, Implicit)
   )
   )
-  (* or the same but with bracket *)
-  <|> tryrule (square_bracket (fun pb ->
-    let names = many1 (fun pb ->
-    let () = whitespaces pb in
-    let startpos = cur_pos pb in
-    let n = at_start_pos leftmost name_parser pb in
-    let endpos = cur_pos pb in
-    let () = whitespaces pb in
-    n, (startpos, endpos)
-    ) pb in
-    let ty = match (mayberule (fun pb ->
-      let () = whitespaces pb in
-      let () = at_start_pos leftmost (word ":") pb in
-      let () = whitespaces pb in
-      let ty = parse_term defs leftmost pb in
-      ty
-    ) pb) with
-      | None -> avar_ ()
-      | Some ty -> ty in
-    (List.map (fun (n, p) -> n, p) names, ty, Oracled)
-  )
-  )
   <|> (fun pb -> 
     let () = whitespaces pb in
     let startpos = cur_pos pb in
@@ -284,11 +245,6 @@ and parse_arguments (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : (t
     let () = whitespaces pb in
     let te = at_start_pos leftmost (bracket (parse_term_lvl1 defs leftmost)) pb in
     (te, Implicit)
-  )
-  <|> (fun pb -> 
-    let () = whitespaces pb in
-    let te = at_start_pos leftmost (square_bracket (parse_term_lvl1 defs leftmost)) pb in
-    (te, Oracled)
   )
   <|> (fun pb -> 
     let te = parse_term_lvl1 defs leftmost pb in
@@ -372,12 +328,6 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
     let () = whitespaces pb in
     name_ ~pos:(pos_to_position pos) n
   )
-  <|> tryrule (fun pb ->
-    let () = whitespaces pb in
-    let n, pos = at_start_pos leftmost (with_pos (word "?")) pb in
-    let () = whitespaces pb in
-    avar_ ~pos:(pos_to_position pos) ~oracled:true ()
-  )
   <|> (fun pb -> 
     let () = whitespaces pb in
     at_start_pos leftmost (paren (parse_term defs leftmost)) pb)
@@ -406,11 +356,6 @@ and parse_pattern_arguments (defs: defs) (leftmost: (int * int)) (pb: parserbuff
     let () = whitespaces pb in
     let te = at_start_pos leftmost (bracket (parse_pattern defs leftmost)) pb in
     [te, Implicit]
-  )
-  <|>(fun pb -> 
-    let () = whitespaces pb in
-    let te = at_start_pos leftmost (square_bracket (parse_pattern defs leftmost)) pb in
-    [te, Oracled]
   )
   <|>(fun pb -> 
     let () = whitespaces pb in

@@ -61,7 +61,7 @@ let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
   let s, ty, n = q in
   ctxt := { !ctxt with
     bvs = {name = s; ty = shift_term ty 1; nature = n}::!ctxt.bvs;
-    fvs = List.map (fun (i, ty, te, n) -> (i, shift_term ty 1, (match te with | None -> None | Some te -> Some (shift_term te 1)), n)) !ctxt.fvs;
+    fvs = List.map (fun (i, ty, te) -> (i, shift_term ty 1, (match te with | None -> None | Some te -> Some (shift_term te 1)))) !ctxt.fvs;
     conversion_hyps = List.map (fun (hd1, hd2) -> (shift_term hd1 1, shift_term hd2 1)) !ctxt.conversion_hyps
   }
 
@@ -70,15 +70,15 @@ let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substituti
   let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.bvs) in
   let bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss in
   let fvs = 
-      List.map (fun (i, ty, te, n) -> 
+      List.map (fun (i, ty, te) -> 
 	if IndexMap.mem i s then (
 	match te with
-	  | None -> (i, term_substitution s ty, Some (IndexMap.find i s), n)
-	  | Some te -> (i, term_substitution s ty, Some (unification defs ctxt te (IndexMap.find i s)), n)
+	  | None -> (i, term_substitution s ty, Some (IndexMap.find i s))
+	  | Some te -> (i, term_substitution s ty, Some (unification defs ctxt te (IndexMap.find i s)))
 	) else (
 	match te with
-	  | None -> (i, term_substitution s ty, None, n)
-	  | Some te -> (i, term_substitution s ty, Some (term_substitution s te), n)
+	  | None -> (i, term_substitution s ty, None)
+	  | Some te -> (i, term_substitution s ty, Some (term_substitution s te))
 	)
       ) !ctxt.fvs in
   ctxt := { !ctxt with fvs = fvs; bvs = bvs };
@@ -114,14 +114,13 @@ and context_add_conversion (defs: defs) (ctxt: context ref) (te1: term) (te2: te
 and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
   (* we rewrite the conversion hypothesis in increasing order in the free vars *)
   let s, _ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
-  let fvs = List.map (fun (i, ty, te, n) ->
+  let fvs = List.map (fun (i, ty, te) ->
     (i,
      term_substitution s ty,
-     (match te with | None -> None | Some te -> Some (term_substitution s te)),
-     n)
+     (match te with | None -> None | Some te -> Some (term_substitution s te)))
   ) !ctxt.fvs in  
   (* we rewrite all the terms *)
-  let tes = List.fold_left (fun acc (i, ty, te, n) ->
+  let tes = List.fold_left (fun acc (i, ty, te) ->
     match te with
       | None -> acc
       | Some te -> List.map (fun te' -> term_substitution (IndexMap.singleton i te) te') acc
@@ -133,7 +132,7 @@ and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
     IndexSet.union acc (fv_term te)
   ) IndexSet.empty tes in  
   (* we sort the free variables *)
-  let throw, keep = List.fold_right (fun ((i, ty, te, n) as var) (throw, keep) ->
+  let throw, keep = List.fold_right (fun ((i, ty, te) as var) (throw, keep) ->
     (* is the var to be considered (var 0 is in ty free var or we are at the root level) ? *)
     if IndexSet.mem 0 (bv_term ty) || List.length !ctxt.bvs = 0 then (
       (* yes, this variable is in the the terms free vars ? *)
@@ -143,7 +142,7 @@ and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
 	  | None -> (* nothing there, we just raise an error *)
 	    raise (PoussinException (FreeError "the oracles failed to infer a free variable"))
 	  | Some _ as te -> (* we just return the answer of the oracles as the free variable value *)
-	    ((i, ty, te, false)::throw, keep)
+	    ((i, ty, te)::throw, keep)
 	
       ) else 
 	(* no: we forget it*)
@@ -154,7 +153,7 @@ and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
     )
   ) !ctxt.fvs ([], []) in
   (* we rewrite all the terms *)
-  let tes = List.fold_left (fun acc (i, ty, te, n) ->
+  let tes = List.fold_left (fun acc (i, ty, te) ->
     match te with
       | None -> acc
       | Some te -> List.map (fun te' -> term_substitution (IndexMap.singleton i te) te') acc
@@ -173,13 +172,12 @@ and pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name
     (* remove a frame *)
     bvs = List.tl !ctxt.bvs;
     (* shift free vars *)
-    fvs = List.fold_right (fun (i, ty, te, n) acc ->
+    fvs = List.fold_right (fun (i, ty, te) acc ->
       try
 	(i, shift_term ty (-1), 
 	 (match te with
 	   | None -> None
-	   | Some te -> Some (shift_term te (-1))), 
-	 n)::acc
+	   | Some te -> Some (shift_term te (-1))))::acc
       with
 	| _ -> acc
     ) !ctxt.fvs []; 
@@ -351,8 +349,8 @@ and typeinfer
 	  | Var i when i >= 0 ->
 	    { te with annot = Typed (bvar_type ctxt i) }
 
-	  | AVar b ->
-	    add_fvar ~pos:te.tpos ~oracled:b ctxt
+	  | AVar ->
+	    add_fvar ~pos:te.tpos ctxt
 
 	  | TName n -> (
 	    let res = 
@@ -463,8 +461,8 @@ and typeinfer
 	    let hd_ty = unification defs ctxt ~polarity:polarity (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
 	    let { ast = Forall ((_, _, n'), _); _ } = hd_ty in
 	    (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
-	    if (n' = Implicit && (n = Oracled || n = Explicit)) || (n' = Oracled && (n = Implicit || n = Explicit))then (
-	      let new_arg = add_fvar ~oracled:(n' = Oracled) ctxt in
+	    if n' = Implicit && n = Explicit then (
+	      let new_arg = add_fvar ctxt in
 	      (* and retypeinfer the whole *)
 	      typeinfer defs ctxt ~polarity:polarity ~in_app:true {te with ast = App (hd, (new_arg, n')::(arg, n)::args) }
 	    ) else (
@@ -589,7 +587,7 @@ and typeinfer
 	    | [] -> te'
 	    | l -> 
 	      let new_args = List.fold_right ( fun n acc ->
-		(add_fvar ~oracled:(n = Oracled) ctxt, n)::acc
+		(add_fvar ctxt, n)::acc
 	      ) l [] in
 	      let te = { ast = App (te', new_args); annot = TypedAnnotation ty; tpos = NoPosition; reduced = false } in
 	      typeinfer defs ctxt ~polarity:polarity te
