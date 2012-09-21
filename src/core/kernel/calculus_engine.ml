@@ -98,7 +98,6 @@ let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substituti
   ) touched_conv
   
 and context_add_conversion (defs: defs) (ctxt: context ref) (te1: term) (te2: term) : unit =
-  (*printf "added conversion: %s == %s\n" (term2string ctxt te1) (term2string ctxt te2);*)
   let s, _ = conversion_hyps2subst !ctxt.conversion_hyps in
   if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then (
     (* if possible we rewrite the current substitutions given by the conversions *)
@@ -110,10 +109,9 @@ and context_add_conversion (defs: defs) (ctxt: context ref) (te1: term) (te2: te
     (* otherwise , we just add them *)
     ctxt := { !ctxt with conversion_hyps = ((te1, te2)::(!ctxt.conversion_hyps)) }
   )
-  (*printf "%s\n"(conversion_hyps2string ctxt (!ctxt.conversion_hyps))*)
 
 
-and flush_oracled (defs: defs) (ctxt: context ref) (tes: term list) : term list =
+and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
   (* we rewrite the conversion hypothesis in increasing order in the free vars *)
   let s, _ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
   let fvs = List.map (fun (i, ty, te, n) ->
@@ -155,26 +153,6 @@ and flush_oracled (defs: defs) (ctxt: context ref) (tes: term list) : term list 
 	(throw, var::keep)
     )
   ) !ctxt.fvs ([], []) in
-  (*
-  printf "\nte: \n";
-  printf "------\n[%s]\n" (String.concat ", " (List.map (term2string ctxt) tes));
-
-  printf "\nfvs: \n";
-  List.iter (fun (i, ty, te, _) -> 
-    printf "%s\n" (String.concat "" [string_of_int i; " : "; term2string ctxt ty; " := "; match te with | None -> "??" | Some te -> term2string ctxt te])
-  ) !ctxt.fvs;
-
-  printf "----\nthrow: \n";
-  List.iter (fun (i, ty, te, _) -> 
-    printf "%s\n" (String.concat "" [string_of_int i; " : "; term2string ctxt ty; " := "; match te with | None -> "??" | Some te -> term2string ctxt te])
-  ) throw;
-
-  printf "----\nkeep: \n";
-  List.iter (fun (i, ty, te, _) -> 
-    printf "%s\n" (String.concat "" [string_of_int i; " : "; term2string ctxt ty; " := "; match te with | None -> "??" | Some te -> term2string ctxt te])
-  ) keep;
-  printf "----\n\n";
-  *)
   (* we rewrite all the terms *)
   let tes = List.fold_left (fun acc (i, ty, te, n) ->
     match te with
@@ -185,50 +163,26 @@ and flush_oracled (defs: defs) (ctxt: context ref) (tes: term list) : term list 
   ctxt := {!ctxt with fvs = keep};
   tes
 
-and flush_fvars ?(oracled_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) : term list =
-  let tes = if oracled_pushed then tes else flush_oracled defs ctxt tes in  
-  (* we compute the fvars of the terms *)
-  let lfvs = List.fold_left (fun acc te -> IndexSet.union acc (fv_term te)) IndexSet.empty tes in  
-  (* we shift the freevars, and allow removing does who does not appears *)
-  let fvs = List.fold_left (fun acc (i, ty, te, n) ->
-    try 
-      acc @ [i, shift_term ty (-1), 
-	     (match te with
-	       | None -> None
-	       | Some te -> Some (shift_term te (-1))), 
-	     n]
-    with
-      | PoussinException (Unshiftable_term _) ->
-	(* if the free variable does not appears in the terms we can remove it *)
-	if not (IndexSet.mem i lfvs) then (
-	  acc
-	) else
-	  (* NB: here we should call the oracles for a solution *)
-	  raise (PoussinException (FreeError "we failed to infer a free variable that cannot be out-scoped"))
-  ) [] !ctxt.fvs in
-	(* we replace the new free var set *)
-	(if List.length !ctxt.bvs != 0 then
-	    ctxt := { !ctxt with
-	      fvs = fvs
-	    } else 
-	    List.iter (fun te -> 
-	      if not (IndexSet.is_empty (fv_term te)) then (
-		let msg = String.concat "" ["there are free variables in the remaining term: \n"; term2string ctxt te; "\n :: \n"; term2string ctxt (get_type te) ] in
-		raise (PoussinException (FreeError msg)))
-	    ) tes
-	);
-  tes
-
-
-and pop_quantification ?(oracled_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature) * term list =
-  let tes = if oracled_pushed then tes else flush_oracled defs ctxt tes in  
+and pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name * term * nature) * term list =
   (* we flush the vars *)
-  let tes = flush_fvars ~oracled_pushed:true defs ctxt tes in
+  let tes = flush_fvars defs ctxt tes in
   (* we grab the remaining context and the popped frame *)
   let frame = List.hd (!ctxt.bvs) in
   (* we set the context *)
   ctxt := { !ctxt with 
+    (* remove a frame *)
     bvs = List.tl !ctxt.bvs;
+    (* shift free vars *)
+    fvs = List.fold_right (fun (i, ty, te, n) acc ->
+      try
+	(i, shift_term ty (-1), 
+	 (match te with
+	   | None -> None
+	   | Some te -> Some (shift_term te (-1))), 
+	 n)::acc
+      with
+	| _ -> acc
+    ) !ctxt.fvs []; 
     (* we shift the update version of the conversion_hyps *)
     conversion_hyps = 
       List.fold_left (fun acc (hd1, hd2) ->
@@ -243,14 +197,13 @@ and pop_quantification ?(oracled_pushed: bool = false) (defs: defs) (ctxt: conte
   (* and returns the quantifier *)
   (frame.name, shift_term frame.ty (-1), frame.nature), tes  
 
-and pop_quantifications ?(oracled_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) (n: int) : (name * term * nature) list * term list =
-  let tes = if oracled_pushed then tes else flush_oracled defs ctxt tes in  
+and pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n: int) : (name * term * nature) list * term list =
   match n with
     | _ when n < 0 -> raise (PoussinException (FreeError "Catastrophic: negative n in pop_quantifications"))
     | 0 -> [], tes
     | _ ->
-      let hd, tes = pop_quantification ~oracled_pushed:true defs ctxt tes in
-      let tl, tes = pop_quantifications ~oracled_pushed:true defs ctxt tes (n-1) in
+      let hd, tes = pop_quantification defs ctxt tes in
+      let tl, tes = pop_quantifications defs ctxt tes (n-1) in
       hd::tl, tes
 
 (* calls for oracles for a given type *)
@@ -267,7 +220,6 @@ and oracles_call (defs: defs) (ctxt: context ref) ?(var: index option = None) (t
 	| Some te -> (* yep, look if the oracle's answer is correct *)
 	  (* typecheck it's untype version for the wanted type, and that if it is suppose to be some free var instantiation then it is consistent with the context *)
 	  let te = typecheck defs ctxt' (untype_term te) ty in
-	  let [te] = flush_oracled defs ctxt' [te] in
 	  let () = match var with
 	    | None -> ()
 	    | Some i -> context_add_substitution defs ctxt' (IndexMap.singleton i te)
