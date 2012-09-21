@@ -123,44 +123,66 @@ and flush_oracled (defs: defs) (ctxt: context ref) (tes: term list) : term list 
      n)
   ) !ctxt.fvs in  
   (* we rewrite all the terms *)
-  let tes = List.fold_right (fun (i, ty, te, n) acc ->
+  let tes = List.fold_left (fun acc (i, ty, te, n) ->
     match te with
       | None -> acc
       | Some te -> List.map (fun te' -> term_substitution (IndexMap.singleton i te) te') acc
-  ) fvs tes in
+  ) tes fvs in
+  (* update the context *)
+  ctxt := {!ctxt with fvs = fvs};
   (* we compute the fvars of the terms *)
   let lfvs = List.fold_left (fun acc te -> 
     IndexSet.union acc (fv_term te)
   ) IndexSet.empty tes in  
-  (* we ask for the oracles to solve the free variables marked as oracled and present in the term *)
-  let fvs = List.fold_left (fun acc ((i, ty, te, n) as var) ->
-    (* is the current variable an oracled one and present in the terms? *)
-    if n && IndexSet.mem i lfvs then (
-      (* yes, next we look if we were able to give it a value *)
-      match te with
-	| Some _ -> (* yes, so we just return it as a non-oracled variable *) (i, ty, te, false)::acc
-	| None -> (* nop, so here we need to ask the oracles for a candidate *)
-	  match oracles_call defs ctxt ~var:(Some i) ty with
-	    | None -> (* nothing there, here there is two possibility: 
-			 (1) either we continue with the variable, and it will be tried on the next level
-			 (2) we just raise an error (the convervative way that we implement for now)
-		      *)
-	      raise (PoussinException (FreeError "the oracles failed to infer a free variable"))
-	    | Some _ as te -> (* we just return the answer of the oracles as the free variable value *)
-	      (i, ty, te, false)::acc
-		
+  (* we sort the free variables *)
+  let throw, keep = List.fold_right (fun ((i, ty, te, n) as var) (throw, keep) ->
+    (* is the var to be considered (var 0 is in ty free var or we are at the root level) ? *)
+    if IndexSet.mem 0 (bv_term ty) || List.length !ctxt.bvs = 0 then (
+      (* yes, this variable is in the the terms free vars ? *)
+      if IndexSet.mem i lfvs then (
+	(* yes, we need to instantiate it *)
+	match oracles_call defs ctxt ~var:(Some i) ty with
+	  | None -> (* nothing there, we just raise an error *)
+	    raise (PoussinException (FreeError "the oracles failed to infer a free variable"))
+	  | Some _ as te -> (* we just return the answer of the oracles as the free variable value *)
+	    ((i, ty, te, false)::throw, keep)
+	
+      ) else 
+	(* no: we forget it*)
+	(throw, keep)
     ) else (
-	(* no, so we just return it *)
-      var::acc
+	(* no: keep it *)
+	(throw, var::keep)
     )
-  ) [] (List.rev fvs) in
+  ) !ctxt.fvs ([], []) in
+  (*
+  printf "\nte: \n";
+  printf "------\n[%s]\n" (String.concat ", " (List.map (term2string ctxt) tes));
+
+  printf "\nfvs: \n";
+  List.iter (fun (i, ty, te, _) -> 
+    printf "%s\n" (String.concat "" [string_of_int i; " : "; term2string ctxt ty; " := "; match te with | None -> "??" | Some te -> term2string ctxt te])
+  ) !ctxt.fvs;
+
+  printf "----\nthrow: \n";
+  List.iter (fun (i, ty, te, _) -> 
+    printf "%s\n" (String.concat "" [string_of_int i; " : "; term2string ctxt ty; " := "; match te with | None -> "??" | Some te -> term2string ctxt te])
+  ) throw;
+
+  printf "----\nkeep: \n";
+  List.iter (fun (i, ty, te, _) -> 
+    printf "%s\n" (String.concat "" [string_of_int i; " : "; term2string ctxt ty; " := "; match te with | None -> "??" | Some te -> term2string ctxt te])
+  ) keep;
+  printf "----\n\n";
+  *)
   (* we rewrite all the terms *)
   let tes = List.fold_left (fun acc (i, ty, te, n) ->
     match te with
       | None -> acc
       | Some te -> List.map (fun te' -> term_substitution (IndexMap.singleton i te) te') acc
-  ) tes fvs in  
-  ctxt := {!ctxt with fvs = fvs};
+  ) tes throw in  
+  (* update the context *)
+  ctxt := {!ctxt with fvs = keep};
   tes
 
 and flush_fvars ?(oracled_pushed: bool = false) (defs: defs) (ctxt: context ref) (tes: term list) : term list =
