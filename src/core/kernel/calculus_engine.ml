@@ -518,7 +518,7 @@ and typeinfer
 		(* we update the list of visited pattern with p *)
 		patlst := update_pattern_list defs !patlst p;
 		(* we typecheck the termed pattern against the type of the destructed term *)
-		let p_te = typecheck defs ctxt ~polarity:false p_te mty in
+		let p_te = typecheck defs ctxt ~polarity:false ~coercion:false p_te mty in
 		(* we unify it with the destructed term *)
 		let _ = unification defs ctxt ~polarity:false p_te m in
 		(* we typecheck the destructor body against the returned_type *)
