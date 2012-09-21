@@ -308,12 +308,6 @@ Definition even (n: Nat) :=
      | S (S O) := even n
 end
 
-Signature dodo: Nat -> Nat -> Nat
-Definition dodo (x y: Nat) := ?
-exact match x with | O := ? | S x := ? end
-exact y
-exact x
-
 Inductive Fin: Nat -> Set
 Constructor f0 {n}: Fin (S n)
 Constructor fS {n}: Fin n -> Fin (S n)
@@ -353,10 +347,11 @@ end
 
 
 Inductive uniqNat : Nat -> Set
-Constructor uniqnat {sz: Nat}: (n: Nat) -> [H: eq sz n] -> uniqNat sz
+Constructor uniqnat {sz: Nat}: (n: Nat) -> {H: eq sz n} -> uniqNat sz
 
 Definition zero_uniqnat : uniqNat (S O) := uniqnat (S O)
 exact eq_refl _
 
-
 Definition doudou := Plus O O
+exact plus_arg_Nat
+exact plus_arg_Nat
