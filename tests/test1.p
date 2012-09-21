@@ -292,14 +292,71 @@ Definition plus_comm (x y: Nat) : eq (plus x y) (plus y x) :=
 	     end
 	  )
 
+
+Signature Nat_inversion (n: Nat) (P: Prop) (H1: eq n O -> P) (H2: (x: Nat) -> eq n (S x) -> P): P
+Definition Nat_inversion (n: Nat) (P: Prop) (H1: eq n O -> P) (H2: (x: Nat) -> eq n (S x) -> P) : P :=
+   match n with
+      | O := H1 (eq_refl O)
+      | S x := H2 x (eq_refl (S x))      
+   end
+
+Signature even: Nat -> bool
+Definition even (n: Nat) :=
+  match n with
+     | O := true
+     | S O := false
+     | S (S O) := even n
+end
+
 Signature dodo: Nat -> Nat -> Nat
 Definition dodo (x y: Nat) := ?
 exact match x with | O := ? | S x := ? end
 exact y
 exact x
 
+Inductive Fin: Nat -> Set
+Constructor f0 {n}: Fin (S n)
+Constructor fS {n}: Fin n -> Fin (S n)
+
+Signature index {A} {n} (i: Fin n) (v: Vector A n) : A
+Definition index {A} {n} (i: Fin n) (v: Vector A n) :=
+  match i with
+     | f0 {_} := match v with | cons {_} {_} hd _ := hd end
+     | fS {_} i := match v with | cons {_} {_} _ tl := index i tl end
+  end
+
+Inductive plus_arg_type: Set
+Constructor plus_arg_Nat: plus_arg_type
+
+Signature plusres (A: plus_arg_type) (B: plus_arg_type) : Set
+Definition plusres A B :=
+  match A with
+    | plus_arg_Nat := match B with
+                 | plus_arg_Nat := Nat
+	       end
+  end 
+
+Signature plus_arg_type2type: plus_arg_type -> Set
+Definition plus_arg_type2type A :=
+  match A with
+     | plus_arg_Nat := Nat
+  end
+
+Signature Plus {A: plus_arg_type} {B: plus_arg_type} : (plus_arg_type2type A) -> (plus_arg_type2type B) -> plusres A B
+Definition Plus {A} {B} :=
+  match A with
+    | plus_arg_Nat :=
+       match B with
+         | plus_arg_Nat := plus
+       end
+end
+
+
 Inductive uniqNat : Nat -> Set
 Constructor uniqnat {sz: Nat}: (n: Nat) -> [H: eq sz n] -> uniqNat sz
 
 Definition zero_uniqnat : uniqNat (S O) := uniqnat (S O)
-exact eq_refl
+exact eq_refl _
+
+
+Definition doudou := Plus O O
