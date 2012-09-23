@@ -29,8 +29,8 @@ type pp_option = {
   show_type: bool;
 }
 
-let pp_option = ref {show_implicit = true; 
-		     show_indices = true; 
+let pp_option = ref {show_implicit = false; 
+		     show_indices = false; 
 		     show_position = false; 
 		     show_univ = false;
 		     show_type = false;
