@@ -375,7 +375,7 @@ Definition PosPlusCarry (p1 p2: Pos) (carry: bool) : Pos :=
                  | xi p2 := (match carry with | true := xo (PosPlusCarry p1 p2 true) | false := xi (PosPlusCarry p1 p2 false) end)
                end
     | xi p1 := match p2 with
-                 | xh := (match carry with | true := xi (PosPlusCarry p1 xh true) | false := xo (PosPlusCarry p1 xh true) end)
+                 | xh := (match carry with | true := xi (PosPlusCarry p1 xh true) | false := xo (PosPlusCarry p1 xh false) end)
                  | xo p2 := (match carry with | true := xo (PosPlusCarry p1 p2 true) | false := xi (PosPlusCarry p1 p2 false) end) 
                  | xi p2 := (match carry with | true := xi (PosPlusCarry p1 p2 true) | false := xo (PosPlusCarry p1 p2 true) end)
                end
@@ -392,6 +392,23 @@ Definition PosMult (p1 p2: Pos) : Pos :=
     | xi p1 := PosPlus p2 (xo (PosMult p1 p2))
   end
 
+Signature PosPower: Pos -> Pos -> Pos
+Definition PosPower (x y: Pos) : Pos :=
+  match y with
+    | xh := x
+    | xo y := PosPower (PosMult x x) y
+    | xi y := PosMult x (PosPower (PosMult x x) y)
+  end
+
+Signature PosEq: Pos -> Pos -> bool
+Definition PosEq (x y: Pos) :=
+  match prod x y with
+    | prod {_} {_} xh xh := true
+    | prod {_} {_} (xi x) (xi y) := PosEq x y
+    | prod {_} {_} (xo x) (xo y) := PosEq x y
+    | _ := false
+  end
+
 Definition PosOne := xh
 Definition PosTwo := xo xh
 Definition PosThree := xi xh
@@ -405,6 +422,11 @@ Definition PosThirtySix := PosMult PosSix PosSix
 Compute PosThirtySix
 
 Compute PosMult PosThirtySix PosThirtySix
+
+Compute PosPower PosTwo (PosMult PosSix PosTwo)
+
+
+Compute PosEq (PosPlus PosTwo PosThree) (PosPlus PosThree PosTwo)
 
 Inductive N: Set
 Constructor N0: N
