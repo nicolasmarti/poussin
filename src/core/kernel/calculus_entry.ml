@@ -119,7 +119,7 @@ let process_definition (def: definition) : unit =
       Hashtbl.add env.defs n (Definition te);
       let time_end = Sys.time () in
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
-      printf "Definition %s := %s\n: %s \n\n" n (term2string ctxt te) (term2string ctxt (get_type te)); flush stdout
+      printf "Definition %s := %s\n: %s \n\n" n (if true then (term2string ctxt te) else "...") (term2string ctxt (get_type te)); flush stdout
     | DefCompute te ->
       let te = typeinfer env.defs ctxt te in
       let [te] = flush_fvars env.defs ctxt [te] in 
@@ -139,6 +139,7 @@ let process_stream (str: string Stream.t) : unit  =
   try 
     ignore (
       let _ = many (fun pb ->
+	let time_start = Sys.time () in
 	let def = parse_definition env.defs leftmost pb in
 	(*let () = 
 	  match def with
@@ -147,6 +148,8 @@ let process_stream (str: string Stream.t) : unit  =
 	  | DefConstructor (n, ty) -> printf "Constructor %s: %s\n\n" n (term2string (ref empty_context) ty)
 	  | DefDefinition (n, te) -> printf "Definition %s:= %s \n\n" n (term2string (ref empty_context) te)
 	  in*)
+	let time_end = Sys.time () in
+	printf "parsed in %g sec.\n\n" (time_end -. time_start); flush stdout;
 	process_definition def
       ) pb in
       let _ = eos pb in
