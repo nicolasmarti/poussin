@@ -425,8 +425,9 @@ Compute PosMult PosThirtySix PosThirtySix
 
 Compute PosPower PosTwo (PosMult PosSix PosTwo)
 
-
 Compute PosEq (PosPlus PosTwo PosThree) (PosPlus PosThree PosTwo)
+
+Compute PosEq (PosPlus PosTwo PosThree) (PosPlus PosTwo PosSix)
 
 Inductive N: Set
 Constructor N0: N
