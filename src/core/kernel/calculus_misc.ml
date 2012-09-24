@@ -509,30 +509,37 @@ let rec shift_substitution (s: substitution) (delta: int) : substitution =
       | PoussinException (Unshiftable_term _) -> acc
   ) s IndexMap.empty
 
+type pattern_match_result = PMatch of (term list)
+			    | PNoMatch
+			    | PUnknownMatch
 
 (* simpl pattern match *)
-let rec pattern_match (p: pattern) (te: term) : (term list) option =
+let rec pattern_match (defs: defs) (p: pattern) (te: term) : pattern_match_result =
   match p with
-    | PAvar -> Some [te]
-    | PName s -> Some [te]
+    | PAvar -> PMatch [te]
+    | PName s -> PMatch [te]
     | PCste c -> (
       match te.ast with
-	| Cste c2 when c = c2 -> Some []
-	| _ -> None
+	| Cste c2 when c = c2 -> PMatch []
+	| _ when is_reducible_def defs (app_head te) -> PUnknownMatch
+	| _ -> PNoMatch
     )
     | PApp (c, args) ->
       match te.ast with
-	| Cste c2 when c = c2 && List.length args = 0 -> Some []
+	| Cste c2 when c = c2 && List.length args = 0 -> PMatch []
 	| App ({ ast = Cste c2; _} , args2) when c = c2 && List.length args = List.length args2 ->
 	  List.fold_left (fun acc (hd1, hd2) -> 
 	    match acc with
-	      | None -> None
-	      | Some l ->
-		match pattern_match hd1 hd2 with
-		  | None -> None
-		  | Some l' -> Some (l @ l')
-	  ) (Some []) (List.map2 (fun hd1 hd2 -> (fst hd1, fst hd2)) args args2)
-	| _ -> None
+	      | PNoMatch -> PNoMatch
+	      | PUnknownMatch -> PUnknownMatch
+	      | PMatch l ->
+		match pattern_match defs hd1 hd2 with
+		  | PNoMatch -> PNoMatch
+		  | PUnknownMatch -> PUnknownMatch
+		  | PMatch l' -> PMatch (l @ l')
+	  ) (PMatch []) (List.map2 (fun hd1 hd2 -> (fst hd1, fst hd2)) args args2)
+	| _ when is_reducible_def defs (app_head te) -> PUnknownMatch
+	| _ -> PNoMatch
 
 
 (**)
@@ -712,11 +719,11 @@ let rec update_pattern_list (defs: defs) (lst: pattern list) (p: pattern) : patt
   (* then we extends the pattern list such that the pattern p will be in it *)
   let lst' = List.fold_right (fun p' acc ->
     (* we try to pattern match *)
-    match pattern_match p' te with
-      (* if we have no match -> continue *)
-      | None -> p'::acc
+    match pattern_match defs p' te with
+      (* if we have no match or unknown -> continue *)
+      | PNoMatch | PUnknownMatch -> p'::acc
       (* if we have a match, the pattern is either partially or completely matched *)
-      | Some l -> 
+      | PMatch l -> 
 	(* if we have a term which is either a Cste or an App (Cste, ...)
 	   then we need to expands the pattern in consequence
 	*)
@@ -748,9 +755,18 @@ let rec update_pattern_list (defs: defs) (lst: pattern list) (p: pattern) : patt
     (acc && pattern_equiv hd1 hd2)     
   ) true (List.combine lst lst')) in
   let lst' = if updated then update_pattern_list defs lst' p else lst' in
-  (* we remove any term that is equal to p *)
+  (* we remove any term that is equal to p or which term pattern match with p *)
   List.fold_right (fun p' acc -> 
-    if pattern_equiv p' p then acc else p'::acc
+    if pattern_equiv p' p || (
+      let te' = pattern_to_term defs p' in      
+      match pattern_match defs p te' with
+	(* if we have no match or unknown -> false *)
+	| PNoMatch | PUnknownMatch -> false
+	(* if we have a match, the pattern p contains p' -> true *)
+	| PMatch _ -> 
+	  true
+    ) 
+    then acc else p'::acc
   ) lst' []
 
 (* build a pattern from a term *)

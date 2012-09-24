@@ -991,9 +991,10 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 	let dte = reduction_term_loop defs ctxt strat dte in
 	let res = fold_stop (fun () (ps, body) ->
 	  fold_stop (fun () p ->
-	    match pattern_match p dte with
-	      | None -> Left ()
-	      | Some l ->
+	    match pattern_match defs p dte with
+	      | PNoMatch -> Left ()
+	      | PUnknownMatch -> Right None
+	      | PMatch l ->
 		(* we will do the same thing as in let, but on the reversed order of the matching list *)
 		let te = List.fold_left (fun acc te -> 
 		  (* rewrite the var 0 *)
@@ -1004,12 +1005,12 @@ and reduction_term_loop (defs: defs) (ctxt: context ref) (strat: reduction_strat
 		) 
 		  body 
 		  (List.rev (List.fold_left (fun acc te -> acc @ [shift_term te (List.length acc + 1)]) [] l)) in
-		Right te
+		Right (Some te)
 	  ) () ps
 	) () des in
 	match res with
-	  | Left () -> set_term_reduced true te
-	  | Right te -> reduction_term_loop defs ctxt strat te
+	  | Left () | Right None -> set_term_reduced true te
+	  | Right (Some te) -> reduction_term_loop defs ctxt strat te
       )
 
       | App ({ ast = Lambda ((n, ty, nature), body); _}, (hd1, hd2)::tl) when strat.beta != None ->
