@@ -366,16 +366,16 @@ Definition PosPlusCarry (p1 p2: Pos) (carry: bool) : Pos :=
   match p1 with
     | xh := match p2 with
               | xh := (match carry with | true := xi | false := xo end) xh
-              | xo p2 := (match carry with | true := xi (PosPlusCarry xh p2 false) | false := xi p2 end)
-              | xi p2 := (match carry with | true := xo (PosPlusCarry xh p2 true) | false := xi (PosPlusCarry xh p2 false) end)
+              | xo p2 := (match carry with | true := xo (PosPlusCarry xh p2 false) | false := xi p2 end)
+              | xi p2 := (match carry with | true := xi (PosPlusCarry xh p2 false) | false := xo (PosPlusCarry xh p2 false) end)
             end
     | xo p1 := match p2 with
-                 | xh := (match carry with | true := xi (PosPlusCarry p1 xh false) | false := xi p1 end)
+                 | xh := (match carry with | true := xo (PosPlusCarry p1 xh false) | false := xi p1 end)
                  | xo p2 := (match carry with | true := xi | false := xo end) (PosPlusCarry p1 p2 false)
                  | xi p2 := (match carry with | true := xo (PosPlusCarry p1 p2 true) | false := xi (PosPlusCarry p1 p2 false) end)
                end
     | xi p1 := match p2 with
-                 | xh := (match carry with | true := xo (PosPlusCarry p1 xh true) | false := xo (PosPlusCarry p1 xh false) end)
+                 | xh := (match carry with | true := xi (PosPlusCarry p1 xh true) | false := xo (PosPlusCarry p1 xh true) end)
                  | xo p2 := (match carry with | true := xo (PosPlusCarry p1 p2 true) | false := xi (PosPlusCarry p1 p2 false) end) 
                  | xi p2 := (match carry with | true := xi (PosPlusCarry p1 p2 true) | false := xo (PosPlusCarry p1 p2 true) end)
                end
@@ -384,12 +384,27 @@ Definition PosPlusCarry (p1 p2: Pos) (carry: bool) : Pos :=
 Definition PosPlus (p1 p2: Pos) : Pos :=
   PosPlusCarry p1 p2 false
 
+Signature PosMult: Pos -> Pos -> Pos
+Definition PosMult (p1 p2: Pos) : Pos :=
+  match p1 with
+    | xh := p2 
+    | xo p1 := xo (PosMult p1 p2)
+    | xi p1 := PosPlus p2 (xo (PosMult p1 p2))
+  end
+
 Definition PosOne := xh
 Definition PosTwo := xo xh
 Definition PosThree := xi xh
 
-Compute PosPlus PosThree PosThree
+Definition PosSix := PosPlus PosThree PosThree
 
+Compute PosSix
+
+Definition PosThirtySix := PosMult PosSix PosSix
+
+Compute PosThirtySix
+
+Compute PosMult PosThirtySix PosThirtySix
 
 Inductive N: Set
 Constructor N0: N
