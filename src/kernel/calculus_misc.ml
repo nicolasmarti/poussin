@@ -790,3 +790,19 @@ let rec pattern_wf (defs: defs) (p: pattern) : bool =
 	acc && pattern_wf defs arg
       ) (List.map snd args = args_nature (get_cste_type defs c)) args
 
+(* assert that pos1 contains pos2 *)
+let pos_in (pos1: pos) (pos2: pos) : bool =
+  let ((begin_line1, begin_col1), (end_line1, end_col1)) = pos1 in
+  let ((begin_line2, begin_col2), (end_line2, end_col2)) = pos2 in
+  (* the start of pos2 must be equal or after the start of pos1 *)
+  ((begin_line2 > begin_line1) || (begin_line1 = begin_line2 && begin_col2 >= begin_col1))
+  (* and the end of pos2 must be equal or before the end of pos 1*)
+  && ((end_line2 < end_line1) || (end_line1 = end_line2 && end_col2 <= end_col1))
+
+(* choose a position between two possibilities *)
+let best_pos (p1: pos) (p2: pos) : pos =
+  match p1, p2 with
+    | _ when p1 = nopos -> p2
+    | _ when p2 = nopos  -> p1
+    | _ when pos_in p1 p2 -> p2
+    | _ -> p1

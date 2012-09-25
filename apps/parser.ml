@@ -1,5 +1,4 @@
-open Calculus_def
-open Calculus_misc
+open Calculus_kernel
 
 open Extlist
 open Libparser

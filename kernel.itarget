@@ -1,2 +1,2 @@
-src/kernel/kernel.cmxa
-src/kernel/kernel.cma
+src/kernel/calculus_kernel.cmxa
+src/kernel/calculus_kernel.cma

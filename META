@@ -2,5 +2,5 @@
 requires = ""
 description = "poussin"
 version = "0.1"
-archive(byte) = "kernel.cma"
-archive(native) = "kernel.cmxa"
+archive(byte) = "calculus_kernel.cma"
+archive(native) = "calculus_kernel.cmxa"

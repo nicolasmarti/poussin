@@ -1,8 +1,8 @@
-open Calculus_def
-open Calculus_misc
 open Parser
 open Libpprinter
 open Extlist
+open Calculus_kernel
+
 
 let rec withParen (t: token) : token =
   Box [Verbatim "("; t; Verbatim ")"]

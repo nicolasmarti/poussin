@@ -2,9 +2,6 @@ open Calculus_def
 open Calculus_misc
 open Calculus_substitution
 open Extlist
-open Libparser
-
-open Fm
 
 type beta_strength =
   | BetaStrong (* reduction under the quantifier*)

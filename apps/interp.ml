@@ -2,12 +2,10 @@ open Printf
 open Libpprinter
 open Libparser
 open Extlist
-open Calculus_def
-open Calculus_misc
-open Calculus_substitution
-open Calculus_engine
 open Parser
 open Pprinter
+
+open Calculus_kernel
 
 (* the global parserbuffer *)
 let global_parserbuffer : parserbuffer ref = ref (build_parserbuffer (Stream.of_list []))
