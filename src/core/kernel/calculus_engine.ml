@@ -204,34 +204,37 @@ and pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n: in
       let tl, tes = pop_quantifications defs ctxt tes (n-1) in
       hd::tl, tes
 
-(* calls for oracles for a given type *)
+(* calls for oracles for a given type
+   TODO: add parallelism
+ *)
 and oracles_call (defs: defs) (ctxt: context ref) ?(oracles: oracle list option = None) ?(var: index option = None) (ty: term) : term option =
   let res = fold_stop (fun () oracle ->
     try	     
-      (* save the context *)
-      let ctxt' = ref (!ctxt) in
       (* grab an answer from the oracle *)
       let te = oracle defs !ctxt var ty in
       (* do we have a result ?*)
       match te with
 	| None -> (* nop, so try next one *) Left ()
 	| Some te -> (* yep, look if the oracle's answer is correct *)
+	  (* copy the context *)
+	  let ctxt' = ref (!ctxt) in
 	  (* typecheck it's untype version for the wanted type, and that if it is suppose to be some free var instantiation then it is consistent with the context *)
 	  let te = typecheck defs ctxt' (untype_term te) ty in
 	  let () = match var with
 	    | None -> ()
 	    | Some i -> context_add_substitution defs ctxt' (IndexMap.singleton i te)
 	  in
-	  (* restore the context and return the result *)
-	  ctxt := !ctxt';
-	  Right te
+	  (* return the context and the result *)
+	  Right (!ctxt', te)
     with
       | PoussinException err -> 
 	Left ()
   ) () (match oracles with | None -> !registered_oracles | Some lst -> lst) in
   match res with
     | Left () -> None
-    | Right te -> 
+    | Right (ctxt', te) -> 
+      (* modify the context *)
+      ctxt := ctxt';
       Some te
 
 (* typechecking, inference and reduction *)
