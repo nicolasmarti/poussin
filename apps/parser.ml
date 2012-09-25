@@ -1,6 +1,5 @@
 open Calculus_kernel
 
-open Extlist
 open Libparser
 
 open Str
