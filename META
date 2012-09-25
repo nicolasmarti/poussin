@@ -1,0 +1,6 @@
+#package poussin
+requires = ""
+description = "poussin"
+version = "0.1"
+archive(byte) = "kernel.cma"
+archive(native) = "kernel.cmxa"

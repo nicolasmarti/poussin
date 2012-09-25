@@ -1,0 +1,1 @@
+ocamlfind install poussin META _build/src/core/kernel/kernel.cmi _build/src/core/kernel/kernel.cma _build/src/core/kernel/kernel.cmxa
