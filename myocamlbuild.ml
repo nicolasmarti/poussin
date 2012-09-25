@@ -1,16 +1,6 @@
 open Ocamlbuild_plugin;;
 (* open Command -- no longer needed for OCaml >= 3.10.2 *)
 
-ocaml_lib ~extern:true "llvm";;
-ocaml_lib ~extern:true "llvm_analysis";;
-ocaml_lib ~extern:true "llvm_executionengine";;
-ocaml_lib ~extern:true "llvm_target";;
-ocaml_lib ~extern:true "llvm_scalar_opts";;
-ocaml_lib ~extern:true "llvm_bitwriter";;
-
-flag ["link"; "ocaml"; "g++"] (S[A"-cc"; A"g++"; A"-cclib"; A"-rdynamic"]);;
-dep ["link"; "ocaml"; "use_bindings"] ["src/lib/llvm/runtime/runtime.o"; "src/lib/llvm/runtime/gc.o"];;
-
 (* these functions are not really officially exported *)
 let run_and_read = Ocamlbuild_pack.My_unix.run_and_read
 let blank_sep_strings = Ocamlbuild_pack.Lexers.blank_sep_strings

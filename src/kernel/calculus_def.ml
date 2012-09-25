@@ -1,6 +1,3 @@
-open Libpprinter
-open Libparser
-
 (*********************************)
 (* Definitions of data structure *)
 (*********************************)
@@ -111,13 +108,6 @@ and context = {
   lvl_cste: uLevel_constraints list; (* *)
 }
 
-(* for notation *)
-type op = Nofix
-	  | Prefix of int
-	  | Infix of int * associativity
-	  | Postfix of int
-
-
 (* values for constante *)
 type value = Inductive of name list * term
 	    | Axiom of term
@@ -163,9 +153,6 @@ let trace : ty_action list ref = ref []
 let mk_trace : bool ref = ref true
 
 let debug_reduction = ref false
-
-(* the global parserbuffer *)
-let global_parserbuffer : parserbuffer ref = ref (build_parserbuffer (Stream.of_list []))
 
 type oracle = 
     defs -> context -> (* definitions + context *)

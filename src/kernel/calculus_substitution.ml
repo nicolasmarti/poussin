@@ -1,8 +1,6 @@
 open Calculus_def
 open Calculus_misc
-open Calculus_pprinter
 open Extlist
-open Printf
 (*************************************)
 (*      substitution/rewriting       *)
 (*************************************)

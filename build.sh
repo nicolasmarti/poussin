@@ -3,7 +3,6 @@
 set -e
 
 APPS=apps.otarget
-TESTS=tests.otarget
 KERNEL=kernel.otarget
 FLAGS=""
 OCAMLBUILD=ocamlbuild
@@ -16,11 +15,9 @@ ocb()
 rule() {
   case $1 in
     clean)  ocb -clean;;
-    all)    ocb $APPS; ocb $TESTS;;
+    all)    ocb $APPS;;
     app)  ocb $APPS;;
-    tests) ocb $TESTS;;
     kernel)  ocb $KERNEL;;
-    gc)    clang -DWITHMAIN -o _build/gc ./lib/llvm/runtime/gc.c;;
     *)      echo "Unknown action $1";;
   esac;
 }

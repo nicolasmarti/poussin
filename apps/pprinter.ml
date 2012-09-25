@@ -1,7 +1,6 @@
 open Calculus_def
 open Calculus_misc
-open Calculus_parser
-
+open Parser
 open Libpprinter
 open Extlist
 
@@ -15,8 +14,7 @@ let rec withSquareBracket (t: token) : token =
   Box [Verbatim "["; t; Verbatim "]"]
 
 (* a data structure to mark the place where the term is *)
-type place = InNotation of op * int (* in the sndth place of the application to the notation with op *)
-	     | InApp (* in the head of application *)
+type place =  InApp (* in the head of application *)
 	     | InArg of nature (* as an argument (Explicit) *)
 	     | InAlias  (* in an alias pattern *)
 	     | Alone (* standalone *)
@@ -202,7 +200,6 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
       (match p with
 	| InArg Explicit -> withParen
 	| InApp -> withParen
-	| InNotation _ -> withParen
 	| _ -> fun x -> x
       ) (
 	

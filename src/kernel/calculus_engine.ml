@@ -1,10 +1,8 @@
 open Calculus_def
 open Calculus_misc
 open Calculus_substitution
-open Calculus_pprinter
 open Extlist
 open Libparser
-open Printf
 
 open Fm
 
@@ -51,11 +49,9 @@ let simplification_strat = {
 
 (* this is a list of contexted unmatch patterns (with the destructed term type, and the desired return type) *)
 let unmatched_pattern : (context * pattern * term * term) list ref = ref []
-let print_unmatched_pattern = true
 
 (* this is the list of all non irreducible name called *)
 let registered_calls : (context * name * (term * nature) list) list ref = ref []
-let print_registered_calls = false
 
 let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
   let s, ty, n = q in
@@ -320,8 +316,7 @@ and typeinfer
       (* is the head is reducible def -> we register it as a call *)
       if (not in_app) && is_reducible_def defs app_head_ then (
 	let {ast = Cste c; _} = app_head_ in
-	registered_calls := (!ctxt, c, app_args_)::!registered_calls;
-	if print_registered_calls then printf "warning: registered call to reducible def (might require terminaison proof): %s\n" (term2string ctxt (app_ app_head_ app_args_))
+	registered_calls := (!ctxt, c, app_args_)::!registered_calls
       );      
       te
     | Annotation ty -> 
@@ -335,8 +330,7 @@ and typeinfer
 	  | Cste n -> (
 	    (* we register the call is needed *)
 	    if (not in_app) && is_reducible_def defs te then (
-	      registered_calls := (!ctxt, n, [])::!registered_calls;
-	      if print_registered_calls then printf "warning: registered call to reducible def (might require terminaison proof): %s\n" (term2string ctxt te)
+	      registered_calls := (!ctxt, n, [])::!registered_calls
 	    );      
 	    match get_cste defs n with
 	      | Inductive (_, ty) | Axiom ty | Constructor (_, ty) -> 
@@ -372,8 +366,7 @@ and typeinfer
 	    (* we register the call is needed *)
 	    if (not in_app) && is_reducible_def defs res then (
 	      let {ast = Cste n; _} = res in
-	      registered_calls := (!ctxt, n, [])::!registered_calls;
-	      if print_registered_calls then printf "warning: registered call to reducible def (might require terminaison proof): %s\n" (term2string ctxt te)
+	      registered_calls := (!ctxt, n, [])::!registered_calls
 	    ); res
 
 	  )
@@ -506,7 +499,8 @@ and typeinfer
 	      (* we traverse the patterns *)
 	      List.map (fun p ->
 		(* we verify that the pattern is well formed *)
-		if not (pattern_wf defs p) then raise (PoussinException (FreeError (String.concat " " ["pattern"; (pattern2string ctxt p); "is not well-formed"])));
+		(* TODO: replace by a function which adds the proper arguments *)
+		(*if not (pattern_wf defs p) then raise (PoussinException (FreeError (String.concat " " ["pattern"; (pattern2string ctxt p); "is not well-formed"])));*)
 		(* we push quantification corresponding to the pattern vars *)		
 		List.iter (fun v -> 
 		  let ty = add_fvar ctxt in
@@ -550,32 +544,9 @@ and typeinfer
 	      let p_te = pattern_to_term defs p in	      
 	      (* we try to typecheck the termed pattern against the type of the destructed term *)
 	      try
-		let p_te = typecheck defs ctxt' ~polarity:false ~coercion:false p_te mty' in
+		ignore(typecheck defs ctxt' ~polarity:false ~coercion:false p_te mty');
 		(* it typecheck -> the pattern is valid: we record it as unmatched *)
-		unmatched_pattern := (!ctxt, p, mty', ret_ty)::!unmatched_pattern;
-		if print_unmatched_pattern then (
-		  
-		  let _, frames = List.fold_right (fun ({name = n; ty = ty } as frame) (ln, acc)  ->
-		    let n' = fresh_name_list ~basename:(if String.compare n "_" == 0 then "H" else n) ln in
-		    (n'::ln), {frame with name = n'}::acc
-		  ) !ctxt'.bvs ([], []) in
-		  
-		  let ctxt'' = ref { !ctxt' with bvs = frames } in
-
-		  let s, f = conversion_hyps2subst ~dec_order:true !ctxt''.conversion_hyps in
-		  let s = append_substitution s (context2subst ctxt'') in
-		  (* we show the goal *)
-		  printf "------------------------------------------\n";
-		  ignore(map_nth (fun i -> 
-		    let i' = i - 1 in
-		    printf "%s: %s\n" (bvar_name ctxt'' i') (term2string ctxt'' (term_substitution s (bvar_type ctxt' i')))
-		  ) (List.length !ctxt''.bvs));
-		  printf "------------------------------------------\n";
-		  printf "facts: %s\n" (conversion_hyps2string ctxt'' (!ctxt''.conversion_hyps));
-		  printf "==========================================\n";
-
-		  printf "warning: unmatched pattern: %s : %s (== %s)\n\n" (pattern2string ctxt p) (term2string ctxt'' (get_type p_te)) (term2string ctxt'' mty')
-		)
+		unmatched_pattern := (!ctxt, p, mty', ret_ty)::!unmatched_pattern		
 	      with
 		| PoussinException (NoUnification _) ->
 		  (* the term mismatch the type -> this is not a possible pattern, thus we skip it*)
@@ -583,7 +554,7 @@ and typeinfer
 	    ) !patlst;
 	    let ret_ty = typecheck defs ctxt ~polarity:polarity ret_ty (type_ (UName "")) in
 	    { te with ast = Match (m, List.concat des); annot = Typed ret_ty }
-	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI for " ; term2string ctxt te]))
+	  | _ -> raise (Failure (String.concat "" ["typeinfer: NYI"]))
       ) in 
       match mty with
 	| Some ty -> (

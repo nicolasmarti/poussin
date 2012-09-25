@@ -1,2 +1,2 @@
-src/core/kernel/kernel.cmxa
-src/core/kernel/kernel.cma
+src/kernel/kernel.cmxa
+src/kernel/kernel.cma

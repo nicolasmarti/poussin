@@ -1,7 +1,5 @@
 open Calculus_def
 open Extlist
-open Libparser
-open Printf
 
 (* Some general constante *)
 
@@ -223,6 +221,10 @@ let rec fresh_name_list ?(basename: string = "H") (l: name list) : string =
 (* returns only the elements that are explicit *)
 let filter_explicit (l: ('a * nature) list) : 'a list =
   List.map fst (List.filter (fun (_, n) -> n = Explicit) l)
+
+type pos = ((int * int) * (int * int))
+
+let nopos = ((-1, -1), (-1, -1))
 
 (* position to/from pos *)
 let pos_from_position (p: position) : pos =
