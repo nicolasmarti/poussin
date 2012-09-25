@@ -167,6 +167,12 @@ let debug_reduction = ref false
 (* the global parserbuffer *)
 let global_parserbuffer : parserbuffer ref = ref (build_parserbuffer (Stream.of_list []))
 
-(* interactive routine *)
-let oracles : (defs -> context -> index option -> term -> term option) list ref = ref []
+type oracle = 
+    defs -> context -> (* definitions + context *)
+    index option -> (* the free var we are trying to solve *)
+    term -> (* the desired type *)
+    term option (* the result term *)
+
+(* registered oracles *)
+let registered_oracles : oracle list ref = ref []
 

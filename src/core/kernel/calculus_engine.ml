@@ -205,7 +205,7 @@ and pop_quantifications (defs: defs) (ctxt: context ref) (tes: term list) (n: in
       hd::tl, tes
 
 (* calls for oracles for a given type *)
-and oracles_call (defs: defs) (ctxt: context ref) ?(var: index option = None) (ty: term) : term option =
+and oracles_call (defs: defs) (ctxt: context ref) ?(oracles: oracle list option = None) ?(var: index option = None) (ty: term) : term option =
   let res = fold_stop (fun () oracle ->
     try	     
       (* save the context *)
@@ -228,7 +228,7 @@ and oracles_call (defs: defs) (ctxt: context ref) ?(var: index option = None) (t
     with
       | PoussinException err -> 
 	Left ()
-  ) () !oracles in
+  ) () (match oracles with | None -> !registered_oracles | Some lst -> lst) in
   match res with
     | Left () -> None
     | Right te -> 

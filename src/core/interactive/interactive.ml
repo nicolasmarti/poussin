@@ -25,7 +25,7 @@ end pb
 
 let init_interactive =
   (* we add the interactive oracle at the end of the list *)
-  oracles := !oracles @ (fun defs ctxt var ty -> 
+  registered_oracles := !registered_oracles @ (fun defs ctxt var ty -> 
     (* we just modify the frame of the context, in order to have all bounded variables accessible by a fresh name *)
     printf "|frames| = %d\n" (List.length ctxt.bvs);
     let _, frames = List.fold_right (fun ({name = n; ty = ty } as frame) (ln, acc)  ->
