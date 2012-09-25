@@ -1,7 +1,25 @@
 open Calculus_def
-open Extlist
 
-(* Some general constante *)
+(* Some list functions *)
+type ('a, 'b) either = Left of 'a
+		       | Right of 'b
+;;
+
+(* a fold that might stop before the whole traversal *)
+let rec fold_stop (f: 'b -> 'a -> ('b, 'c) either) (acc: 'b) (l: 'a list) : ('b, 'c) either =
+  match l with
+    | [] -> Left acc
+    | hd::tl ->
+      match f acc hd with
+	| Left acc -> fold_stop f acc tl
+	| Right res -> Right res
+
+(* some traverse fold without the reverse *)
+let mapacc (f: 'b -> 'a -> ('c * 'b)) (acc: 'b) (l: 'a list) : 'c list * 'b =
+  let acc = ref acc in
+  (List.map (fun hd -> let (hd, acc') = f !acc hd in
+		       acc := acc';
+		       hd) l, !acc)
 
 
 (* Some general functions to build terms *)

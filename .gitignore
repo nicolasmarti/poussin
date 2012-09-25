@@ -8,4 +8,6 @@ _build
 *.pyc
 *.bc
 *.pkl
+*.cma
+*.cmxa
 Pyro_NS_URI

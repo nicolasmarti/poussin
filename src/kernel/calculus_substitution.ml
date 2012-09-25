@@ -1,6 +1,5 @@
 open Calculus_def
 open Calculus_misc
-open Extlist
 (*************************************)
 (*      substitution/rewriting       *)
 (*************************************)

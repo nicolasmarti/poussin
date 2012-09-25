@@ -1,7 +1,6 @@
 open Calculus_def
 open Calculus_misc
 open Calculus_substitution
-open Extlist
 
 type beta_strength =
   | BetaStrong (* reduction under the quantifier*)
