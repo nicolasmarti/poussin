@@ -1,8 +1,6 @@
 - adding well-formness
   + Universe stratification
   + Positivity
-  + Terminaison
-  + Completeness
+  + Terminaison (harvesting of name ref done)
+  + Totality (catching unmatch and only possible patterns done)
   + Proof Irrelevance
-
-- higher order unification (STARTED)
