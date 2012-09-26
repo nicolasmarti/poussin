@@ -78,6 +78,7 @@ let type_simplification_strat = {
   eta = true;
 }
 
+let processing_time : float ref = ref 0.0;;
 
 let process_definition (def: definition) : unit =
   let ctxt = ref empty_context in
@@ -102,6 +103,7 @@ let process_definition (def: definition) : unit =
       let [ty] = flush_fvars env.defs ctxt [ty] in 
       Hashtbl.add env.defs n (Axiom ty);
       let time_end = Sys.time () in
+      processing_time := !processing_time +. (time_end -. time_start);
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "Signature %s: %s\n\n" n (term2string ctxt ty);  flush stdout
     | DefInductive (n, ty) -> 	
@@ -120,6 +122,7 @@ let process_definition (def: definition) : unit =
       let [ty] = flush_fvars env.defs ctxt [ty] in 
       Hashtbl.add env.defs n (Inductive ([], ty));
       let time_end = Sys.time () in
+      processing_time := !processing_time +. (time_end -. time_start);
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "Inductive %s: %s\n\n" n (term2string ctxt ty); flush stdout 
     | DefConstructor (n, ty) -> 
@@ -155,6 +158,7 @@ let process_definition (def: definition) : unit =
       let Inductive (lst, ty) = Hashtbl.find env.defs ind in
       Hashtbl.add env.defs ind (Inductive (lst @ [n], ty));
       let time_end = Sys.time () in
+      processing_time := !processing_time +. (time_end -. time_start);
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "Constructor %s: %s\n\n" n (term2string ctxt ty); flush stdout
     | DefDefinition (n, te) -> 
@@ -173,6 +177,7 @@ let process_definition (def: definition) : unit =
       let te = { te with annot = Typed (reduction_term env.defs ctxt type_simplification_strat (get_type te))} in
       Hashtbl.add env.defs n (Definition te);
       let time_end = Sys.time () in
+      processing_time := !processing_time +. (time_end -. time_start);
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "Definition %s := %s\n: %s \n\n" n (if true then (term2string ctxt te) else "...") (term2string ctxt (get_type te)); flush stdout
     | DefCompute te ->
@@ -183,6 +188,7 @@ let process_definition (def: definition) : unit =
 	{ beta = Some BetaWeak; delta = Some DeltaWeak; iota = true; zeta = true; eta = true }
 	te in
       let time_end = Sys.time () in
+      processing_time := !processing_time +. (time_end -. time_start);
       printf "%s\n" (term2string ctxt te'); flush stdout;
       printf "processed in %g sec.\n\n" (time_end -. time_start); flush stdout
 
@@ -209,6 +215,7 @@ let process_stream (str: string Stream.t) : unit  =
 	Lazy.lazy_from_val ()
       ) pb in
       let _ = eos pb in
+      printf "total processing time in %g sec.\n\n" !processing_time; flush stdout;
       ()
     )
   with
