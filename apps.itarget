@@ -1,2 +1,4 @@
 apps/interp.native
 apps/interp.p.native
+apps/interp.byte
+apps/interp.d.byte

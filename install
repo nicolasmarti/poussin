@@ -1,1 +1,1 @@
-ocamlfind install poussin META _build/src/kernel/calculus_kernel.a _build/src/kernel/calculus_kernel.cmi _build/src/kernel/calculus_kernel.cma _build/src/kernel/calculus_kernel.cmxa
+ocamlfind install poussin META _build/src/kernel/calculus_kernel.a _build/src/kernel/calculus_kernel.cmxa _build/src/kernel/calculus_kernel.cma _build/src/kernel/calculus_kernel.cmi _build/src/kernel/calculus_kernel.cmo _build/src/kernel/calculus_kernel.cmx
