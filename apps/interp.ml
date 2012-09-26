@@ -10,14 +10,14 @@ open Calculus_kernel
 (* the global parserbuffer *)
 let global_parserbuffer : parserbuffer ref = ref (build_parserbuffer (Stream.of_list []))
 
-let rec parse_interactive (defs: defs) (pb: parserbuffer) : term = begin
+let rec parse_interactive (defs: defs) (pb: parserbuffer) : term Lazy.t = begin
   (* an exact term *)
   tryrule (fun pb ->
-    let () = whitespaces pb in
+    let _ = whitespaces pb in
     let startpos = cur_pos pb in
-    let () = whitespaces pb in
+    let _ = whitespaces pb in
     let _ = word "exact" pb in
-    let () = whitespaces pb in
+    let _ = whitespaces pb in
     let te = parse_term defs startpos pb in
     te
   )
@@ -60,7 +60,7 @@ let init_interactive =
       let res = tryrule (parse_interactive defs) pb in
       global_parserbuffer := pb;
       (* we return the proposed term *)
-      Some res
+      Some (Lazy.force res)
     with
       | NoMatch -> None
   )::[];;
@@ -205,7 +205,8 @@ let process_stream (str: string Stream.t) : unit  =
 	  in*)
 	let time_end = Sys.time () in
 	printf "parsed in %g sec.\n\n" (time_end -. time_start); flush stdout;
-	process_definition def
+	process_definition (Lazy.force def);
+	Lazy.lazy_from_val ()
       ) pb in
       let _ = eos pb in
       ()

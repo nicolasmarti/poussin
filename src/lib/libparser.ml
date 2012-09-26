@@ -27,7 +27,8 @@ type parserbuffer = {
   mutable inputstream: string Stream.t; 
   mutable bufferstr: Buffer.t;
   mutable beginpointer: int;    
-  mutable error: ((int * int) * (int * int) * (int * int) * string) list
+  mutable error: ((int * int) * (int * int) * (int * int) * string) list;
+  mutable coo: (int, (int * int)) Hashtbl.t
 };;
 
 let build_parserbuffer stream = {
@@ -35,6 +36,7 @@ let build_parserbuffer stream = {
   bufferstr = Buffer.create 0;
   beginpointer = 0;
   error = [];
+  coo = Hashtbl.create 100
 };;
 
 let current_buffer (pb: parserbuffer) =
@@ -44,22 +46,30 @@ let current_buffer (pb: parserbuffer) =
 (* test if we reach the end of the buffer *)
 let endofbuffer (pb:parserbuffer) = 
   (pb.beginpointer = Buffer.length pb.bufferstr)
-    
+
 let pos_coo (pb: parserbuffer) (pos: int) : (int * int) =
-  let nb_row = ref 0 in
-  let cur_index = ref 0 in
-  let last_index = ref 0 in
-  let s = Buffer.contents pb.bufferstr in
-  try 
-    while !cur_index <= pos do
-      last_index := !cur_index;
-      cur_index := String.index_from s !cur_index '\n';
-      cur_index := !cur_index + 1;
-      if !cur_index <= pos then nb_row := !nb_row + 1 else ();
-    done;
-    (!nb_row, pos - !last_index)
+  try Hashtbl.find pb.coo pos 
   with
-    | Not_found -> (!nb_row, pos - !last_index)
+    | _ ->
+      let nb_row = ref 0 in
+      let cur_index = ref 0 in
+      let last_index = ref 0 in
+      let s = Buffer.contents pb.bufferstr in
+      try 
+	while !cur_index <= pos do
+	  last_index := !cur_index;
+	  cur_index := String.index_from s !cur_index '\n';
+	  cur_index := !cur_index + 1;
+	  if !cur_index <= pos then nb_row := !nb_row + 1 else ();
+	done;
+	let c = (!nb_row, pos - !last_index) in
+	Hashtbl.add pb.coo pos c;
+	c
+      with
+	| Not_found -> 
+	  let c = (!nb_row, pos - !last_index) in
+	  Hashtbl.add pb.coo pos c;
+	  c
 ;;
 
 let cur_pos pb = pos_coo pb pb.beginpointer
@@ -141,27 +151,27 @@ let rec match_regexp (r: regexp) (pb:parserbuffer) : string =
    + a little example for int
 *)
 
-type 'a lexingrule = regexp * (string -> 'a)
+type 'a lexingrule = regexp * (string -> 'a Lazy.t)
 ;;
 
-let rec applylexingrule (r: 'a lexingrule) (pb:parserbuffer) : 'a =
+let rec applylexingrule (r: 'a lexingrule) (pb:parserbuffer) : 'a Lazy.t=
   let str = match_regexp (fst r) pb in
   (snd r) str
 ;;
 
 (* parsing rules *)
 
-type 'a parsingrule = parserbuffer -> 'a
+type 'a parsingrule = parserbuffer -> 'a Lazy.t
 ;;
 
 (* the parser that return a constante *)
-let parsecste (v: 'a) (pb: parserbuffer) : 'a =
-  v
+let parsecste (v: 'a) (pb: parserbuffer) : 'a Lazy.t=
+  Lazy.lazy_from_val v
 ;;
 
 (* try to apply a parsing rule, if it fails it restore the original beginpointer *)
 
-let tryrule (r: 'a parsingrule) (pb:parserbuffer) : 'a =
+let tryrule (r: 'a parsingrule) (pb:parserbuffer) : 'a Lazy.t =
   let savebegin = pb.beginpointer in
   try 
     r pb
@@ -171,14 +181,18 @@ let tryrule (r: 'a parsingrule) (pb:parserbuffer) : 'a =
       raise NoMatch
 ;;
 
-let mayberule (r: 'a parsingrule) (pb:parserbuffer) : 'a option =
-  let savebegin = pb.beginpointer in
+let mayberule (r: 'a parsingrule) (pb:parserbuffer) : ('a option) Lazy.t =
+  let savebegin = pb.beginpointer in  
   try 
-    Some (r pb)
+    let res = r pb in
+    Lazy.lazy_from_fun (
+      fun () ->
+	Some (Lazy.force res)
+    )
   with
     | NoMatch -> 
       pb.beginpointer <- savebegin;
-      None
+      Lazy.lazy_from_val None
 ;;
 
 (* one of *)
@@ -189,7 +203,7 @@ let rec one_of (l: string list): string parsingrule =
       | [] -> raise NoMatch
       | hd::tl ->
 	try
-	  applylexingrule (regexp_string hd, (fun s -> s)) pb
+	  applylexingrule (regexp_string hd, (fun s -> Lazy.lazy_from_val s)) pb
 	with
 	  | NoMatch -> 
 	    pb.beginpointer <- savebegin;
@@ -197,13 +211,13 @@ let rec one_of (l: string list): string parsingrule =
 ;;
 
 (* we try some parsing rule, but without changing the pointer to the parsing buffer or raising NoMAtch exception *)
-let predictrule (r: 'a parsingrule) (pb:parserbuffer) : ('a * int) option =
+let predictrule (r: 'a parsingrule) (pb:parserbuffer) : ('a * int) Lazy.t option  =
   let savebegin = pb.beginpointer in
   try 
     let res = r pb in
     let saveend = pb.beginpointer in
     pb.beginpointer <- savebegin;
-    Some (res, saveend)        
+    Some (Lazy.lazy_from_fun (fun () -> (Lazy.force res, saveend)))
   with
     | NoMatch -> 
       pb.beginpointer <- savebegin;
@@ -212,7 +226,7 @@ let predictrule (r: 'a parsingrule) (pb:parserbuffer) : ('a * int) option =
 
 
 (* disjunction of two parsingrules *)
-let orrule (r1: 'a parsingrule) (r2: 'a parsingrule) (pb: parserbuffer) : 'a =
+let orrule (r1: 'a parsingrule) (r2: 'a parsingrule) (pb: parserbuffer) : 'a Lazy.t =
   let savebegin = pb.beginpointer in
   try 
     r1 pb
@@ -225,15 +239,15 @@ let orrule (r1: 'a parsingrule) (r2: 'a parsingrule) (pb: parserbuffer) : 'a =
 let (<|>) r1 r2 pb = orrule r1 r2 pb;;
 
 (* conjunction of two parsingrules *)
-let andrule (r1: ('a -> 'b) parsingrule) (r2: 'a parsingrule) (pb: parserbuffer) : 'b =
+let andrule (r1: ('a -> 'b) parsingrule) (r2: 'a parsingrule) (pb: parserbuffer) : 'b Lazy.t =
   let res1 = r1 pb in
   let res2 = r2 pb in
-  res1 res2
+  Lazy.lazy_from_fun (fun () -> (Lazy.force res1) (Lazy.force res2))
 ;;
 
 let (>>) r1 r2 = andrule r1 r2;;
 
-let thenrule (r1: 'a parsingrule) (r2: 'b parsingrule) (pb: parserbuffer) : 'b =
+let thenrule (r1: 'a parsingrule) (r2: 'b parsingrule) (pb: parserbuffer) : 'b Lazy.t =
   let _ = r1 pb in
   let res2 = r2 pb in
   res2
@@ -242,20 +256,14 @@ let thenrule (r1: 'a parsingrule) (r2: 'b parsingrule) (pb: parserbuffer) : 'b =
 let (>>>) r1 r2 = thenrule r1 r2;;
 
 (* not combinator *)
-let notp (r: 'a parsingrule) (pb: parserbuffer) : unit =
+let notp (r: 'a parsingrule) (pb: parserbuffer) : unit Lazy.t =
   let savebegin = pb.beginpointer in
-  let res = (
-    try 
-      let _ = (tryrule r) pb in
-      false
-    with
-      | NoMatch -> true
-  ) in
-  if res then ()
-  else (
+  try 
+    let _ = (tryrule r) pb in
     pb.beginpointer <- savebegin;
-    raise NoMatch
-  )
+    raise NoMatch    
+  with
+      | NoMatch -> Lazy.lazy_from_val ()
 ;;
 
 (* always returns NoMatch *)
@@ -265,7 +273,7 @@ let nokp (pb: parserbuffer) =
 
 (* always returns () *)
 let okp (pb: parserbuffer) =
-  ()
+  Lazy.lazy_from_val ()
 ;;
 
 (* a parser for spaces *)
@@ -273,9 +281,9 @@ let spaces : ('a -> 'a) parsingrule =
   fun pb ->
     try    
       (* it seems a miss something ... but what ?? *)
-      applylexingrule (regexp "[\t \r \n]*", fun (s:string) -> fun x -> x) pb
+      applylexingrule (regexp "[\t \r \n]*", fun (s:string) -> Lazy.lazy_from_val (fun x -> x)) pb
     with
-      | NoMatch -> fun x -> x      
+      | NoMatch -> Lazy.lazy_from_val (fun x -> x)
 ;;
 
 let whitespaces : unit parsingrule = 
@@ -284,29 +292,29 @@ let whitespaces : unit parsingrule =
       (* it seems a miss something ... but what ?? *)
       applylexingrule (regexp "[\t \r \n]*", fun (s:string) -> 
 	(*printf "whitespaces := '%s'\n" s;*)
-	()) pb
+	Lazy.lazy_from_val ()) pb
     with
-      | NoMatch -> ()      
+      | NoMatch -> Lazy.lazy_from_val ()      
 ;;
 
 
 let keyword (s: string) (v: 'a) : 'a parsingrule =
   fun pb ->
-    (spaces >> (applylexingrule (regexp_string s, (fun _ -> v)))) pb
+    (spaces >> (applylexingrule (regexp_string s, (fun _ -> Lazy.lazy_from_val v)))) pb
 ;;
 
 let word (s: string) : unit parsingrule =
-  (applylexingrule (regexp_string s, (fun _ -> ())))
+  (applylexingrule (regexp_string s, (fun _ -> Lazy.lazy_from_val ())))
 ;;
 
 let words (s: string) : string parsingrule =
-  (applylexingrule (regexp_string s, (fun s -> s)))
+  (applylexingrule (regexp_string s, (fun s -> Lazy.lazy_from_val s)))
 ;;
 
 let paren (p: 'a parsingrule) : 'a parsingrule =
   spaces >>> (
     fun pb ->
-      let _ = word "(" pb in
+      let _ = applylexingrule (regexp "(", fun (s:string) -> Lazy.lazy_from_val ()) pb in
       let _ = whitespaces pb in
       let res = 
 	try 
@@ -315,7 +323,7 @@ let paren (p: 'a parsingrule) : 'a parsingrule =
 	  | NoMatch -> raise NoMatch
       in
       let _ = whitespaces pb in
-      let _ = word ")" pb in
+      let _ = applylexingrule (regexp ")", fun (s:string) -> Lazy.lazy_from_val ()) pb in
       res
   )
 ;;
@@ -324,7 +332,7 @@ let bracket (p: 'a parsingrule) : 'a parsingrule =
   spaces >>> (
     fun pb ->
       let _ = whitespaces pb in
-      let _ = word "{" pb in
+      let _ = applylexingrule (regexp "{", fun (s:string) -> Lazy.lazy_from_val ()) pb in
       let _ = whitespaces pb in
       let res = 
 	try 
@@ -333,25 +341,7 @@ let bracket (p: 'a parsingrule) : 'a parsingrule =
 	  | NoMatch -> raise NoMatch
       in
       let _ = whitespaces pb in
-      let _ = word "}" pb in
-      res
-  )
-;;
-
-let square_bracket (p: 'a parsingrule) : 'a parsingrule =
-  spaces >>> (
-    fun pb ->
-      let _ = whitespaces pb in
-      let _ = word "[" pb in
-      let _ = whitespaces pb in
-      let res = 
-	try 
-	  p pb 
-	with 
-	  | NoMatch -> raise NoMatch
-      in
-      let _ = whitespaces pb in
-      let _ = word "]" pb in
+      let _ = applylexingrule (regexp "}", fun (s:string) -> Lazy.lazy_from_val ()) pb in
       res
   )
 ;;
@@ -368,7 +358,7 @@ let notpl (l: string list) : unit parsingrule =
 
 
 (* many combinator *)
-let rec many (r: 'a parsingrule) (pb: parserbuffer) : 'a list =
+let rec many (r: 'a parsingrule) (pb: parserbuffer) : 'a list Lazy.t =
   let hd = (
     try 
       Some (r pb)
@@ -376,25 +366,25 @@ let rec many (r: 'a parsingrule) (pb: parserbuffer) : 'a list =
       | NoMatch -> None
   ) in
   match hd with
-    | None -> []
+    | None -> Lazy.lazy_from_val []
     | Some hd -> 
       let tl = many r pb in
-      hd::tl
+      Lazy.lazy_from_fun (fun () -> (Lazy.force hd)::(Lazy.force tl))
 ;;
 
-let many1 (r: 'a parsingrule) (pb: parserbuffer) : 'a list =
+let many1 (r: 'a parsingrule) (pb: parserbuffer) : 'a list Lazy.t =
   let hd = r pb in
   let tl = many r pb in
-  hd::tl
+  Lazy.lazy_from_fun (fun () -> (Lazy.force hd)::(Lazy.force tl))
 ;;
 
-let many2 (r: 'a parsingrule) (pb: parserbuffer) : 'a list =
+let many2 (r: 'a parsingrule) (pb: parserbuffer) : 'a list Lazy.t =
   let savebegin = pb.beginpointer in
   try 
     let hd1 = r pb in
     let hd2 = r pb in
     let tl = many r pb in
-    hd1::hd2::tl
+    Lazy.lazy_from_fun (fun () -> (Lazy.force hd1)::(Lazy.force hd2)::(Lazy.force tl))
   with
     | NoMatch ->
       (
@@ -407,42 +397,48 @@ let many2 (r: 'a parsingrule) (pb: parserbuffer) : 'a list =
 let any_except_nl : string list -> string parsingrule = 
   fun l pb ->
     let s = many (fun pb ->
-      let () = notpl l pb in
-      applylexingrule (regexp ".", fun (s:string) -> s) pb
+      let _ = notpl l pb in
+      applylexingrule (regexp ".", fun (s:string) -> Lazy.lazy_from_val s) pb
     ) pb in
-    String.concat "" s
+    Lazy.lazy_from_fun (fun () -> String.concat "" (Lazy.force s))
 ;;
 
 let any_except : string list -> string parsingrule = 
   fun l pb ->
     let s = many (fun pb ->
-      let () = notpl l pb in
-      applylexingrule (regexp ".\\|[\r \n]", fun (s:string) -> s) pb
+      let _ = notpl l pb in
+      applylexingrule (regexp ".\\|[\r \n]", fun (s:string) -> Lazy.lazy_from_val s) pb
     ) pb in
-    String.concat "" s
+    Lazy.lazy_from_fun (fun () -> String.concat "" (Lazy.force s))
 ;;
 
 (* do an until NoMatch *)
-let rec fixpoint (p: 'a -> 'a parsingrule) (a: 'a) (pb: parserbuffer) : 'a =
+let rec fixpoint (p: 'a -> 'a parsingrule) (a: 'a) (pb: parserbuffer) : 'a Lazy.t =
   try 
     let res = p a pb in
-    fixpoint p res pb
+    fixpoint p (Lazy.force res) pb
   with
-    | NoMatch -> a
+    | NoMatch -> Lazy.lazy_from_val a
 ;;
 
 
 let (|>) v p = (parsecste v) >> p
 ;;
 
-let rec separatedBy (elem: 'a parsingrule) (sep: 'b parsingrule) (pb: parserbuffer) : 'a list =
-  let hd = elem pb in
-  let tl = try (
-    let _ = sep pb in
-    separatedBy elem sep pb
-  ) with
-    | NoMatch -> [] in
-  hd :: tl
+let rec separatedBy (elem: 'a parsingrule) (sep: 'b parsingrule) (pb: parserbuffer) : 'a list Lazy.t =
+  let savebegin1 = pb.beginpointer in
+  try (
+    let hd = elem pb in
+    let savebegin = pb.beginpointer in
+    let tl = try (
+      let _ = sep pb in
+      separatedBy elem sep pb
+    ) with
+      | NoMatch -> 
+	pb.beginpointer <- savebegin;
+	Lazy.lazy_from_val [] in
+    Lazy.lazy_from_fun (fun () -> (Lazy.force hd)::(Lazy.force tl))
+  ) with | NoMatch -> pb.beginpointer <- savebegin1; Lazy.lazy_from_val []
 ;; 
 
 (*
@@ -475,10 +471,19 @@ type associativity =
 (*
   fold : ('a -> 'b -> 'c -> 'c) -> ('a, 'b) t -> 'c -> 'c
 *)
+(*
+let cur_pos_lazy pb = Lazy.lazy_from_val (cur_pos pb);;
 
 let op_pos_parser (opdef: (string, (int * associativity * ('d -> 'b -> 'b -> 'c))) Hashtbl.t) : (string * pos) parsingrule =
   Hashtbl.fold ( fun key value acc ->
-    (spaces >> ((fun b s e -> (s, (b, e))) |> cur_pos >> (applylexingrule (regexp_string key, (fun _ -> key))) >> cur_pos)) 
+    (fun pb ->
+      let _ = spaces pb in
+      let b = cur_pos pb in
+      let s = applylexingrule (regexp_string key, (fun _ -> Lazy.lazy_from_val key)) pb in
+      let e = cur_pos pb in
+      Lazy.lazy_from_fun (fun () -> (Lazy.force s, (b, e)))
+    )
+    (*(spaces >> ((fun b s e -> Lazy.lazy_from_fun (fun () -> (Lazy.force s, (Lazy.force b, Lazy.force e)))) |> cur_pos_lazy >> (applylexingrule (regexp_string key, (fun _ -> Lazy.lazy_from_val key))) >> cur_pos_lazy))*)
     <|> acc             
   ) opdef nokp
 ;;
@@ -486,7 +491,14 @@ let op_pos_parser (opdef: (string, (int * associativity * ('d -> 'b -> 'b -> 'c)
 
 let op_par_pos_parser (opdef: (string, (int * associativity * ('d -> 'b -> 'b -> 'c))) Hashtbl.t) : (string * pos) parsingrule =
   Hashtbl.fold ( fun key value acc ->
-    (spaces >> ((fun b s e -> (s, (b, e))) |> cur_pos >> (applylexingrule (regexp_string (String.concat "" ["("; key; ")"]), (fun _ -> key))) >> cur_pos)) 
+    (fun pb ->
+      let _ = spaces pb in
+      let b = cur_pos pb in
+      let s = applylexingrule (regexp_string (String.concat "" ["("; key; ")"]), (fun _ -> Lazy.lazy_from_val key)) pb in
+      let e = cur_pos pb in
+      Lazy.lazy_from_fun (fun () -> (Lazy.force s, (b, e)))
+    )
+      (*(spaces >> ((fun b s e -> (s, (b, e))) |> cur_pos >> (applylexingrule (regexp_string (String.concat "" ["("; key; ")"]), (fun _ -> key))) >> cur_pos)) *)
     <|> acc             
   ) opdef nokp
 ;;
@@ -496,7 +508,7 @@ let rec operator_precedence (opparse: ('a * 'd) parsingrule) (opdef: ('a, (int *
     let lhs = primary pb in
     let min_pred = 0 in
     operator_precedence_loop opparse opdef primary lhs min_pred pb
-and operator_precedence_loop (opparse: ('a * 'd) parsingrule) (opdef: ('a, (int * associativity * ('d -> 'b -> 'b -> 'c))) Hashtbl.t) (primary: 'b parsingrule) (lhs: 'b) (min_pred: int) : 'c parsingrule =
+and operator_precedence_loop (opparse: ('a * 'd) parsingrule) (opdef: ('a, (int * associativity * ('d -> 'b -> 'b -> 'c))) Hashtbl.t) (primary: 'b parsingrule) (lhs: 'b Lazy.t) (min_pred: int) : 'c parsingrule =
   fun pb ->
     try 
       match predictrule ((fun x y -> (x, y)) |> opparse >> primary) pb with 
@@ -520,7 +532,7 @@ and operator_precedence_loop (opparse: ('a * 'd) parsingrule) (opdef: ('a, (int 
 	  )
     with 
       | Not_found -> lhs
-        
+*)        
 	
 (* this combinator push an error message in the parserbuffer if the parser fails *)
 let error (p: 'a parsingrule) (s: string) : 'a parsingrule =
@@ -532,7 +544,7 @@ let error (p: 'a parsingrule) (s: string) : 'a parsingrule =
       | NoMatch -> 
         let errend = pb.beginpointer in
 	if (savebegin = errend) then (
-	  let _ = applylexingrule (regexp ".", fun (s:string) -> s) pb in
+	  let _ = applylexingrule (regexp ".", fun (s:string) -> Lazy.lazy_from_val s) pb in
 	  ()
 	);
         let errend = pb.beginpointer in
@@ -547,7 +559,7 @@ let (<!>) p s pb = error p s pb;;
 let keyworderr (s: string) (v: 'a) : 'a parsingrule =
   let error = String.concat "" ["error. string '"; s; "' cannot be parse"] in
   fun pb ->
-    (spaces >> (applylexingrule (regexp_string s, (fun _ -> v))) <!> error) pb
+    (spaces >> (applylexingrule (regexp_string s, (fun _ -> Lazy.lazy_from_val v))) <!> error) pb
 ;;
 
 let (<!!>) p s pb =
@@ -802,7 +814,7 @@ let insert_primary (a: 'a) (t: 'a parsetree) : 'a parsetree =
   match t with
     | Leaf root ->
       Node (PrimaryNode a, root)
-    | _ -> printf "insert_primary: not a Leaf root\n"; raise NoMatch
+    | _ -> (*printf "insert_primary: not a Leaf root\n";*) raise NoMatch
 ;;
 
 (* inserting a prefix: the next place to add is the Leaf *)
@@ -1012,6 +1024,7 @@ let rec tree_semantics (t: 'a parsetree) : 'a =
    sort : ('a -> 'a -> int) -> 'a list -> 'a list
    (increasing, 0 = (=), 1 = (>), -1 = (<))
 *)
+(*
 let parse_primary (p: 'a parsingrule) : 'a parsetree -> ('a parsetree) parsingrule =
   fun t ->
     (
@@ -1125,7 +1138,6 @@ let parse_infix (op: 'a opparser) (t: 'a parsetree) : ('a parsetree) parsingrule
       let _ = keyword x () pb in
       let endp = cur_pos pb in
       let _ = whitespaces pb in
-      (*printf "parsed infix: %s\n" x;*)
       try
         insert_infix (x, y, z, w (startp, endp)) t
       with
@@ -1157,6 +1169,7 @@ let rec opparse (op: 'a opparser) : 'a parsingrule =
       | _ -> (*printf "catastrophic: tree without semantics\n";*) raise NoMatch
   ) <!> "not a primary/infix/prefix formula"
 ;;
+*)
 
 let line_stream_of_channel channel =
   Stream.from
@@ -1172,11 +1185,15 @@ let stream_of_string s =
     )
 
 (* eos *)
-let eos (pb: parserbuffer) : unit =
-  try
-    Stream.empty pb.inputstream
-  with
-    | Stream.Failure -> raise NoMatch
+let eos : unit parsingrule =
+    error (fun pb ->
+      try
+	Stream.empty pb.inputstream;
+	if (pb.beginpointer < Buffer.length pb.bufferstr) then raise (Stream.Failure);
+	Lazy.lazy_from_val ()
+      with
+	| Stream.Failure -> raise NoMatch
+    ) "no end of stream"
 
 
 (* assert that pos1 contains pos2 *)

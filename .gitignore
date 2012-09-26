@@ -10,4 +10,5 @@ _build
 *.pkl
 *.cma
 *.cmxa
+*.out
 Pyro_NS_URI
