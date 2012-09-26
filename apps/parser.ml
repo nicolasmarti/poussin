@@ -37,13 +37,13 @@ let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; 
 let parse_reserved : unit parsingrule =
   foldp (List.map (fun x -> keyword x ()) keywords)
 
-let name_parser : name parsingrule = applylexingrule (regexp "[a-zA-Z][_a-zA-Z0-9]*", 
-						      fun (s:string) -> 
-							if List.mem s keywords then raise NoMatch else Lazy.lazy_from_val s
+let name_parser : name parsingrule = applylexingrule_regexp ("[a-zA-Z][_a-zA-Z0-9]*", 
+							     fun (s:string) -> 
+							       if List.mem s keywords then raise NoMatch else Lazy.lazy_from_val s
 )
 
-let parse_avar : unit parsingrule = applylexingrule (regexp "_", 
-						     fun (s:string) -> Lazy.lazy_from_val ()
+let parse_avar : unit parsingrule = applylexingrule_regexp ("_", 
+							    fun (s:string) -> Lazy.lazy_from_val ()
 )
 
 (* build an implication: no shifting in types !!! (used by the parser) *)
