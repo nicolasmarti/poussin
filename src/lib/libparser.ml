@@ -34,7 +34,7 @@ type parserbuffer = {
 
 let build_parserbuffer stream = {
   inputstream = stream;
-  bufferstr = Buffer.create 0;
+  bufferstr = Buffer.create 1000;
   beginpointer = 0;
   error = [];
   coo = Hashtbl.create 100;

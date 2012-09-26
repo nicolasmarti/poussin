@@ -75,7 +75,6 @@ let build_lambda (symbols: (name * pos) list) (ty: term) (nature: nature) (body:
 let build_lambdas (qs: ((name * pos) list * term * nature) list) (body: term) : term =
   List.fold_right (fun (s, ty, n) acc -> build_lambda s ty n acc) qs body
 
-
 (* these are the whole term set 
    - term_lvlx "->" term
 *)
@@ -281,7 +280,16 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
   (fun pb -> 
     let _ = whitespaces pb in
     at_start_pos leftmost (paren (parse_term defs leftmost)) pb)
-  <|> tryrule (fun pb -> 
+  <|> (*tryrule*) (fun pb ->
+    let _ = whitespaces pb in
+    let pos = at_start_pos leftmost (with_pos name_parser) pb in
+    let _ = whitespaces pb in
+    Lazy.lazy_from_fun (fun () ->
+      let n, pos = Lazy.force pos in
+      name_ ~pos:(pos_to_position pos) n
+    )
+  )
+  <|> (*tryrule*) (fun pb -> 
     let _ = whitespaces pb in
     let pos = at_start_pos leftmost (with_pos (word "Type")) pb in
     let _ = whitespaces pb in
@@ -289,7 +297,7 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
       type_ ~pos:(pos_to_position (snd (Lazy.force pos))) (UName "")
     )
   ) 
-  <|> tryrule (fun pb -> 
+  <|> (*tryrule*) (fun pb -> 
     let _ = whitespaces pb in
     let pos = at_start_pos leftmost (with_pos (word "Set")) pb in
     let _ = whitespaces pb in
@@ -297,7 +305,7 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
       set_ ~pos:(pos_to_position (snd (Lazy.force pos))) (UName "")
     )
   ) 
-  <|> tryrule (fun pb -> 
+  <|> (*tryrule*) (fun pb -> 
     let _ = whitespaces pb in
     let pos = at_start_pos leftmost (with_pos (word "Prop")) pb in
     let _ = whitespaces pb in
@@ -305,7 +313,7 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
       prop_ ~pos:(pos_to_position (snd (Lazy.force pos))) (UName "")
     )
   ) 
-  <|> tryrule (fun pb ->
+  <|> (*tryrule*) (fun pb ->
     let _ =  whitespaces pb in
     let pos = at_start_pos leftmost (with_pos parse_avar) pb in
     let _ = whitespaces pb in
@@ -313,7 +321,11 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
       avar_ ~pos:(pos_to_position (snd (Lazy.force pos))) ()
     )
   ) 
-  <|> tryrule (fun pb ->
+  <|> (*tryrule*) (parse_match defs leftmost)
+  <|> (*tryrule*) (parse_let defs leftmost)
+end pb
+
+and parse_let (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : term Lazy.t = (
     let _ = whitespaces pb in
     let startpos = cur_pos pb in    
     let _ = at_start_pos leftmost (word "let") pb in
@@ -332,47 +344,37 @@ and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : te
     Lazy.lazy_from_fun (fun () ->
       let_ ~pos:(pos_to_position (startpos, endpos)) (Lazy.force n) (Lazy.force te) (Lazy.force te2)
     )
-  )
-  (* parsing of math: TODO extends for having more than one pattern per destructor *)
-  <|> tryrule (fun pb ->
+)
+
+and parse_match (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : term Lazy.t = (
+  let _ = whitespaces pb in
+  let startpos = cur_pos pb in    
+  let _ = at_start_pos leftmost (word "match") pb in
+  let _ = whitespaces pb in
+  let te = parse_term defs leftmost pb in
+  let _ = whitespaces pb in
+  let _ = at_start_pos leftmost (word "with") pb in
+  let eqs = many (fun pb ->
     let _ = whitespaces pb in
-    let startpos = cur_pos pb in    
-    let _ = at_start_pos leftmost (word "match") pb in
+    let _ = at_start_pos leftmost (word "|") pb in
     let _ = whitespaces pb in
-    let te = parse_term defs leftmost pb in
+    let newleftmost = cur_pos pb in
+    let p = at_start_pos leftmost (parse_pattern defs leftmost) pb in
     let _ = whitespaces pb in
-    let _ = at_start_pos leftmost (word "with") pb in
-    let eqs = many (fun pb ->
-      let _ = whitespaces pb in
-      let _ = at_start_pos leftmost (word "|") pb in
-      let _ = whitespaces pb in
-      let newleftmost = cur_pos pb in
-      let p = at_start_pos leftmost (parse_pattern defs leftmost) pb in
-      let _ = whitespaces pb in
-      let _ = at_start_pos leftmost (word ":=") pb in
-      let _ = whitespaces pb in
-      let te = parse_term defs newleftmost pb in
-      Lazy.lazy_from_fun (fun () ->
-	((Lazy.force p)::[]), (Lazy.force te)
-      )
-    ) pb in
+    let _ = at_start_pos leftmost (word ":=") pb in
     let _ = whitespaces pb in
-    let _ = at_start_pos leftmost (word "end") pb in
-    let endpos = cur_pos pb in    
+    let te = parse_term defs newleftmost pb in
     Lazy.lazy_from_fun (fun () ->
-      match_ ~pos:(pos_to_position (startpos, endpos)) (Lazy.force te) (Lazy.force eqs)
+      ((Lazy.force p)::[]), (Lazy.force te)
     )
+  ) pb in
+  let _ = whitespaces pb in
+  let _ = at_start_pos leftmost (word "end") pb in
+  let endpos = cur_pos pb in    
+  Lazy.lazy_from_fun (fun () ->
+    match_ ~pos:(pos_to_position (startpos, endpos)) (Lazy.force te) (Lazy.force eqs)
   )
-  <|> tryrule (fun pb ->
-    let _ = whitespaces pb in
-    let pos = at_start_pos leftmost (with_pos name_parser) pb in
-    let _ = whitespaces pb in
-    Lazy.lazy_from_fun (fun () ->
-      let n, pos = Lazy.force pos in
-      name_ ~pos:(pos_to_position pos) n
-    )
-  )
-end pb
+)
 
 and parse_pattern (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : pattern Lazy.t = begin
   tryrule (fun pb -> 
