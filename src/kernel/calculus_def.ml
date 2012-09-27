@@ -166,4 +166,4 @@ let registered_oracles : oracle list ref = ref []
 (* this is a flag asserting if only Inductive can be match
    WARNING := setting to true make the system inconsistent
 *)
-let match_only_inductive = false
+let match_only_inductive = ref false
