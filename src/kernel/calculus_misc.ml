@@ -443,7 +443,7 @@ and pattern_to_term_loop (defs: defs) (p: pattern) (i: int): term * int =
 	let p, i = pattern_to_term_loop defs p i in
 	((hds @ [p, n]), i)
       ) ([], i) args in
-      (app_ (get_constructor defs n) args, i)
+      (app_ (if match_only_inductive then get_constructor defs n else cste_ n) args, i)
 
 
 (* is clean term:

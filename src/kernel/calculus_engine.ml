@@ -474,9 +474,16 @@ and typeinfer
 	    let m = typeinfer defs ctxt m in
 	    (* then we assure ourselves that it is an inductive *)
 	    let mty = (get_type m) in
-	    let indname = match (app_head (reduction_term defs ctxt typeinfer_strat mty)).ast with 
-	      | Cste n -> (match get_cste defs n with | Inductive _ -> n | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, m))))
-	      | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, m)))
+	    (* we create a list of exhaustive pattern *)
+	    let patlst = match (app_head (reduction_term defs ctxt typeinfer_strat mty)).ast with 
+	      | Cste n -> (
+		match get_cste defs n with 
+		  | Inductive _ -> ref (build_inductive_pattern defs n) 
+		  | _ when match_only_inductive -> raise (PoussinException (NotInductiveDestruction (!ctxt, m)))
+		  | _ -> ref []
+	      )
+	      | _ when match_only_inductive -> raise (PoussinException (NotInductiveDestruction (!ctxt, m)))
+	      | _ -> ref []
 	    in
 	    (* we create a type for the return value *)
 	    let ret_ty = 
@@ -484,8 +491,6 @@ and typeinfer
 		| TypedAnnotation ty -> ty
 		| _ -> add_fvar ctxt
 	    in
-	    (* we create a list of exhaustive pattern *)
-	    let patlst = ref (build_inductive_pattern defs indname) in
 	    (* then we traverse the destructors *)
 	    let des = List.map (fun (ps, des) ->
 	      (* saves the conversion *)
