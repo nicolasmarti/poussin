@@ -1260,3 +1260,22 @@ let best_pos (p1: pos) (p2: pos) : pos =
     | _ when p2 = nopos  -> p1
     | _ when pos_in p1 p2 -> p2
     | _ -> p1
+
+let memoize_parser (p: 'a parsingrule) (h: (int, 'a Lazy.t) Hashtbl.t) : 'a parsingrule =
+  fun pb ->
+  try
+    let startp = pb.beginpointer in
+    let coo = pos_coo pb startp in
+    printf "(%d, %d) -> ???(1)\n" (fst coo) (snd coo);
+    Hashtbl.find h startp
+  with
+    | _ -> 
+      let startp = pb.beginpointer in
+      try 
+	let res = p pb in
+	let coo = pos_coo pb startp in
+	printf "(%d, %d) -> !!!!\n" (fst coo) (snd coo);
+	Hashtbl.replace h startp res;
+	res
+      with
+	| NoMatch -> Hashtbl.remove h startp; raise NoMatch
