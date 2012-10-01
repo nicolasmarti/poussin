@@ -1,21 +1,26 @@
-Signature P: Set
-Signature N: Set
-Signature Z: Set
-Signature Q: Set
-Signature R: Set
+Inductive P: Set
+Inductive N: Set
+Inductive Z: Set
+Inductive Q: Set
+Inductive R: Set
 
-Signature plusCase: Set -> Set -> Set
+Inductive plusCase: Set
+Constructor plusCaseC: Set -> Set -> plusCase
 
 Signature PlusType {A: Set} {B: Set}: Set
 Definition PlusType {A} {B} : Set :=
-  match plusCase A B with
-     | plusCase P P := P
-     | plusCase N N := N
+  match plusCaseC A B with
+     | plusCaseC P P := P
+     | plusCaseC N N := N
+     | plusCaseC P N := N
+     | plusCaseC N P := N
   end
 
 Signature Plus {A: Set} {B: Set}: (a: A) -> (b: B) -> PlusType {A} {B}
 
 Signature p1: N
-Signature p2: N
+Signature p2: P
 
-Definition test := Plus p1 p2
+Compute PlusType {P} {N} 
+
+Definition test : N := Plus p1 p2

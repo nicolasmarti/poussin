@@ -435,7 +435,7 @@ and parse_pattern_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) :
       let name = Lazy.force name in
       try 
 	match Hashtbl.find defs name with
-	  | Constructor _ | Inductive _ -> PCste name
+	  | Constructor _ | Inductive _ | Axiom _ -> PCste name
 	  | _ -> PName name
       with
 	| Not_found -> PName name
