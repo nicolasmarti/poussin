@@ -479,11 +479,9 @@ and typeinfer
 	      | Cste n -> (
 		match get_cste defs n with 
 		  | Inductive _ -> ref (build_inductive_pattern defs n) 
-		  | _ when !match_only_inductive -> raise (PoussinException (NotInductiveDestruction (!ctxt, m)))
-		  | _ -> ref []
+		  | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, m)))
 	      )
-	      | _ when !match_only_inductive -> raise (PoussinException (NotInductiveDestruction (!ctxt, m)))
-	      | _ -> ref []
+	      | _ -> raise (PoussinException (NotInductiveDestruction (!ctxt, m)))
 	    in
 	    (* we create a type for the return value *)
 	    let ret_ty = 
