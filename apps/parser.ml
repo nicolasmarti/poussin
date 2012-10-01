@@ -1,9 +1,10 @@
 open Calculus_kernel
 
 open Libparser
-
+open Pprinter
 open Str
 open Printf
+open Def
 
 let at_start_pos (startp: (int * int)) (p: 'a parsingrule) : 'a parsingrule =
   fun pb ->
@@ -42,7 +43,7 @@ let name_parser : name parsingrule = applylexingrule_regexp ("[a-zA-Z][_a-zA-Z0-
 							       if List.mem s keywords then raise NoMatch else Lazy.lazy_from_val s
 )
 
-let parse_avar : unit parsingrule = applylexingrule_regexp ("_", 
+let parse_avar : unit parsingrule = applylexingrule_string ("_", 
 							    fun (s:string) -> Lazy.lazy_from_val ()
 )
 
@@ -75,10 +76,16 @@ let build_lambda (symbols: (name * pos) list) (ty: term) (nature: nature) (body:
 let build_lambdas (qs: ((name * pos) list * term * nature) list) (body: term) : term =
   List.fold_right (fun (s, ty, n) acc -> build_lambda s ty n acc) qs body
 
+let term_hash : (int, (term Lazy.t * int)) Hashtbl.t = Hashtbl.create 100
+
+let memo_term (p: term parsingrule) pb : term Lazy.t =
+  memoize_parser p term_hash pb
+
+
 (* these are the whole term set 
    - term_lvlx "->" term
 *)
-let rec parse_term (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : term Lazy.t = begin
+let rec parse_term (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : term Lazy.t = memo_term begin
   (* parsing a forall *)
   tryrule (fun pb ->
     let _ = whitespaces pb in
@@ -111,7 +118,7 @@ let rec parse_term (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : ter
       set_term_pos (build_lambdas (Lazy.force qs) (Lazy.force body)) (pos_to_position (startpos, endpos))
     )
   ) 
-  <|> parse_term_lvl0 defs leftmost
+  <|> (parse_term_lvl0 defs leftmost)
 end pb
 
 and parse_impl_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : ((name * pos) list * term * nature) Lazy.t = begin
@@ -238,7 +245,7 @@ and parse_lambda_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : (
 end pb
 
 (* this is term resulting for the application of term_lvl2 *)
-and parse_term_lvl0 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : term Lazy.t = begin
+and parse_term_lvl0 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : term Lazy.t = memo_term begin
   fun pb -> 
     (* first we parse the application head *)
     let startpos = cur_pos pb in
@@ -262,13 +269,13 @@ end pb
 and parse_arguments (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : (term * nature) Lazy.t = begin
   (fun pb -> 
     let _ = whitespaces pb in
-    let te = at_start_pos leftmost (bracket (parse_term_lvl1 defs leftmost)) pb in
+    let te = at_start_pos leftmost (bracket ((parse_term_lvl1 defs leftmost))) pb in
     Lazy.lazy_from_fun (fun () ->
       (Lazy.force te, Implicit)
     )
   )
   <|> (fun pb -> 
-    let te = parse_term_lvl1 defs leftmost pb in
+    let te = (parse_term_lvl1 defs leftmost) pb in
     Lazy.lazy_from_fun (fun () ->
       (Lazy.force te, Explicit)
     )
@@ -276,7 +283,7 @@ and parse_arguments (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : (t
 end pb
 
 (* these are the most basic terms + top-level terms in parenthesis *)
-and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : term Lazy.t = begin
+and parse_term_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : term Lazy.t = memo_term begin
   (fun pb -> 
     let _ = whitespaces pb in
     at_start_pos leftmost (paren (parse_term defs leftmost)) pb)
@@ -446,12 +453,6 @@ and parse_pattern_lvl1 (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) :
     at_start_pos leftmost (paren (parse_pattern defs leftmost)) pb    
   )
 end pb
-
-type definition = DefSignature of name * term
-		  | DefDefinition of name * term
-		  | DefInductive of name * term
-		  | DefConstructor of name * term
-		  | DefCompute of term
 
 
 let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsingrule =
