@@ -4,7 +4,7 @@ open Libparser
 open Extlist
 open Parser
 open Pprinter
-
+open Def
 open Calculus_kernel
 
 (* the global parserbuffer *)
