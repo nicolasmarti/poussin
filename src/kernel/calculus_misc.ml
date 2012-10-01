@@ -436,7 +436,7 @@ and pattern_to_term_loop (defs: defs) (p: pattern) (i: int): term * int =
   match p with
     | PAvar -> (var_ i, i - 1)
     | PName s -> (var_ i, i-1)
-    | PCste c when is_irreducible defs (cste_ c) -> (cste_ c, i)
+    | PCste c when is_irreducible defs (cste_ c) || not !match_only_inductive -> (cste_ c, i)
     | PCste c -> raise (PoussinException (FreeError (String.concat "" [c; " is not a constante suitable for a pattern"])))
     | PApp (n, args) ->
       let args, i = List.fold_left (fun (hds, i) (p, n) ->
