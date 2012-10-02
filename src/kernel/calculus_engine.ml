@@ -238,6 +238,8 @@ and typecheck
     ?(coercion: bool = true)
     (te: term)
     (ty: term) : term =
+(* the whole catching typecheck error*)
+try (
   let te = 
     match get_term_typeannotation te with
       | Typed ty' ->
@@ -297,6 +299,12 @@ and typecheck
 	    te'
       )    
 
+) with
+  | PoussinException err ->
+    raise (PoussinException (
+      CannotTypeCheck (!ctxt, te, ty, err)
+    )
+    )
 
 and typeinfer 
     (defs: defs)

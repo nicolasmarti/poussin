@@ -372,7 +372,15 @@ let ctxt2string (ctxt: context ref) : string =
   let box = token2box token 150 2 in
   box2string box
 
-let poussin_error2token (err: poussin_error) : token =
+let position2token (p: position) : token =
+  Box (
+    match p with
+      | NoPosition -> []
+      | Position (((startl, startc), (endl, endc)), _) ->
+	[verbatims [string_of_int startl; ":"; string_of_int startc; " - "; string_of_int endl; ":"; string_of_int endc]]
+  )
+
+let rec poussin_error2token (err: poussin_error) : token =
   match err with
     | FreeError s -> Verbatim s
     | Unshiftable_term _ -> Verbatim "Unshiftable_term"
@@ -399,7 +407,22 @@ let poussin_error2token (err: poussin_error) : token =
 	   term2token (context2namelist (ref ctxt)) te Alone; Space 1; Verbatim ":"; Space 1; term2token (context2namelist (ref ctxt)) (get_type te) Alone; Newline]
     | InteractiveFailure ->
       Verbatim "failure in interactive mode"
-	
+    | CannotTypeCheck (ctxt, te, ty, err) ->
+      let s, f = conversion_hyps2subst ~dec_order:true ctxt.conversion_hyps in
+      let s = append_substitution s (context2subst (ref ctxt)) in
+      let te = term_substitution s te in
+      let ty = term_substitution s ty in
+      Box [Verbatim "Cannot type Check"; Newline;
+	   (*ctxt2token (ref ctxt); Newline;*)
+	   position2token (get_term_pos te); Space 2; term2token (context2namelist (ref ctxt)) te Alone; Newline; 
+	   Verbatim "with type: "; Newline; 
+	   position2token (get_term_pos ty); Space 2; term2token (context2namelist (ref ctxt)) ty Alone; Newline; 
+	   Verbatim "reason: "; Newline;
+	   poussin_error2token err
+	  ]
+      
+
+
 let poussin_error2string (err: poussin_error) : string =
   let token = poussin_error2token err in
   let box = token2box token 80 2 in

@@ -136,6 +136,7 @@ type poussin_error = FreeError of string
 		    | UnknownFVar of context * int
 		    | NotInductiveDestruction of context * term
 		    | InteractiveFailure
+		    | CannotTypeCheck of context * term * term * poussin_error
 		    (*| ConstructorCclHeadNotInductive of term*)
 
 exception PoussinException of poussin_error

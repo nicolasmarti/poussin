@@ -10,7 +10,7 @@ open Calculus_misc
 let rec term_substitution (s: substitution) (te: term) : term =
   let te = 
     match te.ast with
-      | Universe _ | Cste _ | AVar -> te
+      | Universe _ | Cste _ | AVar | TName _ -> te
       | Var i -> 
 	(
 	  try 
@@ -19,7 +19,7 @@ let rec term_substitution (s: substitution) (te: term) : term =
 	    | Not_found -> te
 	)
 
-      | TName n -> raise (PoussinException (FreeError (String.concat " " ["term_substitution catastrophic: TName"; n])))
+      (*| TName n -> raise (PoussinException (FreeError (String.concat " " ["term_substitution catastrophic: TName"; n])))*)
 
       | App (f, args) ->
 	{ te with ast = App (term_substitution s f,
