@@ -80,7 +80,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
     | Var i when i < 0 -> verbatims ["?"; string_of_int (-i)]
 
     | AVar -> Verbatim "_"
-    | TName name -> verbatims ["'"; name; "'"]
+    | TName name -> (*verbatims ["'"; name; "'"]*) Verbatim name
 
     | Lambda _ ->
       (* we embed in parenthesis if 
@@ -416,7 +416,7 @@ let rec poussin_error2token (err: poussin_error) : token =
 	   (*ctxt2token (ref ctxt); Newline;*)
 	   position2token (get_term_pos te); Space 2; term2token (context2namelist (ref ctxt)) te Alone; Newline; 
 	   Verbatim "with type: "; Newline; 
-	   position2token (get_term_pos ty); Space 2; term2token (context2namelist (ref ctxt)) ty Alone; Newline; 
+	   (*position2token (get_term_pos ty);*) Verbatim "    "; term2token (context2namelist (ref ctxt)) ty Alone; Newline; 
 	   Verbatim "reason: "; Newline;
 	   poussin_error2token err
 	  ]
