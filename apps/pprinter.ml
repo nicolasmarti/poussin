@@ -386,23 +386,34 @@ let rec poussin_error2token (err: poussin_error) : token =
     | Unshiftable_term _ -> Verbatim "Unshiftable_term"
     | UnknownCste s -> verbatims ["UnknownCste: "; s]
     | NoUnification (ctxt, te1, te2) -> 
-      Box [Verbatim "NoUnification"; Newline; 
-	   ctxt2token (ref ctxt);
-	   term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
-	   term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
+      let s, f = conversion_hyps2subst ~dec_order:true ctxt.conversion_hyps in
+      let s = append_substitution s (context2subst (ref ctxt)) in
+      let te1 = term_substitution s te1 in
+      let te2 = term_substitution s te2 in
+      Box [Verbatim "NoUnification between"; Newline; 
+	   (*position2token (get_term_pos te1);*) Space 2; term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
+	   Verbatim " And "; Newline;
+	   (*position2token (get_term_pos te2);*) Space 2; term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
 
     | NoNatureUnification  _ -> Verbatim "NoNatureUnification"
     | UnknownUnification (ctxt, te1, te2) -> 
+      let s, f = conversion_hyps2subst ~dec_order:true ctxt.conversion_hyps in
+      let s = append_substitution s (context2subst (ref ctxt)) in
+      let te1 = term_substitution s te1 in
+      let te2 = term_substitution s te2 in
       Box [Verbatim "UnknownUnification between"; Newline; 
-	   term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
+	   (*position2token (get_term_pos te1);*) Space 2; term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
 	   Verbatim " And "; Newline;
-	   term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
+	   (*position2token (get_term_pos te2);*) Space 2; term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
     | CsteNotConstructor n -> Verbatim "CsteNotConstructor"
     | CsteNotInductive n -> Verbatim "CsteNotInductive"
     | NegativeIndexBVar  _ -> Verbatim "NegativeIndexBVar"
     | UnknownBVar  _ -> Verbatim "UnknownBVar"
     | UnknownFVar _ -> Verbatim "UnknownFVar"
     | NotInductiveDestruction (ctxt, te) -> 
+      let s, f = conversion_hyps2subst ~dec_order:true ctxt.conversion_hyps in
+      let s = append_substitution s (context2subst (ref ctxt)) in
+      let te = term_substitution s te in
       Box [Verbatim "NotInductiveDestruction: "; Newline; 
 	   term2token (context2namelist (ref ctxt)) te Alone; Space 1; Verbatim ":"; Space 1; term2token (context2namelist (ref ctxt)) (get_type te) Alone; Newline]
     | InteractiveFailure ->
