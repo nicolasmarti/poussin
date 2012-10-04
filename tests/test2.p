@@ -1,26 +1,31 @@
-Inductive P: Set
-Inductive N: Set
-Inductive Z: Set
-Inductive Q: Set
-Inductive R: Set
+Inductive List: Type -> Set 
+Constructor nil {A}: List A 
+Constructor cons {A}: A -> List A -> List A
 
-Inductive plusCase: Set
-Constructor plusCaseC: Set -> Set -> plusCase
+Inductive Tuple: List Set -> Set
+Constructor tnil: Tuple nil
+Constructor tcons {hd} {tl}: hd -> Tuple tl -> Tuple (cons hd tl)
 
-Signature PlusType {A: Set} {B: Set}: Set
-Definition PlusType {A} {B} : Set :=
-  match plusCaseC A B with
-     | plusCaseC P P := P
-     | plusCaseC N N := N
-     | plusCaseC P N := N
-     | plusCaseC N P := N
+Inductive Function: List Set -> Set -> Set
+Constructor fun {argtys} {retty}: (Tuple argtys -> retty) -> Function argtys retty
+
+Signature Apply {argtys} {retty} (f: Function argtys retty) (args: Tuple argtys): retty 
+Definition Apply {argtys} {retty} (f: Function argtys retty) (args: Tuple argtys): retty :=
+  match f with
+    | fun {_} {_} fct := fct args
   end
 
-Signature Plus {A: Set} {B: Set}: (a: A) -> (b: B) -> PlusType {A} {B}
+Signature UncurryingType (argtys: List Set) (retty: Set) : Set
+Definition UncurryingType (argtys: List Set) (retty: Set) : Set :=
+   match argtys with
+     | nil {_} := retty
+     | cons {_} hd tl := hd -> UncurryingType tl retty
+   end
 
-Signature p1: N
-Signature p2: P
+Signature UncurryingFunction {argtys} {retty} (f: Function argtys retty): UncurryingType argtys retty
 
-Compute PlusType {P} {N} 
+Inductive A: Set
+Inductive B: Set
+Inductive C: Set
 
-Definition test : N := Plus p1 p2
+Definition caca :=  UncurryingType (cons A (cons B (cons C))) C
