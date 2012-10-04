@@ -124,7 +124,7 @@ let process_definition (def: definition) : unit =
       let time_end = Sys.time () in
       processing_time := !processing_time +. (time_end -. time_start);
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
-      printf "Inductive %s: %s\n\n" n (term2string ctxt ty); flush stdout 
+      printf "Inductive %s: %s\n\n" n (term2string ctxt ty); flush stdout
     | DefConstructor (n, ty) -> 
       (* typecheck the constructor type *)
       let ty = (
@@ -202,6 +202,15 @@ let process_definition (def: definition) : unit =
       String.concat "" ["error: missing pattern in\n\tmatch "; (term2string ctxt' te); " : "; (term2string ctxt' ty); " with\n\t| "; (pattern2string ctxt' p);" := ???\n\n"]
     )))
   ) !unmatched_pattern; 
+  (* well formness test *)
+  (match def with
+    | DefSignature _ -> ()
+    | DefConstructor _ -> ()
+    | DefInductive _ -> ()
+    | DefDefinition (n, _) -> ()
+      
+
+  );
   ()
 
 
