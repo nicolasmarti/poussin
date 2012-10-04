@@ -88,7 +88,7 @@ let process_definition (def: definition) : unit =
   unmatched_pattern := [];
   registered_calls := [];
   (* *)
-  match def with
+  (match def with
     | DefSignature (n, ty) -> 	
       let ty = (
 	try 
@@ -190,7 +190,19 @@ let process_definition (def: definition) : unit =
       let time_end = Sys.time () in
       processing_time := !processing_time +. (time_end -. time_start);
       printf "%s\n" (term2string ctxt te'); flush stdout;
-      printf "processed in %g sec.\n\n" (time_end -. time_start); flush stdout
+      printf "processed in %g sec.\n\n" (time_end -. time_start); flush stdout);
+  (* check missing pattern *)
+  List.iter (fun (ctxt, p, te, ret_ty) ->
+    let ctxt' = ref ctxt in
+    let s, f = conversion_hyps2subst ~dec_order:true ctxt.conversion_hyps in
+    let s = append_substitution s (context2subst ctxt') in
+    let te = term_substitution s te in
+    let ty = term_substitution s (get_type te) in
+    raise (PoussinException (FreeError (
+      String.concat "" ["error: missing pattern in\n\tmatch "; (term2string ctxt' te); " : "; (term2string ctxt' ty); " with\n\t| "; (pattern2string ctxt' p);" := ???\n\n"]
+    )))
+  ) !unmatched_pattern; 
+  ()
 
 
 let process_stream (str: string Stream.t) : unit  =
