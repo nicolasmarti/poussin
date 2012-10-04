@@ -305,7 +305,7 @@ Definition even (n: Nat) :=
   match n with
      | O := true
      | S O := false
-     | S (S O) := even n
+     | S (S n) := even n
 end
 
 Inductive Fin: Nat -> Set

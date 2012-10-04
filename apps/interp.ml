@@ -208,8 +208,7 @@ let process_definition (def: definition) : unit =
     | DefConstructor _ -> ()
     | DefInductive _ -> ()
     | DefDefinition (n, _) -> ()
-      
-
+    | DefCompute _ -> () 
   );
   ()
 
