@@ -547,7 +547,7 @@ and typeinfer
 	      try
 		ignore(typecheck defs ctxt' ~polarity:false ~coercion:false p_te mty');
 		(* it typecheck -> the pattern is valid: we record it as unmatched *)
-		unmatched_pattern := (!ctxt, p, mty', ret_ty)::!unmatched_pattern		
+		unmatched_pattern := (!ctxt, p, m, ret_ty)::!unmatched_pattern		
 	      with
 		| PoussinException (CannotTypeCheck _) ->
 		  (* the term mismatch the type -> this is not a possible pattern, thus we skip it*)
