@@ -43,12 +43,6 @@ let simplification_strat = {
   eta = false;
 }
 
-(* this is a list of contexted unmatch patterns (with the destructed term type, and the desired return type) *)
-let unmatched_pattern : (context * pattern * term * term) list ref = ref []
-
-(* this is the list of all non irreducible name called *)
-let registered_calls : (context * name * (term * nature) list) list ref = ref []
-
 let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
   let s, ty, n = q in
   ctxt := { !ctxt with
