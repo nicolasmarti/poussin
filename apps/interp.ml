@@ -207,8 +207,7 @@ let process_definition (def: definition) : unit =
     | DefSignature _ -> ()
     | DefConstructor _ -> ()
     | DefInductive _ -> ()
-    | DefDefinition (n, _) -> ()
-      
+    | DefDefinition (n, _) -> ()     
 
   );
   ()
