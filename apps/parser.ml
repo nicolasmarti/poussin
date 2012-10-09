@@ -173,12 +173,12 @@ and parse_impl_lhs (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : ((n
   )
   <|> (fun pb -> 
     let _ = whitespaces pb in
-    let ty = at_start_pos leftmost (paren (parse_term_lvl0 defs leftmost)) pb in
+    let ty = at_start_pos leftmost (paren (parse_term defs leftmost)) pb in
     Lazy.lazy_from_fun (fun () -> (["_", nopos], (Lazy.force ty), Explicit))
   )
   <|> (fun pb -> 
     let _ = whitespaces pb in
-    let ty = at_start_pos leftmost (bracket (parse_term_lvl0 defs leftmost)) pb in
+    let ty = at_start_pos leftmost (bracket (parse_term defs leftmost)) pb in
     Lazy.lazy_from_fun (fun () -> (["_", nopos], (Lazy.force ty), Implicit))
   )
 end pb
@@ -269,7 +269,7 @@ end pb
 and parse_arguments (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : (term * nature) Lazy.t = begin
   (fun pb -> 
     let _ = whitespaces pb in
-    let te = at_start_pos leftmost (bracket ((parse_term_lvl1 defs leftmost))) pb in
+    let te = at_start_pos leftmost (bracket ((parse_term defs leftmost))) pb in
     Lazy.lazy_from_fun (fun () ->
       (Lazy.force te, Implicit)
     )
