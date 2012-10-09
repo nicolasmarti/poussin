@@ -264,6 +264,17 @@ let process_stdin () : unit =
   let lines = line_stream_of_channel stdin in
   process_stream lines;;
 
+let parse_process_term str =
+  let lines = stream_of_string str in
+  let pb = build_parserbuffer lines in
+  global_parserbuffer := pb;
+  let leftmost = cur_pos pb in
+  Lazy.force (parse_term env.defs leftmost pb);;
+
+let parse_process_definition str =
+  let lines = stream_of_string str in
+  process_stream lines
+;;
 
 let main = 
   if Array.length Sys.argv < 2 then
