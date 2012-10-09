@@ -55,6 +55,25 @@ and destructor_substitution (s: substitution) (des: pattern list * term) : patte
   let sz = patterns_size ps in
   (ps, term_substitution (shift_substitution s sz) te)
 
+(**)
+
+let substitution_vars (s: substitution) =
+  IndexMap.fold (fun k _ acc -> IndexSet.add k acc) s IndexSet.empty
+
+let context2subst (ctxt: context ref) : substitution =
+  List.fold_left (fun acc (i, _, te) ->
+    match te with | None -> acc | Some te -> IndexMap.add i te acc
+  ) IndexMap.empty !ctxt.fvs
+
+let append_substitution (s1: substitution) (s2: substitution): substitution =
+  let s2 = IndexMap.map (term_substitution s1) s2 in
+  IndexMap.merge (fun k v1 v2 ->
+    match v1, v2 with
+      | Some v1 ,_ -> if term_equal v1 (var_ k) then None else Some v1
+      | _, Some v2 -> if term_equal v2 (var_ k) then None else Some v2
+  ) s1 s2
+
+
 (* transform a conversion_hyps list into a substitution *)
 let rec conversion_hyps2subst ?(dec_order: bool = false) (cv: (term * term) list) : (substitution * (term * term) list) =
   match cv with
@@ -80,24 +99,4 @@ let rec conversion_hyps2subst ?(dec_order: bool = false) (cv: (term * term) list
     | hd::tl -> 
       let s, l = conversion_hyps2subst ~dec_order:dec_order tl in
       s, hd::l
-
-
-(**)
-
-let substitution_vars (s: substitution) =
-  IndexMap.fold (fun k _ acc -> IndexSet.add k acc) s IndexSet.empty
-
-let context2subst (ctxt: context ref) : substitution =
-  List.fold_left (fun acc (i, _, te) ->
-    match te with | None -> acc | Some te -> IndexMap.add i te acc
-  ) IndexMap.empty !ctxt.fvs
-
-let append_substitution (s1: substitution) (s2: substitution): substitution =
-  let s2 = IndexMap.map (term_substitution s1) s2 in
-  IndexMap.merge (fun k v1 v2 ->
-    match v1, v2 with
-      | Some v1 ,_ -> Some v1
-      | _, Some v2 -> Some v2
-  ) s1 s2
-
 
