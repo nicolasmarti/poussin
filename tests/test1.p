@@ -442,4 +442,4 @@ Compute Contradiction
 
 Signature left_neq_right: {A: Type} -> (a: A) -> Not (eq (left a) (right a))
 Definition left_neq_right {A: Type} (a: A) :=
-   Contradiction { eq (left a) (right a) } (\ P -> match P with end)
+Contradiction (\ (P: eq (left a) (right a)) -> match P with end)

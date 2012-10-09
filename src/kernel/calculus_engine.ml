@@ -429,13 +429,11 @@ and typeinfer
 	    let (n, ty, _), [body] = pop_quantification defs ctxt [body] in
 	    (* we returns the the let with the type of te2 shifted (god help us all ...) *)
 	    { te with ast = Let ((n, value), body); annot = Typed (shift_term (get_type body) (-1)) }
-
 	      
 	  (* Normalizing app: only if we are not in_app *)
 	  | App ({ast = App(f, args1); _}, args2) when not in_app ->
 	    let te' = { te with ast = App (f, args1 @ args2) } in
 	    typeinfer defs ctxt ~polarity:polarity te'
-	      
 
 	  (* this act as some kind of normalization *)
 	  | App (hd, []) -> (
@@ -471,7 +469,7 @@ and typeinfer
 	      let new_hd_ty = shift_term (term_substitution (IndexMap.singleton 0 (shift_term arg 1)) body) (-1) in
 	      let new_hd = app_ ~annot:(Typed (new_hd_ty)) hd ((arg, n)::[]) in
 	      let new_hd = reduction_term defs ctxt simplification_strat new_hd in 
-	      typeinfer defs ctxt ~polarity:polarity ~in_app:true (app_ ~annot:te.annot ~pos:te.tpos new_hd args)
+	      typeinfer defs ctxt ~polarity:polarity ~in_app:true {te with ast = App (new_hd, args)}
 	    )
 
 	  | Match (m, des) ->
