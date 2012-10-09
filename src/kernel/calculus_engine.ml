@@ -84,7 +84,10 @@ let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substituti
   ) touched_conv
   
 and context_add_conversion (defs: defs) (ctxt: context ref) (te1: term) (te2: term) : unit =
-  let s, _ = conversion_hyps2subst !ctxt.conversion_hyps in
+  let s1, _ = conversion_hyps2subst !ctxt.conversion_hyps in
+  let s2, _ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
+  let s = append_substitution s1 s2 in
+  
   if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then (
     (* if possible we rewrite the current substitutions given by the conversions *)
     let te1' = term_substitution s te1 in
