@@ -13,7 +13,7 @@ Inductive Or (A B: Prop) : Prop
 Constructor left {A} {B}: A -> Or A B
 Constructor right {A} {B}: B -> Or A B
 
-Inductive eq {A: Set} (a: A): A -> Prop
+Inductive eq {A: Type} (a: A): A -> Prop
 Constructor eq_refl {A} (a: A): eq a a
 
 Definition eq_symm {A} (x y: A) (Hxy: eq x y) : eq y x :=
@@ -438,3 +438,8 @@ Constructor Z0: Z
 Constructor ZPos: Pos -> Z
 Constructor ZNeg: Pos -> Z
 
+Compute Contradiction
+
+Signature left_neq_right: {A: Type} -> (a: A) -> Not (eq (left a) (right a))
+Definition left_neq_right {A: Type} (a: A) :=
+   Contradiction { eq (left a) (right a) } (\ P -> match P with end)
