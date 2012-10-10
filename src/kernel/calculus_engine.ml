@@ -2,9 +2,6 @@ open Calculus_def
 open Calculus_misc
 open Calculus_substitution
 
-open Pprinter
-open Printf
-
 type beta_strength =
   | BetaStrong (* reduction under the quantifier*)
   | BetaWeak
@@ -56,7 +53,6 @@ let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
 
 let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substitution) : unit =
   (* computes the needed shited substitution *)
-  (*printf "add_substitution: %s\n" (substitution2string ctxt s);*)
   let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.bvs) in
   let bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss in
   let fvs = 
@@ -65,7 +61,6 @@ let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substituti
 	match te with
 	  | None -> (i, term_substitution s ty, Some (IndexMap.find i s))
 	  | Some te -> 
-	    (*printf "(0): %s Vs %s\n" (term2string ctxt te) (term2string ctxt (IndexMap.find i s));*)
 	    (i, term_substitution s ty, Some (unification defs ctxt te (IndexMap.find i s)))
 	) else (
 	match te with
@@ -93,11 +88,7 @@ and context_add_conversion (defs: defs) (ctxt: context ref) (te1: term) (te2: te
   let s = context2subst ctxt in
   let te1 = term_substitution s te1 in
   let te2 = term_substitution s te2 in
-  let s1, _ = conversion_hyps2subst !ctxt.conversion_hyps in
-  (*let s2, _ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
-  let s = append_substitution s1 s2 in*)
-  let s = s1 in
-  (*printf "add_conversion: %s\n in\n %s\n [%s]\n\n" (conversion_hyps2string ctxt [te1, te2]) (conversion_hyps2string ctxt !ctxt.conversion_hyps) (substitution2string ctxt s);*)
+  let s, _ = conversion_hyps2subst !ctxt.conversion_hyps in
   if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then (
     (* if possible we rewrite the current substitutions given by the conversions *)
     let te1' = term_substitution s te1 in
@@ -140,10 +131,7 @@ and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
 	match oracles_call defs ctxt ~var:(Some i) ty with
 	  | None -> (* nothing there, we just raise an error *)
 	    raise (PoussinException (FreeError (
-	      String.concat "" ["the oracles failed to infer a free variable in [";
-				ctxt2string ctxt;
-				String.concat ", " (List.map (term2string ctxt) tes);
-				"]"]
+	      String.concat "" ["the oracles failed to infer a free variable"]
 	    )
 	    ))
 	  | Some _ as te -> (* we just return the answer of the oracles as the free variable value *)
@@ -619,10 +607,8 @@ and accurate_app_infer
   match te.ast with
     (* new typing rule for app with better type inference *)
     | App (hd, args) ->	
-      (*printf "term := %s\n" (term2string ctxt te);*)
       (* we infer hd *)
       let hd = typeinfer defs ctxt ~polarity:polarity ~in_app:true hd in
-      (*printf "hd:= %s:%s\n" (term2string ctxt hd) (term2string ctxt (get_type hd));*)
       (* we make a phantom list of arguments, and the list of arguments, adding implicits *)
       let args, ph_args, hd_ty = 
 	fold_cont (fun (args, ph_args, hd_ty) ((arg, n)::tl as l) ->
@@ -640,7 +626,6 @@ and accurate_app_infer
 	    else
 	      shift_term body (-1) 
 	  in
-	  (*printf "%s = %s => %s\n" (term2string ctxt hd_ty) (term2string ctxt hd_ty') (term2string ctxt new_hd_ty);*)
 	  if n' = Implicit && n = Explicit then (
 	    (* and we continue *)
 	    l, (args @ [new_arg, n'], ph_args @ [new_arg, n'], new_hd_ty)
@@ -649,18 +634,12 @@ and accurate_app_infer
 	    tl, (args @ [arg, n], ph_args @ [new_arg, n], new_hd_ty)
 	  )
 	) ([], [], get_type hd) args in
-      (*
-	printf "computed args: [%s]\n" (String.concat ", " (List.map (fun (hd, _) -> String.concat " : " (List.map (term2string ctxt) [hd])) args));
-	printf "computed ph_args: [%s]\n" (String.concat ", " (List.map (fun (hd, _) -> String.concat " : " (List.map (term2string ctxt) [hd; get_type hd])) ph_args));
-	printf "computed hd_ty: %s\n" (term2string ctxt hd_ty);
-      *)
       (* we create a type for the return value *)
       let ret_ty = 
 	match te.annot with
 	  | TypedAnnotation ty -> ty
 	  | _ -> add_fvar ctxt
       in
-      (*printf "computed ret_ty: %s\n" (term2string ctxt ret_ty);*)
       (* then we compute the possible trainling implicit args *)
       let trailing_args, hd_ty = match compute_nature_prefix (args_nature hd_ty) (args_nature ret_ty) with
 	| [] -> [], hd_ty
@@ -680,34 +659,23 @@ and accurate_app_infer
 	  (args @ [arg, n]), new_hd_ty
 	) ([], hd_ty) l 
       in 
-      (*printf "computed trailing args";*)
       (* update args and phantom args list, and update the hd_ty*)
       let args = args @ trailing_args in
       let ph_args = ph_args @ trailing_args in
-      (* now we want to unify hd_ty with our result type *)	    
-      (*
-	printf "computed args: [%s]\n" (String.concat ", " (List.map (fun (hd, _) -> String.concat " : " (List.map (term2string ctxt) [hd])) args));
-	printf "computed ph_args: [%s]\n" (String.concat ", " (List.map (fun (hd, _) -> String.concat " : " (List.map (term2string ctxt) [hd; get_type hd])) ph_args));
-	printf "computed hd_ty: %s\n" (term2string ctxt hd_ty);
-      *)
-      (* first we typecheck the args which types do not contains free vars *)
+      (* first we typecheck the args which types do not contains free vars (marking them as done) *)
       let args = List.map2 (fun (arg, n) (ph_arg, n') ->	      
-	(*printf "trying %s = %s : %s\n" (term2string ctxt arg) (term2string ctxt ph_arg) (term2string ctxt (get_type ph_arg));*)
 	if IndexSet.is_empty (fv_term (get_type ph_arg)) then (		
-		(*printf "can do %s : %s\n" (term2string ctxt arg) (term2string ctxt (get_type ph_arg));*)
-		let arg = typecheck defs ctxt ~polarity:polarity arg (get_type ph_arg) in
-		let arg = unification defs ctxt ~polarity:polarity arg ph_arg in
-		(arg, n, true)
+	  let arg = typecheck defs ctxt ~polarity:polarity arg (get_type ph_arg) in
+	  let arg = unification defs ctxt ~polarity:polarity arg ph_arg in
+	  (arg, n, true)
 	) else
 	  (arg, n, false)
       ) args ph_args in
-      (*printf "unification: %s Vs %s\n" (term2string ctxt hd_ty) (term2string ctxt ret_ty);*)
+      (* now we want to unify hd_ty with our result type *)	    
       let hd_ty = unification defs ctxt ~polarity:polarity hd_ty ret_ty in
-      (*printf "unification: %s \n" (term2string ctxt hd_ty);*)
       (* as a side effect it have instantiated some phantom args and their types *)
       (* now we typecheck all the args against their phantom image type, and unify both args *)
       let args = List.map2 (fun (arg, n, already_tc) (ph_arg, n') ->
-	(*printf "arg tpyecheck %s :? %s\n" (term2string ctxt arg) (term2string ctxt (get_type ph_arg));*)
 	(* just make sure that we only typecheck the args we did not typechecked yet  *)
 	if already_tc then
 	  (arg,n)
@@ -716,8 +684,7 @@ and accurate_app_infer
 	  let arg = unification defs ctxt ~polarity:polarity arg ph_arg in
 	  (arg, n)
       ) args ph_args in
-      (*printf "typechecking args\n";*)
-      (*printf "returned results\n";*)
+      (* and just return everything *)
       { te with ast = App (hd, args); annot = Typed hd_ty }
 
 
