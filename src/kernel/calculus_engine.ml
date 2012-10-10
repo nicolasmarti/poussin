@@ -464,30 +464,6 @@ and typeinfer
 		{ te with ast = App (app_head_, app_args_); annot = Typed (get_type hd) }
 	  )
 
-	  | App (hd, (arg, n)::args) when false ->	  
-	    (* we infer hd *)
-	    let hd = typeinfer defs ctxt ~polarity:polarity ~in_app:true hd in
-	    (* we unify the type of hd with a forall *)
-	    let fty = add_fvar ctxt in
-	    (*let ftyte = add_fvar ctxt in*)
-	    let hd_ty = unification defs ctxt ~polarity:polarity (get_type hd) (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
-	    let { ast = Forall ((_, _, n'), _); _ } = hd_ty in
-	    (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
-	    if n' = Implicit && n = Explicit then (
-	      let new_arg = add_fvar ctxt in
-	      (* and retypeinfer the whole *)
-	      typeinfer defs ctxt ~polarity:polarity ~in_app:true {te with ast = App (hd, (new_arg, n')::(arg, n)::args) }
-	    ) else (
-	      (* needs to unify the type properly *)
-	      let { ast = Forall ((q, arg_ty, n'), body); annot = Typed fty; _ } = hd_ty in
-	      let arg = typecheck defs ctxt ~polarity:polarity arg arg_ty in
-	      (* we build a new head, as the reduction of hd and arg, with the proper type *)
-	      let new_hd_ty = shift_term (term_substitution (IndexMap.singleton 0 (shift_term arg 1)) body) (-1) in
-	      let new_hd = app_ ~annot:(Typed (new_hd_ty)) hd ((arg, n)::[]) in
-	      let new_hd = reduction_term defs ctxt simplification_strat new_hd in 
-	      typeinfer defs ctxt ~polarity:polarity ~in_app:true {te with ast = App (new_hd, args)}
-	    )
-
 	  (* new typing rule for app with better type inference *)
 	  | App (hd, args) ->	
 	    (*printf "term := %s\n" (term2string ctxt te);*)
