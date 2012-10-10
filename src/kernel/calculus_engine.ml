@@ -464,6 +464,39 @@ and typeinfer
 		{ te with ast = App (app_head_, app_args_); annot = Typed (get_type hd) }
 	  )
 
+	  | App (hd, (arg, n)::args) when true ->	  
+	    (* we infer hd *)
+	    let hd = typeinfer defs ctxt ~polarity:polarity ~in_app:true hd in
+	    (* we unify the type of hd with a forall *)
+	    let hd_ty = get_type hd in
+	    let hd_ty = match hd_ty.ast with
+		  | Forall _ -> hd_ty
+		  | _ -> let fty = add_fvar ctxt in 
+			 unification defs ctxt ~polarity:polarity hd_ty (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
+	    let { ast = Forall ((_, _, n'), _); _ } = hd_ty in
+	    (* if n' is Implicit and n is Explicit, it means we need to insert a free variable *)
+	    if n' = Implicit && n = Explicit then (
+	      let new_arg = add_fvar ctxt in
+	      (* and retypeinfer the whole *)
+	      typeinfer defs ctxt ~polarity:polarity ~in_app:true {te with ast = App (hd, (new_arg, n')::(arg, n)::args) }
+	    ) else (
+	      (* needs to unify the type properly *)
+	      let { ast = Forall ((q, arg_ty, n'), body); annot = Typed fty; _ } = hd_ty in
+	      let arg = typecheck defs ctxt ~polarity:polarity arg arg_ty in
+	      (* we build a new head, as the reduction of hd and arg, with the proper type *)
+	      let new_hd_ty = if (IndexSet.mem 0 (bv_term body)) then 
+		  shift_term (term_substitution (IndexMap.singleton 0 (shift_term arg 1)) body) (-1) 
+		else
+		  shift_term body (-1) 
+	      in
+	      let new_hd = app_ ~annot:(Typed (new_hd_ty)) hd ((arg, n)::[]) in
+	      let new_hd = reduction_term defs ctxt simplification_strat new_hd in 
+
+	      typeinfer defs ctxt ~polarity:polarity ~in_app:true {te with ast = App (new_hd, args)}
+
+	    )
+
+
 	  (* new typing rule for app with better type inference *)
 	  | App (hd, args) ->	
 	    (*printf "term := %s\n" (term2string ctxt te);*)
@@ -474,14 +507,19 @@ and typeinfer
 	    let args, ph_args, hd_ty = 
 	      fold_cont (fun (args, ph_args, hd_ty) ((arg, n)::tl as l) ->
 		(* we unify the type of hd with a forall *)
-		let fty = add_fvar ctxt in
-		(*let ftyte = add_fvar ctxt in*)
-		let hd_ty' = unification defs ctxt ~polarity:polarity hd_ty (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
+		let hd_ty' = match hd_ty.ast with
+		  | Forall _ -> hd_ty
+		  | _ -> let fty = add_fvar ctxt in
+			 unification defs ctxt ~polarity:polarity hd_ty (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
 		(* if we need to add an implicit we do so *)
 		let { ast = Forall ((q, arg_ty, n'), body); _ } = hd_ty' in
 		let new_arg = add_fvar ~ty:(Some arg_ty) ctxt in
 		  (* and we compute the remaining type (computed with the phantom arg) *)
-		let new_hd_ty = shift_term (term_substitution (IndexMap.singleton 0 (shift_term new_arg 1)) body) (-1) in
+		let new_hd_ty = if (IndexSet.mem 0 (bv_term body)) then 
+		    shift_term (term_substitution (IndexMap.singleton 0 (shift_term new_arg 1)) body) (-1) 
+		  else
+		    shift_term body (-1) 
+		in
 		(*printf "%s = %s => %s\n" (term2string ctxt hd_ty) (term2string ctxt hd_ty') (term2string ctxt new_hd_ty);*)
 		if n' = Implicit && n = Explicit then (
 		  (* and we continue *)
@@ -508,11 +546,17 @@ and typeinfer
 	      | [] -> [], hd_ty
 	      | l -> List.fold_left (fun (args, hd_ty) n ->
 		(* we unify the type of hd with a forall *)
-		let fty = add_fvar ctxt in
-		let hd_ty' = unification defs ctxt ~polarity:polarity hd_ty (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
+		let hd_ty' = match hd_ty.ast with
+		  | Forall _ -> hd_ty
+		  | _ -> let fty = add_fvar ctxt in
+			 unification defs ctxt ~polarity:polarity hd_ty (forall_ ~annot:(Typed (type_ (UName ""))) "@typeinfer_App" ~nature:NJoker ~ty:fty (avar_ ())) in
 		let { ast = Forall ((q, arg_ty, n'), body); _ } = hd_ty' in
 		let arg = add_fvar ~ty:(Some arg_ty) ctxt in
-		let new_hd_ty = shift_term (term_substitution (IndexMap.singleton 0 (shift_term arg 1)) body) (-1) in	
+		let new_hd_ty = if (IndexSet.mem 0 (bv_term body)) then 
+		    shift_term (term_substitution (IndexMap.singleton 0 (shift_term arg 1)) body) (-1) 
+		  else
+		    shift_term body (-1) 
+		in
 		(args @ [arg, n]), new_hd_ty
 	      ) ([], hd_ty) l 
 	    in 
@@ -533,20 +577,24 @@ and typeinfer
 		(*printf "can do %s : %s\n" (term2string ctxt arg) (term2string ctxt (get_type ph_arg));*)
 		let arg = typecheck defs ctxt ~polarity:polarity arg (get_type ph_arg) in
 		let arg = unification defs ctxt ~polarity:polarity arg ph_arg in
-		(arg, n)
+		(arg, n, true)
 	      ) else
-		(arg, n)
+		(arg, n, false)
 	    ) args ph_args in
 	    (*printf "unification: %s Vs %s\n" (term2string ctxt hd_ty) (term2string ctxt ret_ty);*)
 	    let hd_ty = unification defs ctxt ~polarity:polarity hd_ty ret_ty in
 	    (*printf "unification: %s \n" (term2string ctxt hd_ty);*)
 	    (* as a side effect it have instantiated some phantom args and their types *)
 	    (* now we typecheck all the args against their phantom image type, and unify both args *)
-	    let args = List.map2 (fun (arg, n) (ph_arg, n') ->
+	    let args = List.map2 (fun (arg, n, already_tc) (ph_arg, n') ->
 	      (*printf "arg tpyecheck %s :? %s\n" (term2string ctxt arg) (term2string ctxt (get_type ph_arg));*)
-	      let arg = typecheck defs ctxt ~polarity:polarity arg (get_type ph_arg) in
-	      let arg = unification defs ctxt ~polarity:polarity arg ph_arg in
-	      (arg, n)
+	      (* just make sure that we only typecheck the args we did not typechecked yet  *)
+	      if already_tc then
+		(arg,n)
+	      else
+		let arg = typecheck defs ctxt ~polarity:polarity arg (get_type ph_arg) in
+		let arg = unification defs ctxt ~polarity:polarity arg ph_arg in
+		(arg, n)
 	    ) args ph_args in
 	    (*printf "typechecking args\n";*)
 	    (*printf "returned results\n";*)
