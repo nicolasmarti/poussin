@@ -202,6 +202,7 @@ let process_definition (def: definition) : unit =
       String.concat "" ["error: missing pattern in\n\tmatch "; (term2string ctxt' te); " : "; (term2string ctxt' ty); " with\n\t| "; (pattern2string ctxt' p);" := ???\n\n"]
     )))
   ) !unmatched_pattern; 
+  assert (List.length !ctxt.bvs = 0);
   (* well formness test *)
   (match def with
     | DefSignature _ -> ()
