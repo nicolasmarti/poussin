@@ -1,7 +1,9 @@
 (*open Parser*)
 open Libpprinter
 open Extlist
-open Calculus_kernel
+open Calculus_def
+open Calculus_misc
+open Calculus_substitution
 open Def
 
 let rec withParen (t: token) : token =
@@ -20,26 +22,26 @@ type place =  InApp (* in the head of application *)
 	     | Alone (* standalone *)
 
 type pp_option = {
-  show_implicit : bool;
-  show_indices : bool;
-  show_position : bool;
-  show_univ : bool;
-  show_type: bool;
+  mutable show_implicit : bool;
+  mutable show_indices : bool;
+  mutable show_position : bool;
+  mutable show_univ : bool;
+  mutable show_type: bool;
 }
 
-let pp_option = ref {show_implicit = false; 
-		     show_indices = false; 
-		     show_position = false; 
-		     show_univ = false;
-		     show_type = false;
-		    }
+let pp_option = {show_implicit = false; 
+		 show_indices = false; 
+		 show_position = false; 
+		 show_univ = false;
+		 show_type = false;
+		}
 
 let verbatims (l: name list) = Verbatim (String.concat "" l)
 
 (* transform a term into a box *)
 let rec term2token (vars: name list) (te: term) (p: place): token =
   match get_term_typeannotation te with 
-    | Typed ty when !pp_option.show_type ->
+    | Typed ty when pp_option.show_type ->
       Box [Verbatim "(";
 	   term2token vars (set_term_noannotation te) Alone; Space 1;
 	   Verbatim ":"; Space 1;
@@ -47,7 +49,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	   Verbatim ")"
 	  ]
 
-    | Annotation ty when !pp_option.show_type ->
+    | Annotation ty when pp_option.show_type ->
       Box [Verbatim "(";
 	   term2token vars (set_term_noannotation te) Alone; Space 1;
 	   Verbatim ":?:"; Space 1;
@@ -55,7 +57,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	   Verbatim ")"
 	  ]
 
-    | TypedAnnotation ty when !pp_option.show_type ->
+    | TypedAnnotation ty when pp_option.show_type ->
       Box [Verbatim "(";
 	   term2token vars (set_term_noannotation te) Alone; Space 1;
 	   Verbatim ":?:"; Space 1;
@@ -74,7 +76,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 
     | Var i when i >= 0 -> (
       try
-	verbatims ([List.nth vars i] @ (if !pp_option.show_indices then ["("; string_of_int i ;")"] else []))
+	verbatims ([List.nth vars i] @ (if pp_option.show_indices then ["("; string_of_int i ;")"] else []))
       with | _ -> verbatims ["!"; string_of_int i]
     )
     | Var i when i < 0 -> verbatims ["?"; string_of_int (-i)]
@@ -189,7 +191,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	let args = List.map (fun (te, n) -> 
 	  (match n with | Implicit -> withBracket | _ -> fun x -> x)
 	  (term2token vars te (InArg n))) 
-	  (if !pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args) in
+	  (if pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args) in
 	(* the token for the function *)
 	let te = term2token vars te InApp in
 	(* put it all together *)
@@ -236,7 +238,7 @@ and pattern2token (vars: name list) (pattern: pattern) (p: place) : token =
 	let args = List.map (fun (te, n) -> 
 	  (match n with | Implicit -> withBracket | _ -> fun x -> x)
 	  (pattern2token vars te (InArg n))
-	) (if !pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args) in
+	) (if pp_option.show_implicit then args else List.filter (fun (_, nature) -> nature = Explicit) args) in
 	(* the token for the function *)
 	let te = term2token vars (cste_ n) InApp in
 	(* put it all together *)
@@ -332,11 +334,13 @@ let trace2string (trace: ty_action list) : string =
   box2string box
 
 let conversion_hyps2token (ctxt: context ref) (conv: (term * term) list) : token =
+  let s, f = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
+  let s = append_substitution s (context2subst ctxt) in
     Box (intercalates [Space 1; Verbatim "/\\"; Space 1]
 	   (List.map (fun (hd1, hd2) ->
-	     Box [ term2token (context2namelist ctxt) hd1 Alone; Space 1;
+	     Box [ term2token (context2namelist ctxt) (term_substitution s hd1) Alone; Space 1;
 	       Verbatim "==="; Space 1;
-	       term2token (context2namelist ctxt) hd2 Alone
+	       term2token (context2namelist ctxt) (term_substitution s hd2) Alone
 	     ]
 	    ) conv
 	   )
@@ -393,7 +397,10 @@ let rec poussin_error2token (err: poussin_error) : token =
       Box [Verbatim "NoUnification between"; Newline; 
 	   (*position2token (get_term_pos te1);*) Space 2; term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
 	   Verbatim " And "; Newline;
-	   (*position2token (get_term_pos te2);*) Space 2; term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
+	   (*position2token (get_term_pos te2);*) Space 2; term2token (context2namelist (ref ctxt)) te2 Alone; Newline;
+	  Verbatim "under following conversion_hyps:"; Newline;
+	  Space 2; conversion_hyps2token (ref ctxt) ctxt.conversion_hyps
+	  ]
 
     | NoNatureUnification  _ -> Verbatim "NoNatureUnification"
     | UnknownUnification (ctxt, te1, te2) -> 
@@ -404,7 +411,10 @@ let rec poussin_error2token (err: poussin_error) : token =
       Box [Verbatim "UnknownUnification between"; Newline; 
 	   (*position2token (get_term_pos te1);*) Space 2; term2token (context2namelist (ref ctxt)) te1 Alone; Newline; 
 	   Verbatim " And "; Newline;
-	   (*position2token (get_term_pos te2);*) Space 2; term2token (context2namelist (ref ctxt)) te2 Alone; Newline]
+	   (*position2token (get_term_pos te2);*) Space 2; term2token (context2namelist (ref ctxt)) te2 Alone; Newline;
+	  Verbatim "under following conversion_hyps:"; Newline;
+	  Space 2; conversion_hyps2token (ref ctxt) ctxt.conversion_hyps
+	  ]
     | CsteNotConstructor n -> Verbatim "CsteNotConstructor"
     | CsteNotInductive n -> Verbatim "CsteNotInductive"
     | NegativeIndexBVar  _ -> Verbatim "NegativeIndexBVar"
@@ -428,8 +438,10 @@ let rec poussin_error2token (err: poussin_error) : token =
 	   position2token (get_term_pos te); Space 2; term2token (context2namelist (ref ctxt)) te Alone; Newline; 
 	   Verbatim "with type: "; Newline; 
 	   (*position2token (get_term_pos ty);*) Verbatim "    "; term2token (context2namelist (ref ctxt)) ty Alone; Newline; 
-	   Verbatim "reason: "; Newline;
-	   poussin_error2token err
+	    Verbatim "under following conversion_hyps:"; Newline;
+	    Space 2; conversion_hyps2token (ref ctxt) ctxt.conversion_hyps;
+	    Verbatim "reason: "; Newline;
+	    poussin_error2token err
 	  ]
       
 

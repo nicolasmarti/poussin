@@ -1,4 +1,4 @@
-open Calculus_kernel
+open Calculus_def
 
 type definition = DefSignature of name * term
 		  | DefDefinition of name * term
