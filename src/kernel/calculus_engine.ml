@@ -561,7 +561,7 @@ and typeinfer
 	      let vars = pattern_vars p in
 	      (* we push quantification corresponding to the pattern vars *)		
 	      List.iter (fun v -> 
-		let ty = add_fvar ctxt in
+		let ty = add_fvar ctxt' in
 		push_quantification (v, ty, Explicit (*dummy*)) ctxt'
 	      ) vars;
 	      (* we need to shift the destructed term type *)
