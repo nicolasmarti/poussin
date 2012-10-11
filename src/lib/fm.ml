@@ -48,87 +48,6 @@ let rec rewrite_nexpr e x y =
     | Nmult (e1, e2) -> Nmult (rewrite_nexpr e1 x y, rewrite_nexpr e2 x y)
 ;;
 
-let parseintrule : int lexingrule = (regexp "-?[0-9]+", fun (s:string) -> int_of_string s)
-;;
-
-let parsestringrule : nexpr lexingrule = (regexp "-?[a-zA-Z]+", 
-					  fun (s:string) -> 
-					    if s.[0] = '-' then
-					      Nmult (Ncons (-1), Nvar (String.sub s 1 (String.length s - 1)))
-					    else
-					      Nvar s
-					 )
-;;
-
-let parseoprule : (string * unit) lexingrule = (regexp "['+' '*' -]", fun (s:string) -> (s, ()))
-;;
-
-
-let consparser : nexpr parsingrule = ((fun _ x -> Ncons x) |> (spaces) >> (applylexingrule parseintrule)) 
-;;
-
-let varparser : nexpr parsingrule = ((spaces) >> (applylexingrule parsestringrule))
-;; 
-
-let opparser : (string * unit) parsingrule = ((spaces) >> (applylexingrule parseoprule))  
-  <!> "not an numerical expression operator"
-;;
-
-let nexpr_binop_precedence: (string, (int * associativity * (unit -> nexpr -> nexpr -> nexpr))) Hashtbl.t = Hashtbl.create 10;;
-
-Hashtbl.add nexpr_binop_precedence "+" (10, Libparser.LeftAssoc, fun _ x y -> Nplus (x, y));;
-Hashtbl.add nexpr_binop_precedence "-" (10, Libparser.LeftAssoc, fun _ x y -> Nminus (x, y));;
-Hashtbl.add nexpr_binop_precedence "*" (20, Libparser.LeftAssoc, fun _ x y -> Nmult (x, y));;
-
-let rec nexpr_primary = 
-  fun pb -> (
-    (consparser 
-     <|> varparser
-       <|> (tryrule 
-	      (fun pb ->
-		 let _ = keyword "(" () pb in
-		 let res = nexprparser pb in
-		 let _ = keyword ")" () pb in
-		   res
-	      )
-	   )
-    ) <!> "not a primary nexpr (var or cons or an expr in parenthesis)"
-  ) pb
-and nexprparser = fun pb ->
-  operator_precedence opparser nexpr_binop_precedence nexpr_primary pb
-;;
-
-
-let rec nexpr_level e =
-  match e with
-    | Nvar s -> 50
-    | Ncons i -> 50
-    | Nplus (e1, e2) -> 10
-    | Nminus (e1, e2) -> 10
-    | Nmult (e1, e2) -> 20
-;;
-
-let rec nexpr2token e =
-  match e with
-    | Nvar s -> Verbatim s
-    | Ncons i -> Verbatim (string_of_int i)
-    | Nplus (e1, e2) -> Box [paren_nexpr2token e1 10; Space 1; Verbatim "+"; Space 1; paren_nexpr2token e2 10;]
-    | Nminus (e1, e2) -> Box [paren_nexpr2token e1 10; Space 1; Verbatim "-"; Space 1; paren_nexpr2token e2 10;]
-    | Nmult (Ncons (-1), e) -> Box [Verbatim "-"; paren_nexpr2token e 20;]
-    | Nmult (e1, e2) -> Box [paren_nexpr2token e1 20; Space 1; Verbatim "*"; Space 1; paren_nexpr2token e2 20;]
-and paren_nexpr2token e l =
-  if nexpr_level e < l then
-    Box [Verbatim "("; nexpr2token e; Verbatim ")"]
-  else
-    nexpr2token e
-;;
-
-
-
-let rec print_nexpr e = 
-  printbox (token2box (nexpr2token e) 20 2);;
-
-
 
 
 type bexpr =
@@ -142,100 +61,6 @@ type bexpr =
     | Bneg of bexpr
     | Band of bexpr * bexpr
     | Bor of bexpr * bexpr
-;;
-
-let parseoprule3 : string lexingrule = (regexp ">=\\|<=\\|=\\|<\\|>", fun (s:string) -> s)
-;;
-
-let bexpr_binop_precedence: (string, (int * associativity * (unit -> bexpr -> bexpr -> bexpr))) Hashtbl.t = Hashtbl.create 10;;
-
-Hashtbl.add bexpr_binop_precedence "|" (10, Libparser.LeftAssoc, fun _ x y -> Bor (x, y));;
-Hashtbl.add bexpr_binop_precedence "&" (20, Libparser.LeftAssoc, fun _ x y -> Band (x, y));;
-Hashtbl.add bexpr_binop_precedence "->" (15, Libparser.RightAssoc, fun _ x y -> Bor (Bneg (x), y));;
-
-let bexpr_cste = (keyword "True" BTrue) <|> (keyword "False" BFalse);;
-
-let parseoprule2 : (string * unit) lexingrule = (regexp "&\\||\\|->", fun (s:string) -> (s, ()))
-;;
-
-let opparser2 : (string * unit) parsingrule = ((spaces) >> (applylexingrule parseoprule2))  
-  <!> "not an boolean expression operator"
-;;
-
-let commentrule : unit lexingrule = (regexp "(\\*\\(.\\|[' ' '\t' '\r' '\n']\\)*\\*)", fun (s:string) -> ()) 
-
-let rec bexpr_primary : bexpr parsingrule =
-  fun pb -> (
-    (tryrule bexpr_cste)
-    <|> (
-      fun pb ->      
-	let exp1 = nexprparser pb in
-	let bop = (spaces >> ((applylexingrule parseoprule3) <!> "not an numerical expression comparaison operator"))  pb in
-	let exp2 = nexprparser pb in
-	  match bop with
-	    | "<=" -> Ble (exp1, exp2)
-	    | ">=" -> Bge (exp1, exp2)
-	    | "<" -> Blt (exp1, exp2)
-	    | ">" -> Bgt (exp1, exp2)
-	    | "=" -> Beq (exp1, exp2)
-	    | _ -> raise NoMatch
-    ) 
-    <|> (tryrule 
-	   (fun pb ->
-	      let _ = keyword "(" () pb in
-	      let res = bexprparser pb in
-	      let _ = keyword ")" () pb in
-		res
-	   )
-	)	
-      <|> (fun pb ->
-	   let _ = keyword "~" () pb in
-	   let res = bexprparser pb in
-	     Bneg res
-	)	
-	<|> (fun pb ->
-	       let _ = (spaces >> (applylexingrule commentrule)) pb in
-	       let res = bexprparser pb in
-		 res
-	    )
-  ) pb
-and bexprparser =
-  fun pb ->
-    operator_precedence opparser2 bexpr_binop_precedence bexpr_primary pb  
-;;
-
-let rec bexpr_level e =
-  match e with
-    | BTrue -> 100
-    | BFalse -> 100
-    | Beq (e1, e2) -> 90
-    | Blt (e1, e2) -> 90
-    | Ble (e1, e2) -> 90
-    | Bgt (e1, e2) -> 90
-    | Bge (e1, e2) -> 90
-    | Bneg b -> 95
-    | Bor (e1, e2) -> 20
-    | Band (e1, e2) -> 50
-;;
-
-let rec bexpr2token e =
-  match e with
-    | BTrue -> Verbatim "true"
-    | BFalse -> Verbatim "false"
-    | Beq (e1, e2) -> Box [nexpr2token e1; Space 1; Verbatim "="; Space 1; nexpr2token e2]
-    | Bgt (e1, e2) -> Box [nexpr2token e1; Space 1; Verbatim ">"; Space 1; nexpr2token e2]
-    | Blt (e1, e2) -> Box [nexpr2token e1; Space 1; Verbatim "<"; Space 1; nexpr2token e2]
-    | Bge (e1, e2) -> Box [nexpr2token e1; Space 1; Verbatim ">="; Space 1; nexpr2token e2]
-    | Ble (e1, e2) -> Box [nexpr2token e1; Space 1; Verbatim "<="; Space 1; nexpr2token e2]
-    | Band (e1, e2) -> Box [paren_bexpr2token e1 50; Space 1; Verbatim "&"; Space 1; paren_bexpr2token e2 50]
-    | Bor (Bneg(e1), e2) -> Box [paren_bexpr2token e1 20; Space 1; Verbatim "->"; Space 1; paren_bexpr2token e2 20]
-    | Bor (e1, e2) -> Box [paren_bexpr2token e1 20; Space 1; Verbatim "|"; Space 1; paren_bexpr2token e2 20]
-    | Bneg e1 -> Box [Verbatim "~"; Space 1; paren_bexpr2token e1 95]
-and paren_bexpr2token e l =
-  if bexpr_level e < l then
-    Box [Verbatim "("; bexpr2token e; Verbatim ")"]
-  else
-    bexpr2token e
 ;;
 
 let rec rewrite_bexpr b x y =
@@ -253,8 +78,6 @@ let rec rewrite_bexpr b x y =
 
 let bimpl b1 b2 = Bor (Bneg b1, b2);;
 
-let rec print_bexpr b = 
-  printbox (token2box (bexpr2token b) 20 2);;
 let rec simpl_bexpr b =
   match b with
     | Bneg b -> (
@@ -325,35 +148,15 @@ let rec neg_propagate b n =
 
 type constraint0 = nexpr
 
-let print_cons c =
-  printf "0 >= "; print_nexpr c;;
-
 type andlist = constraint0 list
-
-let rec print_andlist l =
-  match l with
-    | [] -> printf "True"; printf ") ";
-    | hd::tl ->
-        print_cons hd; printf " /\\ "; print_andlist tl
-;;
-
 
 let andlist_plus_andlist c1 c2 =
   c1 @ c2
 
 type orlist = andlist list
 
-
-let rec print_orlist l =
-  match l with
-    | [] -> printf "False"; 
-    | hd::tl ->
-        printf "( "; print_andlist hd; printf "\\/\n"; print_orlist tl;
-;;
-
 let orlist_plus_orlist d1 d2 =
   d1 @ d2
-
 
 let rec andlist_mult_orlist c = function
   | [] -> []
