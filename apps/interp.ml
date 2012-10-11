@@ -139,7 +139,7 @@ let process_signature env n ty : term =
   Hashtbl.add env.defs n (Axiom ty);
   ty
 
-let process_constructor env n ty : term =
+let process_constructor env n ty ind : term =
   (* initialization of a few globals *)
   unmatched_pattern := [];
   registered_calls := [];
@@ -168,21 +168,16 @@ let process_constructor env n ty : term =
 
   (* ensure that conclusion head is an Inductive *)
   let hd = app_head (snd (destruct_forall ty)) in
-  let ind = 
-    match hd.ast with
-      | Cste n -> ignore(get_inductive env.defs n); n
+  (match hd.ast with
+      | Cste n when String.compare n ind = 0 -> ()
       | _ -> raise (PoussinException (FreeError (
-	String.concat "" ["constructor conclusion head is not an Inductive"]
-      ))) in
+	String.concat "" ["constructor conclusion head is not the Inductive "; ind]
+      )))
+  );
   
-  (* everything is ok, add the constructor and update the type *)      
-  Hashtbl.add env.defs n (Constructor (ind, ty));
-  let Inductive (lst, ty) = Hashtbl.find env.defs ind in
-  
-  Hashtbl.replace env.defs ind (Inductive (lst @ [n], ty));
   ty
 
-let process_inductive env n ty : term =
+let process_inductive env n ty cstors: term * (name * term) list =
   (* initialization of a few globals *)
   unmatched_pattern := [];
   registered_calls := [];
@@ -210,7 +205,27 @@ let process_inductive env n ty : term =
 
   (* updating the env *)
   Hashtbl.add env.defs n (Inductive ([], ty));
-  ty
+
+  try
+  (* then trying to typecheck all the constructors *)
+    let cstors = List.map (fun (n', ty) ->
+      (n', process_constructor env n' ty n)
+    ) cstors in
+
+  (* everything is ok, add the constructor and update the type *)      
+    List.iter (fun (n', ty) -> 
+      Hashtbl.add env.defs n' (Constructor (n, ty))
+    ) cstors;
+
+  (* update the inductive def in the env *)
+  Hashtbl.replace env.defs n (Inductive (List.map fst cstors, ty));
+
+  ty, cstors
+
+  with
+    | err -> 
+      Hashtbl.remove env.defs n;
+      raise err
 
 let process_definition env n te : term =
   (* initialization of a few globals *)
@@ -251,28 +266,21 @@ let process_definition (def: definition) : unit =
       let time_end = Sys.time () in
       processing_time := !processing_time +. (time_end -. time_start);
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
-      printf "Signature %s: %s\n\n" n (term2string (ref empty_context) ty);  flush stdout
+      printf "%s\n\n" (definition2string (DefSignature (n, ty)) (ref empty_context));  flush stdout
 
-    | DefInductive (n, ty) -> 	
-      let ty = process_inductive env n ty in
+    | DefInductive (n, ty, cstors) -> 	
+      let ty, cstors = process_inductive env n ty cstors in
       let time_end = Sys.time () in
       processing_time := !processing_time +. (time_end -. time_start);
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
-      printf "Inductive %s: %s\n\n" n (term2string (ref empty_context) ty); flush stdout
-
-    | DefConstructor (n, ty) -> 
-      let ty = process_constructor env n ty in
-      let time_end = Sys.time () in
-      processing_time := !processing_time +. (time_end -. time_start);
-      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
-      printf "Constructor %s: %s\n\n" n (term2string (ref empty_context) ty); flush stdout
+      printf "%s\n\n" (definition2string (DefInductive (n, ty, cstors)) (ref empty_context)); flush stdout
 
     | DefDefinition (n, te) -> 
       let te = process_definition env n te in
       let time_end = Sys.time () in
       processing_time := !processing_time +. (time_end -. time_start);
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
-      printf "Definition %s := %s\n: %s \n\n" n (if true then (term2string (ref empty_context) te) else "...") (term2string (ref empty_context) (get_type te)); flush stdout
+      printf "%s\n\n" (definition2string (DefDefinition (n, te)) (ref empty_context)); flush stdout
    
     | DefCompute te ->
       let ctxt = ref empty_context in

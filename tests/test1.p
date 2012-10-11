@@ -1,20 +1,20 @@
-Inductive True : Prop
-Constructor I: True
+Inductive True : Prop :=
+| I: True
 
-Inductive False : Prop
+Inductive False : Prop :=
 
-Inductive Not (P: Prop) : Prop
-Constructor Contradiction  {P}: (P -> False) -> Not P
+Inductive Not (P: Prop) : Prop :=
+| Contradiction  {P}: (P -> False) -> Not P
 
-Inductive And (A B: Prop) : Prop
-Constructor conj {A} {B}: A -> B -> And A B
+Inductive And (A B: Prop) : Prop :=
+| conj {A} {B}: A -> B -> And A B
 
-Inductive Or (A B: Prop) : Prop
-Constructor left {A} {B}: A -> Or A B
-Constructor right {A} {B}: B -> Or A B
+Inductive Or (A B: Prop) : Prop :=
+| left {A} {B}: A -> Or A B
+| right {A} {B}: B -> Or A B
 
-Inductive eq {A: Type} (a: A): A -> Prop
-Constructor eq_refl {A} (a: A): eq a a
+Inductive eq {A: Type} (a: A): A -> Prop :=
+| eq_refl {A} (a: A): eq a a
 
 Definition eq_symm {A} (x y: A) (Hxy: eq x y) : eq y x :=
    match Hxy with
@@ -32,8 +32,8 @@ Definition eq_trans {A} (x y z: A) (Hxy: eq x y) (Hyz: eq y z) : eq x z :=
 
 Definition Relation (A: Set) : Type := A -> A -> Prop
 
-Inductive ReflexiveRel : Set
-Constructor build_ReflexiveRel: (A: Set) -> (rel: Relation A) -> (refl: (x: A) -> rel x x) -> ReflexiveRel
+Inductive ReflexiveRel : Set :=
+| build_ReflexiveRel: (A: Set) -> (rel: Relation A) -> (refl: (x: A) -> rel x x) -> ReflexiveRel
 
 Definition ReflexiveRel_t {rel: ReflexiveRel} : Set :=
    match rel with | build_ReflexiveRel A _ _ := A end
@@ -48,13 +48,13 @@ Definition ReflexiveRel_refl {rel: ReflexiveRel} : (x: ReflexiveRel_t {rel}) -> 
       | build_ReflexiveRel _ _ refl := refl      
    end
 
-Inductive Nat: Set
-Constructor O: Nat
-Constructor S: Nat -> Nat
+Inductive Nat: Set :=
+| O: Nat
+| S: Nat -> Nat
 
-Inductive Vector (A: Set): Nat -> Set
-Constructor nil {A: Set}: Vector A O
-Constructor cons {A: Set} {n}: A -> Vector A n -> Vector A (S n)
+Inductive Vector (A: Set): Nat -> Set :=
+| nil {A: Set}: Vector A O
+| cons {A: Set} {n}: A -> Vector A n -> Vector A (S n)
 
 Signature map {A B: Set} {n}: (f: A -> B) -> Vector A n -> Vector B n
 
@@ -80,12 +80,12 @@ Definition append {A} {n1 n2} (v1: Vector A n1) (v2: Vector A n2): Vector A (plu
      | cons {A} {n1} hd tl := cons hd (append tl v2)
 end
 
-Inductive bool: Set
-Constructor true: bool
-Constructor false: bool
+Inductive bool: Set :=
+| true: bool
+| false: bool
 
-Inductive Eq: Set -> Set
-Constructor build_eq {A}: (eqb: A -> A -> bool) -> Eq A
+Inductive Eq: Set -> Set :=
+| build_eq {A}: (eqb: A -> A -> bool) -> Eq A
 
 Definition eqb {A: Set} {eqA: Eq A}: A -> A -> bool :=
   match eqA with
@@ -93,8 +93,8 @@ Definition eqb {A: Set} {eqA: Eq A}: A -> A -> bool :=
   end
 
 
-Inductive pair: Set -> Set -> Set
-Constructor prod {A B: Set} (a: A) (b: B): pair A B
+Inductive pair: Set -> Set -> Set :=
+| prod {A B: Set} (a: A) (b: B): pair A B
 
 Definition eqb_bool (b1 b2: bool) : bool :=
   match prod b1 b2 with
@@ -153,10 +153,10 @@ Definition and_comm {P Q} (H: And P Q) :=
      | conj {P} {Q} p q := conj q p
 end
 
-Inductive expr: Set -> Set
-Constructor Cste {A: Set}: A -> expr A
-Constructor App {A B: Set}: expr (A -> B) -> expr A -> expr B
-Constructor Ifte {A: Set}: expr bool -> expr A -> expr A -> expr A
+Inductive expr: Set -> Set :=
+| Cste {A: Set}: A -> expr A
+| App {A B: Set}: expr (A -> B) -> expr A -> expr B
+| Ifte {A: Set}: expr bool -> expr A -> expr A -> expr A
 
 Signature expr_sem {A: Set}: expr A -> A
 Definition expr_sem {A: Set} (e: expr A) :=
@@ -170,21 +170,21 @@ Definition expr_sem {A: Set} (e: expr A) :=
         end
   end
 
-Inductive formula: Set
-Constructor f_forall: {A: Set} -> (A -> formula) -> formula
-Constructor f_exists: {A: Set} -> (A -> formula) -> formula
-Constructor f_neg: formula -> formula
-Constructor f_and: formula -> formula -> formula
-Constructor f_or: formula -> formula -> formula
-Constructor f_impl: formula -> formula -> formula
-Constructor f_iff: formula -> formula -> formula
-Constructor f_pred: bool -> formula
+Inductive formula: Set :=
+| f_forall: {A: Set} -> (A -> formula) -> formula
+| f_exists: {A: Set} -> (A -> formula) -> formula
+| f_neg: formula -> formula
+| f_and: formula -> formula -> formula
+| f_or: formula -> formula -> formula
+| f_impl: formula -> formula -> formula
+| f_iff: formula -> formula -> formula
+| f_pred: bool -> formula
 
-Inductive exists {A: Set} (P: A -> Prop): Prop
-Constructor witness {A: Set} (a: A) P: P a -> exists P
+Inductive exists {A: Set} (P: A -> Prop): Prop :=
+| witness {A: Set} (a: A) P: P a -> exists P
 
-Inductive Iff: Prop -> Prop -> Prop
-Constructor iff {P Q}: (P -> Q) -> (Q -> P) -> Iff P Q
+Inductive Iff: Prop -> Prop -> Prop :=
+| iff {P Q}: (P -> Q) -> (Q -> P) -> Iff P Q
 
 Signature formula_sem: formula -> Prop
 Definition formula_sem (f: formula) :=
@@ -308,9 +308,9 @@ Definition even (n: Nat) :=
      | S (S n) := even n
 end
 
-Inductive Fin: Nat -> Set
-Constructor f0 {n}: Fin (S n)
-Constructor fS {n}: Fin n -> Fin (S n)
+Inductive Fin: Nat -> Set :=
+| f0 {n}: Fin (S n)
+| fS {n}: Fin n -> Fin (S n)
 
 Signature index {A} {n} (i: Fin n) (v: Vector A n) : A
 Definition index {A} {n} (i: Fin n) (v: Vector A n) :=
@@ -319,8 +319,8 @@ Definition index {A} {n} (i: Fin n) (v: Vector A n) :=
      | fS {_} i := match v with | cons {_} {_} _ tl := index i tl end
   end
 
-Inductive plus_arg_type: Set
-Constructor plus_arg_Nat: plus_arg_type
+Inductive plus_arg_type: Set :=
+| plus_arg_Nat: plus_arg_type
 
 Signature plusres (A: plus_arg_type) (B: plus_arg_type) : Set
 Definition plusres A B :=
@@ -346,8 +346,8 @@ Definition Plus {A} {B} :=
 end
 
 
-Inductive uniqNat : Nat -> Set
-Constructor uniqnat {sz: Nat}: (n: Nat) -> {H: eq sz n} -> uniqNat sz
+Inductive uniqNat : Nat -> Set :=
+| uniqnat {sz: Nat}: (n: Nat) -> {H: eq sz n} -> uniqNat sz
 
 Definition zero_uniqnat : uniqNat (S O) := uniqnat (S O)
 exact eq_refl _
@@ -356,10 +356,10 @@ Definition doudou := Plus O O
 exact plus_arg_Nat
 exact plus_arg_Nat
 
-Inductive Pos: Set
-Constructor xh: Pos
-Constructor xo: Pos -> Pos
-Constructor xi: Pos -> Pos
+Inductive Pos: Set :=
+| xh: Pos
+| xo: Pos -> Pos
+| xi: Pos -> Pos
 
 Signature PosPlusCarry : Pos -> Pos -> bool -> Pos
 Definition PosPlusCarry (p1 p2: Pos) (carry: bool) : Pos :=
@@ -429,14 +429,14 @@ Compute PosEq (PosPlus PosTwo PosThree) (PosPlus PosThree PosTwo)
 
 Compute PosEq (PosPlus PosTwo PosThree) (PosPlus PosTwo PosSix)
 
-Inductive N: Set
-Constructor N0: N
-Constructor NPos: Pos -> N
+Inductive N: Set :=
+| N0: N
+| NPos: Pos -> N
 
-Inductive Z: Set
-Constructor Z0: Z
-Constructor ZPos: Pos -> Z
-Constructor ZNeg: Pos -> Z
+Inductive Z: Set :=
+| Z0: Z
+| ZPos: Pos -> Z
+| ZNeg: Pos -> Z
 
 Compute Contradiction
 

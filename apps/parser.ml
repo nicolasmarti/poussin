@@ -470,26 +470,41 @@ let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsing
     let _ = whitespaces pb in
     let ty = parse_term defs leftmost pb in
     let endpos = cur_pos pb in
-    Lazy.lazy_from_fun (fun () ->   
-      DefInductive ((Lazy.force s), set_term_pos (build_impls (Lazy.force qs) (Lazy.force ty)) (pos_to_position (startpos, endpos)))
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word ":=") pb in
+
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (mayberule (word "|")) pb in
+
+    let cstors = separatedBy (fun pb ->
+      let _ = whitespaces pb in
+      let s = at_start_pos leftmost name_parser pb in
+      let _ = whitespaces pb in
+      let qs = many (parse_lambda_lhs defs leftmost) pb in
+      let _ = whitespaces pb in
+      let _ = at_start_pos leftmost (word ":") pb in
+      let startpos = cur_pos pb in
+      let _ = whitespaces pb in
+      let ty = parse_term defs leftmost pb in
+      let endpos = cur_pos pb in
+      Lazy.lazy_from_fun (fun () ->   
+	(Lazy.force s), set_term_pos (build_impls (Lazy.force qs) (Lazy.force ty)) (pos_to_position (startpos, endpos))
+      )
     )
-  )
-  (* a constructor *)
-  <|> tryrule (fun pb ->
-    let _ = whitespaces pb in
-    let _ = at_start_pos leftmost (word "Constructor") pb in
-    let _ = whitespaces pb in
-    let s = at_start_pos leftmost name_parser pb in
-    let _ = whitespaces pb in
-    let qs = many (parse_lambda_lhs defs leftmost) pb in
-    let _ = whitespaces pb in
-    let _ = at_start_pos leftmost (word ":") pb in
-    let startpos = cur_pos pb in
-    let _ = whitespaces pb in
-    let ty = parse_term defs leftmost pb in
-    let endpos = cur_pos pb in
+      (fun pb -> 
+	let _ = whitespaces pb in
+	let _ = at_start_pos leftmost (word "|") pb in
+	let _ = whitespaces pb in
+	Lazy.lazy_from_val ()
+      ) pb in
+    
+    
     Lazy.lazy_from_fun (fun () ->   
-      DefConstructor ((Lazy.force s), set_term_pos (build_impls (Lazy.force qs) (Lazy.force ty)) (pos_to_position (startpos, endpos)))
+      DefInductive (
+	(Lazy.force s), 
+	set_term_pos (build_impls (Lazy.force qs) (Lazy.force ty)) (pos_to_position (startpos, endpos)),
+	Lazy.force cstors
+      )
     )
   )
   (* a signature *)

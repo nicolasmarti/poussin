@@ -266,10 +266,15 @@ let rec definition2token (def: definition) (ctxt: context ref): token =
       Box [Verbatim "Signature"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone]
     | DefDefinition (n, te) ->
       Box [Verbatim "Definition"; Space 1; Verbatim n; Space 1; Verbatim ":="; Space 1; term2token (context2namelist ctxt) te Alone]
-    | DefInductive (n, ty) ->
-      Box [Verbatim "Inductive"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone]
-    | DefConstructor (n, ty) ->
-      Box [Verbatim "Constructor"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone]
+    | DefInductive (n, ty, cstors) ->
+      Box [Verbatim "Inductive"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone; Space 1; Verbatim ":="; Newline;
+	   Box (intercalate Newline (
+	     List.map (fun (n, ty) ->
+	       Box [Verbatim "|"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone]
+	     ) cstors
+	   ))
+
+	  ]
 
 let definition2string (def: definition) (ctxt: context ref): string =
   let token = definition2token def ctxt in
