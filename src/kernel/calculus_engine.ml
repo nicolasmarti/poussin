@@ -88,7 +88,9 @@ and context_add_conversion (defs: defs) (ctxt: context ref) (te1: term) (te2: te
   let s = context2subst ctxt in
   let te1 = term_substitution s te1 in
   let te2 = term_substitution s te2 in
-  let s, _ = conversion_hyps2subst !ctxt.conversion_hyps in
+  let s1, _ = conversion_hyps2subst !ctxt.conversion_hyps in
+  let s2, _ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
+  let s = append_substitution s1 s2 in
   if not (IndexSet.is_empty (IndexSet.inter (substitution_vars s) (IndexSet.union (bv_term te1) (bv_term te2)))) then (
     (* if possible we rewrite the current substitutions given by the conversions *)
     let te1' = term_substitution s te1 in
@@ -565,14 +567,16 @@ and typeinfer
 		push_quantification (v, ty, Explicit (*dummy*)) ctxt'
 	      ) vars;
 	      (* we need to shift the destructed term type *)
+	      let ret_ty = shift_term ret_ty (List.length vars) in
 	      let mty' = shift_term mty (List.length vars) in
+	      let m = shift_term m (List.length vars) in
 	      (* we create the term corresponding to the pattern *)
 	      let p_te = pattern_to_term defs p in	      
 	      (* we try to typecheck the termed pattern against the type of the destructed term *)
 	      try
 		ignore(typecheck defs ctxt' ~polarity:false ~coercion:false p_te mty');
 		(* it typecheck -> the pattern is valid: we record it as unmatched *)
-		unmatched_pattern := (!ctxt, p, m, ret_ty)::!unmatched_pattern		
+		unmatched_pattern := (!ctxt', p, m, ret_ty)::!unmatched_pattern		
 	      with
 		| PoussinException (CannotTypeCheck _) ->
 		  (* the term mismatch the type -> this is not a possible pattern, thus we skip it*)
