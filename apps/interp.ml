@@ -65,9 +65,23 @@ let init_interactive =
       | NoMatch -> None
   )::[];;
 
+
+type well_formness = {
+  mutable terminating: bool;
+  mutable total: bool;
+  mutable positive: bool;
+  mutable stratified: bool;
+  mutable proof_irrelevance: bool;
+}
+
+type env = {
+  defs: defs;
+  wf_env: (name, well_formness) Hashtbl.t
+}
+
 let env : env = {
   defs = Hashtbl.create 100;
-  deps = Hashtbl.create 100;
+  wf_env = Hashtbl.create 100;
 };;
 
 let type_simplification_strat = {
@@ -204,12 +218,12 @@ let process_definition (def: definition) : unit =
   ) !unmatched_pattern; 
   assert (List.length !ctxt.bvs = 0);
   (* well formness test *)
-  (match def with
-    | DefSignature _ -> ()
-    | DefConstructor _ -> ()
-    | DefInductive _ -> ()
-    | DefDefinition (n, _) -> ()
-    | DefCompute _ -> () 
+  (List.iter (fun (ctxt, name, args) ->
+    match Hashtbl.find env.defs name with
+      | Inductive _ | Constructor _ | Axiom _ -> ()
+      | Definition _ -> 
+	printf "calling %s\n" (term2string (ref ctxt) (app_ (cste_ name) args));    
+   ) !registered_calls
   );
   ()
 

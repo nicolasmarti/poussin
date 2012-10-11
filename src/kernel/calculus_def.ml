@@ -116,13 +116,6 @@ type value = Inductive of name list * term
 
 and defs = (name, value) Hashtbl.t;;
 
-
-type env = {
-  defs: defs;
-  (* dependencies *)
-  deps: (name, NameSet.t) Hashtbl.t;
-}
-
 type poussin_error = FreeError of string
 		    | Unshiftable_term of term * int * int
 		    | UnknownCste of name
