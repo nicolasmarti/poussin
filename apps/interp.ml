@@ -94,118 +94,10 @@ let type_simplification_strat = {
 
 let processing_time : float ref = ref 0.0;;
 
-let process_definition (def: definition) : unit =
-  let ctxt = ref empty_context in
-  if !mk_trace then trace := [];
-  let time_start = Sys.time () in
-  (* initialization of a few globals *)
-  unmatched_pattern := [];
-  registered_calls := [];
-  (* *)
-  (match def with
-    | DefSignature (n, ty) -> 	
-      let ty = (
-	try 
-	  match Hashtbl.find env.defs n with
-	    | _ -> raise (PoussinException (FreeError (
-	      String.concat "" ["term "; n; " is already defined"]
-	    )))
-	with
-	  | Not_found -> typeinfer env.defs ctxt ty
-      ) in
-      let ty = typecheck env.defs ctxt ty (type_ (UName "")) in
-      let [ty] = flush_fvars env.defs ctxt [ty] in 
-      Hashtbl.add env.defs n (Axiom ty);
-      let time_end = Sys.time () in
-      processing_time := !processing_time +. (time_end -. time_start);
-      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
-      printf "Signature %s: %s\n\n" n (term2string ctxt ty);  flush stdout
-    | DefInductive (n, ty) -> 	
-      let ty = (
-	try 
-	  match Hashtbl.find env.defs n with
-	    | Axiom ty' -> 
-	      let ty = typecheck env.defs ctxt ty (type_ (UName "")) in
-	      unification env.defs ctxt ty ty' 
-	    | _ -> raise (PoussinException (FreeError (
-	      String.concat "" ["term "; n; " is already defined"]
-	    )))
-	with
-	  | Not_found -> typeinfer env.defs ctxt ty
-      ) in
-      let [ty] = flush_fvars env.defs ctxt [ty] in 
-      Hashtbl.add env.defs n (Inductive ([], ty));
-      let time_end = Sys.time () in
-      processing_time := !processing_time +. (time_end -. time_start);
-      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
-      printf "Inductive %s: %s\n\n" n (term2string ctxt ty); flush stdout
-    | DefConstructor (n, ty) -> 
-      (* typecheck the constructor type *)
-      let ty = (
-	try 
-	  match Hashtbl.find env.defs n with
-	    | Axiom ty' -> 
-	      let ty = typecheck env.defs ctxt ty (type_ (UName "")) in
-	      unification env.defs ctxt ty ty' 
-	    | _ -> raise (PoussinException (FreeError (
-	      String.concat "" ["term "; n; " is already defined"]
-	    )))
-	with
-	  | Not_found -> typeinfer env.defs ctxt ty
-      ) in
-      (* flush free vars *)
-      let [ty] = flush_fvars env.defs ctxt [ty] in 
-      (* ensure that conclusion head is an Inductive *)
-      let hd = app_head (snd (destruct_forall ty)) in
-      let ind = 
-	match hd.ast with
-	  | Cste n -> ignore(get_inductive env.defs n); n
-	  | _ -> raise (PoussinException (FreeError (
-	      String.concat "" ["constructor conclusion head is not an Inductive"]
-	    ))) in
-      (* next ensure that the inductive does not appear negatively *)
-      if neg_occur_cste ty ind then raise (PoussinException (FreeError (
-	String.concat "" ["constructor type has a negative occurence of the Inductive"]
-      )));
-      (* everything is ok, add the constructor and update the type *)      
-      Hashtbl.add env.defs n (Constructor (ind, ty));
-      let Inductive (lst, ty) = Hashtbl.find env.defs ind in
-      Hashtbl.add env.defs ind (Inductive (lst @ [n], ty));
-      let time_end = Sys.time () in
-      processing_time := !processing_time +. (time_end -. time_start);
-      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
-      printf "Constructor %s: %s\n\n" n (term2string ctxt ty); flush stdout
-    | DefDefinition (n, te) -> 
-      let te = (
-	try 
-	  match Hashtbl.find env.defs n with
-	    | Axiom ty -> 
-	      typecheck env.defs ctxt te ty		
-	    | _ -> raise (PoussinException (FreeError (
-	      String.concat "" ["term "; n; " is already defined"]
-	    )))
-	with
-	  | Not_found -> typeinfer env.defs ctxt te
-      ) in
-      let [te] = flush_fvars env.defs ctxt [te] in 
-      let te = { te with annot = Typed (reduction_term env.defs ctxt type_simplification_strat (get_type te))} in
-      Hashtbl.add env.defs n (Definition te);
-      let time_end = Sys.time () in
-      processing_time := !processing_time +. (time_end -. time_start);
-      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
-      printf "Definition %s := %s\n: %s \n\n" n (if true then (term2string ctxt te) else "...") (term2string ctxt (get_type te)); flush stdout
-    | DefCompute te ->
-      let te = typeinfer env.defs ctxt te in
-      let [te] = flush_fvars env.defs ctxt [te] in 
-      printf "Computation %s : %s := " (term2string ctxt te) (term2string ctxt (get_type te)); flush stdout;
-      let te' = reduction_term env.defs ctxt
-	{ beta = Some BetaWeak; delta = Some DeltaWeak; iota = true; zeta = true; eta = true }
-	te in
-      let time_end = Sys.time () in
-      processing_time := !processing_time +. (time_end -. time_start);
-      printf "%s\n" (term2string ctxt te'); flush stdout;
-      printf "processed in %g sec.\n\n" (time_end -. time_start); flush stdout);
-  (* check missing pattern *)
+(* well formness *)
+
+  (* totality *)
+let totality_check () : unit =
   List.iter (fun (ctxt, p, te, ret_ty) ->
     let ctxt' = ref ctxt in
     let s, f = conversion_hyps2subst ~dec_order:true ctxt.conversion_hyps in
@@ -215,18 +107,186 @@ let process_definition (def: definition) : unit =
     raise (PoussinException (FreeError (
       String.concat "" ["error: missing pattern in\n\tmatch "; (term2string ctxt' te); " : "; (term2string ctxt' ty); " with\n\t| "; (pattern2string ctxt' p);" := ???\n\n"]
     )))
-  ) !unmatched_pattern; 
-  assert (List.length !ctxt.bvs = 0);
-  (* well formness test *)
-  (List.iter (fun (ctxt, name, args) ->
-    match Hashtbl.find env.defs name with
-      | Inductive _ | Constructor _ | Axiom _ -> ()
-      | Definition _ -> 
-	printf "calling %s\n" (term2string (ref ctxt) (app_ (cste_ name) args));    
-   ) !registered_calls
-  );
-  ()
+  ) !unmatched_pattern 
 
+(* processing definitions *)
+
+let process_signature env n ty : term =
+  (* initialization of a few globals *)
+  unmatched_pattern := [];
+  registered_calls := [];
+  let ctxt = ref empty_context in
+  (* typecheck the type *)
+  let ty = (
+    try 
+      match Hashtbl.find env.defs n with
+	| _ -> raise (PoussinException (FreeError (
+	  String.concat "" ["term "; n; " is already defined"]
+	)))
+    with
+      | Not_found -> typeinfer env.defs ctxt ty
+  ) in
+  let ty = typecheck env.defs ctxt ty (type_ (UName "")) in
+  let [ty] = flush_fvars env.defs ctxt [ty] in 
+
+  (* some extra check *)
+  assert (List.length !ctxt.bvs = 0);
+
+  (* well-formness *)
+  totality_check ();
+
+  (* updating the env *)
+  Hashtbl.add env.defs n (Axiom ty);
+  ty
+
+let process_constructor env n ty : term =
+  (* initialization of a few globals *)
+  unmatched_pattern := [];
+  registered_calls := [];
+  let ctxt = ref empty_context in
+  (* typecheck the type *)
+  let ty = (
+    try 
+      match Hashtbl.find env.defs n with
+	| Axiom ty' -> 
+	  let ty = typecheck env.defs ctxt ty (type_ (UName "")) in
+	  unification env.defs ctxt ty ty' 
+	| _ -> raise (PoussinException (FreeError (
+	  String.concat "" ["term "; n; " is already defined"]
+	)))
+    with
+      | Not_found -> typeinfer env.defs ctxt ty
+  ) in
+      (* flush free vars *)
+  let [ty] = flush_fvars env.defs ctxt [ty] in 
+  
+  (* some extra check *)
+  assert (List.length !ctxt.bvs = 0);
+
+  (* well-formness *)
+  totality_check ();
+
+  (* ensure that conclusion head is an Inductive *)
+  let hd = app_head (snd (destruct_forall ty)) in
+  let ind = 
+    match hd.ast with
+      | Cste n -> ignore(get_inductive env.defs n); n
+      | _ -> raise (PoussinException (FreeError (
+	String.concat "" ["constructor conclusion head is not an Inductive"]
+      ))) in
+  
+  (* everything is ok, add the constructor and update the type *)      
+  Hashtbl.add env.defs n (Constructor (ind, ty));
+  let Inductive (lst, ty) = Hashtbl.find env.defs ind in
+  
+  Hashtbl.replace env.defs ind (Inductive (lst @ [n], ty));
+  ty
+
+let process_inductive env n ty : term =
+  (* initialization of a few globals *)
+  unmatched_pattern := [];
+  registered_calls := [];
+  let ctxt = ref empty_context in
+  (* typecheck the type *)
+  let ty = (
+    try 
+      match Hashtbl.find env.defs n with
+	| Axiom ty' -> 
+	  let ty = typecheck env.defs ctxt ty (type_ (UName "")) in
+	  unification env.defs ctxt ty ty' 
+	| _ -> raise (PoussinException (FreeError (
+	  String.concat "" ["term "; n; " is already defined"]
+	)))
+    with
+      | Not_found -> typeinfer env.defs ctxt ty
+  ) in
+  let [ty] = flush_fvars env.defs ctxt [ty] in 
+
+  (* some extra check *)
+  assert (List.length !ctxt.bvs = 0);
+
+  (* well-formness *)
+  totality_check ();
+
+  (* updating the env *)
+  Hashtbl.add env.defs n (Inductive ([], ty));
+  ty
+
+let process_definition env n te : term =
+  (* initialization of a few globals *)
+  unmatched_pattern := [];
+  registered_calls := [];
+  let ctxt = ref empty_context in
+      (* typecheck the term *)
+  let te = (
+    try 
+      match Hashtbl.find env.defs n with
+	| Axiom ty -> 
+	  typecheck env.defs ctxt te ty		
+	| _ -> raise (PoussinException (FreeError (
+	  String.concat "" ["term "; n; " is already defined"]
+	)))
+    with
+      | Not_found -> typeinfer env.defs ctxt te
+  ) in
+  let [te] = flush_fvars env.defs ctxt [te] in 
+
+  (* some extra check *)
+  assert (List.length !ctxt.bvs = 0);
+
+  (* well-formness *)
+  totality_check ();
+  
+  let te = { te with annot = Typed (reduction_term env.defs ctxt type_simplification_strat (get_type te))} in
+  Hashtbl.add env.defs n (Definition te);
+  te
+
+let process_definition (def: definition) : unit =
+  if !mk_trace then trace := [];
+  let time_start = Sys.time () in
+  (* *)
+  (match def with
+    | DefSignature (n, ty) -> 	
+      let ty = process_signature env n ty in
+      let time_end = Sys.time () in
+      processing_time := !processing_time +. (time_end -. time_start);
+      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
+      printf "Signature %s: %s\n\n" n (term2string (ref empty_context) ty);  flush stdout
+
+    | DefInductive (n, ty) -> 	
+      let ty = process_inductive env n ty in
+      let time_end = Sys.time () in
+      processing_time := !processing_time +. (time_end -. time_start);
+      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
+      printf "Inductive %s: %s\n\n" n (term2string (ref empty_context) ty); flush stdout
+
+    | DefConstructor (n, ty) -> 
+      let ty = process_constructor env n ty in
+      let time_end = Sys.time () in
+      processing_time := !processing_time +. (time_end -. time_start);
+      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
+      printf "Constructor %s: %s\n\n" n (term2string (ref empty_context) ty); flush stdout
+
+    | DefDefinition (n, te) -> 
+      let te = process_definition env n te in
+      let time_end = Sys.time () in
+      processing_time := !processing_time +. (time_end -. time_start);
+      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
+      printf "Definition %s := %s\n: %s \n\n" n (if true then (term2string (ref empty_context) te) else "...") (term2string (ref empty_context) (get_type te)); flush stdout
+   
+    | DefCompute te ->
+      let ctxt = ref empty_context in
+      let te = typeinfer env.defs ctxt te in
+      let [te] = flush_fvars env.defs ctxt [te] in 
+      printf "Computation %s : %s := " (term2string ctxt te) (term2string ctxt (get_type te)); flush stdout;
+      let te' = reduction_term env.defs ctxt
+	{ beta = Some BetaWeak; delta = Some DeltaWeak; iota = true; zeta = true; eta = true }
+	te in
+      let time_end = Sys.time () in
+      processing_time := !processing_time +. (time_end -. time_start);
+      printf "%s\n" (term2string ctxt te'); flush stdout;
+      printf "processed in %g sec.\n\n" (time_end -. time_start); flush stdout
+  )
 
 let process_stream (str: string Stream.t) : unit  =
   let pb = build_parserbuffer str in
