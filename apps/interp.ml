@@ -76,11 +76,13 @@ type well_formness = {
 
 type env = {
   defs: defs;
+  decreasing: (name, int list) Hashtbl.t;
   wf_env: (name, well_formness) Hashtbl.t
 }
 
 let env : env = {
   defs = Hashtbl.create 100;
+  decreasing = Hashtbl.create 100;
   wf_env = Hashtbl.create 100;
 };;
 
@@ -96,7 +98,7 @@ let processing_time : float ref = ref 0.0;;
 
 (* well formness *)
 
-  (* totality *)
+(* totality *)
 let totality_check () : unit =
   List.iter (fun (ctxt, p, te, ret_ty) ->
     let ctxt' = ref ctxt in
@@ -108,6 +110,34 @@ let totality_check () : unit =
       String.concat "" ["error: missing pattern in\n\tmatch "; (term2string ctxt' te); " : "; (term2string ctxt' ty); " with\n\t| "; (pattern2string ctxt' p);" := ???\n\n"]
     )))
   ) !unmatched_pattern 
+
+(* terminaison *)
+let terminaison_check n env : unit =
+  List.iter (fun (ctxt, n, args) ->
+    printf "need to check: %s\n" (term2string (ref ctxt) (app_ (cste_ n) args))
+  ) !registered_calls;
+  (* first we filter the registered_calls *)
+  let lst = List.filter (fun (_, n', _) ->
+    match Hashtbl.find env.defs n' with
+      | Axiom _ when String.compare n n' = 0 -> true
+      | Axiom _ -> 
+	printf "warning: No recursive calls to undefined term yet supported"; false
+	  (*raise (PoussinException (FreeError "No recursive calls to undefined term yet supported"))*)
+      | _ -> false
+  ) !registered_calls in
+  if List.length lst != 0 then (
+  (* then we grab the decreasing arguments of decreasing in n *)
+  let dec = 
+    try 
+      Hashtbl.find env.decreasing n 
+    with
+      | _ -> 
+	printf "warning: No decreasing arguments"; []
+	  (*raise (PoussinException (FreeError "No decreasing arguments"))*)
+  in
+  List.iter (fun (ctxt, n, args) ->
+    printf "need to check:\n%s|-\n%s\n\n" (ctxt2string (ref ctxt)) (term2string (ref ctxt) (app_ (cste_ n) args))
+  ) lst)
 
 (* processing definitions *)
 
@@ -134,6 +164,7 @@ let process_signature env n ty : term =
 
   (* well-formness *)
   totality_check ();
+  terminaison_check n env;
 
   (* updating the env *)
   Hashtbl.add env.defs n (Axiom ty);
@@ -165,6 +196,7 @@ let process_constructor env n ty ind : term =
 
   (* well-formness *)
   totality_check ();
+  terminaison_check n env;
 
   (* ensure that conclusion head is an Inductive *)
   let hd = app_head (snd (destruct_forall ty)) in
@@ -202,6 +234,7 @@ let process_inductive env n ty cstors: term * (name * term) list =
 
   (* well-formness *)
   totality_check ();
+  terminaison_check n env;
 
   (* updating the env *)
   Hashtbl.add env.defs n (Inductive ([], ty));
@@ -251,6 +284,7 @@ let process_definition env n te : term =
 
   (* well-formness *)
   totality_check ();
+  terminaison_check n env;
   
   let te = { te with annot = Typed (reduction_term env.defs ctxt type_simplification_strat (get_type te))} in
   Hashtbl.add env.defs n (Definition te);
@@ -281,6 +315,13 @@ let process_definition (def: definition) : unit =
       processing_time := !processing_time +. (time_end -. time_start);
       printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
       printf "%s\n\n" (definition2string (DefDefinition (n, te)) (ref empty_context)); flush stdout
+
+    | DefDecreasing (n ,lst) ->
+      Hashtbl.replace env.decreasing n lst;
+      let time_end = Sys.time () in
+      processing_time := !processing_time +. (time_end -. time_start);
+      printf "processed in %g sec.\n" (time_end -. time_start); flush stdout; 
+      printf "%s\n\n" (definition2string (DefDecreasing (n, lst)) (ref empty_context)); flush stdout
    
     | DefCompute te ->
       let ctxt = ref empty_context in

@@ -31,8 +31,12 @@ let with_pos (p: 'a parsingrule) : ('a * pos) parsingrule =
     let endp = cur_pos pb in
     Lazy.lazy_from_fun (fun () -> (Lazy.force res, (startp, endp)))
 
-let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Signature"; "Compute"; "let"; "in";
-   "exact"
+let int_parser : int parsingrule = applylexingrule_regexp ("[0-9]+", 
+							     fun (s:string) -> 
+							       Lazy.lazy_from_val (int_of_string s)
+)
+
+let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Signature"; "Compute"; "let"; "in"; "exact"; "Decreasing"
 ]
 
 let parse_reserved : unit parsingrule =
@@ -570,6 +574,29 @@ let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsing
 	  ) in
       
       DefDefinition (s, te)
+    )
+  )
+  (* a decreasing information *)
+  <|> tryrule (fun pb ->
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word "Decreasing") pb in
+    let _ = whitespaces pb in
+    let s = at_start_pos leftmost name_parser pb in
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word "[") pb in
+    let _ = whitespaces pb in
+    let lst = separatedBy int_parser
+      (fun pb -> 
+	let _ = whitespaces pb in
+	let _ = at_start_pos leftmost (word ",") pb in
+	let _ = whitespaces pb in
+	Lazy.lazy_from_val ()
+      ) pb in
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word "]") pb in
+    let _ = whitespaces pb in
+    Lazy.lazy_from_fun (fun () ->   
+      DefDecreasing (Lazy.force s, Lazy.force lst)
     )
   )
   (* a computation *)

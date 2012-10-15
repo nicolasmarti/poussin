@@ -275,6 +275,10 @@ let rec definition2token (def: definition) (ctxt: context ref): token =
 	   ))
 
 	  ]
+    | DefDecreasing (n, lst) ->
+      Box [Verbatim "Decreasing"; Space 1; Verbatim n; Space 1; Verbatim "["; 
+	   Box (intercalate (Verbatim ", ") (List.map (fun hd -> Verbatim (string_of_int hd)) lst));
+	   Verbatim "]"]
 
 let definition2string (def: definition) (ctxt: context ref): string =
   let token = definition2token def ctxt in
