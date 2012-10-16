@@ -128,47 +128,52 @@ let terminaison_check n env : unit =
     match Hashtbl.find env.defs n' with
       | Axiom _ when String.compare n n' = 0 -> true
       | Axiom _ -> 
-	printf "warning: No recursive calls to undefined term yet supported"; false
-	  (*raise (PoussinException (FreeError "No recursive calls to undefined term yet supported"))*)
+	printf "warning: No recursive calls to undefined term yet supported\n"; false
+      (*raise (PoussinException (FreeError "No recursive calls to undefined term yet supported"))*)
       | _ -> false
   ) !registered_calls in
   (* then we grab the decreasing arguments of decreasing in n *)
-  let dec = 
-    try 
-      Hashtbl.find env.decreasing n 
-    with
-      | _ -> 
-	printf "warning: No decreasing arguments"; []
-	  (*raise (PoussinException (FreeError "No decreasing arguments"))*)
-  in
-  if List.length lst != 0 && List.length dec != 0 then (
-    List.iter (fun (ctxt, n, args) ->
-      printf "checking:\n%s|-\n%s\n\n" (ctxt2string (ref ctxt)) (term2string (ref ctxt) (app_ (cste_ n) args));
-      (* first build hypothesis from conversion hyps *)
-      let hyps = List.fold_right (fun (te1, te2) acc -> 
-	try
-	  Band (acc, Beq (term_to_nexpr env.defs te1, term_to_nexpr env.defs te2)) 
-	with
-	  | _ -> acc
-      ) ctxt.conversion_hyps BTrue in
-      (* we build the needed condition *)
-      let ccl = Blt (
-	(* the sum of rec. call args *)
-	List.fold_right (fun hd acc -> Nplus (acc, term_to_nexpr env.defs hd)) (List.map (fun i -> fst (List.nth args i)) dec) (Ncons 0),
+  if List.length lst != 0 then (
+    let dec = 
+      try 
+	Hashtbl.find env.decreasing n 
+      with
+	| _ -> 
+	  printf "warning: No decreasing arguments\n"; []
+    (*raise (PoussinException (FreeError "No decreasing arguments"))*)
+    in
+    if List.length dec != 0 then (
+      List.iter (fun (ctxt, n, args) ->
+	(* first build hypothesis from conversion hyps *)
+	let hyps = List.fold_right (fun (te1, te2) acc -> 
+	  try
+	    Band (acc, Beq (term_to_nexpr env.defs te1, term_to_nexpr env.defs te2)) 
+	  with
+	    | _ -> acc
+	) ctxt.conversion_hyps BTrue in
+	(* we build the needed condition *)
+	let ccl = Blt (
+	  (* the sum of rec. call args *)
+	  List.fold_right (fun hd acc -> Nplus (acc, term_to_nexpr env.defs hd)) (List.map (fun i -> fst (List.nth args i)) dec) (Ncons 0),
 	(* the sum of the vars *)
-	List.fold_right (fun hd acc -> Nplus (acc, Nvar (String.concat "" ["@"; string_of_int hd]))) (List.map (fun i -> List.length ctxt.bvs - i - 1) dec) (Ncons 0)	  
-      ) in
-      
-      (* final formula *)
-      let f = bimpl hyps ccl in
-      printf "formula := %s\n" (bexpr2string f);
-      if fm_dp f then
-	printf "terminaison checked!\n\n"
-      else
-	printf "terminaison checking failed!\n\n"
-    ) lst
-  )
+	  List.fold_right (fun hd acc -> Nplus (acc, Nvar (String.concat "" ["@"; string_of_int hd]))) (List.map (fun i -> List.length ctxt.bvs - i - 1) dec) (Ncons 0)	  
+	) in
+	(* we also need to assert the positivity of all vars *)
+	let positivity = VarSet.fold (fun hd acc ->
+	  Band (acc, Bgt (Nvar hd, Ncons 0))
+	) (VarSet.union (bexpr_var ccl) (bexpr_var hyps)) BTrue in
 
+	(* final formula *)
+	let f = bimpl (Band (hyps, positivity)) ccl in
+	if not (fm_dp f) then (
+	  printf "checking:\n%s|-\n%s\n\n" (ctxt2string (ref ctxt)) (term2string (ref ctxt) (app_ (cste_ n) args));
+	  printf "formula := %s\n" (bexpr2string f);
+
+	  printf "terminaison checking failed!\n\n";
+	)
+      ) lst
+    )
+  )
 (* processing definitions *)
 
 let process_signature env n ty : term =

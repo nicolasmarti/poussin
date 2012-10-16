@@ -57,6 +57,7 @@ Inductive Vector (A: Set): Nat -> Set :=
 | cons {A: Set} {n}: A -> Vector A n -> Vector A (S n)
 
 Signature map {A B: Set} {n}: (f: A -> B) -> Vector A n -> Vector B n
+Decreasing map [4]
 
 Definition map {A B: Set} {n} (f: A -> B) (v: Vector A n) : Vector B n :=
   match v with
@@ -65,6 +66,7 @@ Definition map {A B: Set} {n} (f: A -> B) (v: Vector A n) : Vector B n :=
 end
 
 Signature plus: Nat -> Nat -> Nat
+Decreasing plus [0]
 
 Definition plus (n m: Nat) : Nat :=
   match n with
@@ -73,6 +75,7 @@ Definition plus (n m: Nat) : Nat :=
   end
 
 Signature append {A} {n1 n2} (v1: Vector A n1) (v2: Vector A n2): Vector A (plus n1 n2)
+Decreasing append [3]
 
 Definition append {A} {n1 n2} (v1: Vector A n1) (v2: Vector A n2): Vector A (plus n1 n2) :=
   match v1 with
@@ -110,6 +113,8 @@ Compute eqb_bool false true
 Compute eqb_bool false false
 
 Signature iota : Nat -> (size: Nat) -> Vector Nat size
+Decreasing iota [1]
+
 Definition iota (start size: Nat) :=
   match size with
      | O := nil
@@ -117,6 +122,8 @@ Definition iota (start size: Nat) :=
   end
 
 Signature mult : Nat -> Nat -> Nat
+Decreasing mult [0]
+
 Definition mult (n m: Nat) :=
   match n with
      | O := O
@@ -124,6 +131,8 @@ Definition mult (n m: Nat) :=
   end
 
 Signature exp : Nat -> Nat -> Nat
+Decreasing exp [0]
+
 Definition exp (n m: Nat) :=
   match n with
      | O := S O
@@ -134,6 +143,8 @@ Definition three : Nat := S (S (S O))
 Definition two : Nat := S (S O)
 
 Signature min: Nat -> Nat -> Nat
+Decreasing min [0]
+
 Definition min (x y: Nat) :=
   match x with
      | O := O
@@ -159,6 +170,8 @@ Inductive expr: Set -> Set :=
 | Ifte {A: Set}: expr bool -> expr A -> expr A -> expr A
 
 Signature expr_sem {A: Set}: expr A -> A
+Decreasing expr_sem [1]
+
 Definition expr_sem {A: Set} (e: expr A) :=
   match e with
      | Cste {A} c := c
@@ -301,6 +314,7 @@ Definition Nat_inversion (n: Nat) (P: Prop) (H1: eq n O -> P) (H2: (x: Nat) -> e
    end
 
 Signature even: Nat -> bool
+Decreasing even [0]
 Definition even (n: Nat) :=
   match n with
      | O := true
@@ -313,6 +327,7 @@ Inductive Fin: Nat -> Set :=
 | fS {n}: Fin n -> Fin (S n)
 
 Signature index {A} {n} (i: Fin n) (v: Vector A n) : A
+Decreasing index [2]
 Definition index {A} {n} (i: Fin n) (v: Vector A n) :=
   match i with
      | f0 {_} := match v with | cons {_} {_} hd _ := hd end
@@ -362,6 +377,7 @@ Inductive Pos: Set :=
 | xi: Pos -> Pos
 
 Signature PosPlusCarry : Pos -> Pos -> bool -> Pos
+Decreasing PosPlusCarry [0,1]
 Definition PosPlusCarry (p1 p2: Pos) (carry: bool) : Pos :=
   match p1 with
     | xh := match p2 with
@@ -385,6 +401,7 @@ Definition PosPlus (p1 p2: Pos) : Pos :=
   PosPlusCarry p1 p2 false
 
 Signature PosMult: Pos -> Pos -> Pos
+Decreasing PosMult [0]
 Definition PosMult (p1 p2: Pos) : Pos :=
   match p1 with
     | xh := p2 
@@ -393,6 +410,7 @@ Definition PosMult (p1 p2: Pos) : Pos :=
   end
 
 Signature PosPower: Pos -> Pos -> Pos
+Decreasing PosPower [1]
 Definition PosPower (x y: Pos) : Pos :=
   match y with
     | xh := x
@@ -401,6 +419,7 @@ Definition PosPower (x y: Pos) : Pos :=
   end
 
 Signature PosEq: Pos -> Pos -> bool
+Decreasing PosEq [0]
 Definition PosEq (x y: Pos) :=
   match prod x y with
     | prod {_} {_} xh xh := true

@@ -134,6 +134,13 @@ let rec nexpr_var = function
   | Nminus (e1, e2) -> VarSet.union (nexpr_var e1) (nexpr_var e2) 
   | Nmult (e1, e2) -> VarSet.union (nexpr_var e1) (nexpr_var e2)
 
+let rec bexpr_var = function
+  | BTrue | BFalse -> VarSet.empty
+  | Beq (e1, e2) | Blt (e1, e2) | Bgt (e1, e2) | Ble (e1, e2) | Bge (e1, e2) ->
+    VarSet.union (nexpr_var e1) (nexpr_var e2)
+  | Band (b1, b2) | Bor (b1, b2) -> VarSet.union (bexpr_var b1) (bexpr_var b2)
+  | Bneg b -> bexpr_var b
+
 let rec neg_propagate b n =
   match b with
     | BTrue -> 
