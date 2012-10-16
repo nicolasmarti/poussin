@@ -120,6 +120,8 @@ let rec term_to_nexpr defs (te: term) : nexpr =
       List.fold_right (fun (hd, n) acc ->
 	Nplus (term_to_nexpr defs hd, acc)
       ) args (Ncons 1)
+    | App (f, _) ->
+      term_to_nexpr defs f
     | Var i -> Nvar (String.concat "" ["@"; string_of_int i])
 
 let terminaison_check n env : unit =
@@ -128,7 +130,7 @@ let terminaison_check n env : unit =
     match Hashtbl.find env.defs n' with
       | Axiom _ when String.compare n n' = 0 -> true
       | Axiom _ -> 
-	printf "warning: No recursive calls to undefined term yet supported\n"; false
+	printf "warning: No recursive calls to undefined term yet supported (%s)\n" n'; false
       (*raise (PoussinException (FreeError "No recursive calls to undefined term yet supported"))*)
       | _ -> false
   ) !registered_calls in
@@ -322,7 +324,7 @@ let process_definition env n te : term =
   terminaison_check n env;
   
   let te = { te with annot = Typed (reduction_term env.defs ctxt type_simplification_strat (get_type te))} in
-  Hashtbl.add env.defs n (Definition te);
+  Hashtbl.replace env.defs n (Definition te);
   te
 
 let process_definition (def: definition) : unit =

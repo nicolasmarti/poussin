@@ -200,6 +200,7 @@ Inductive Iff: Prop -> Prop -> Prop :=
 | iff {P Q}: (P -> Q) -> (Q -> P) -> Iff P Q
 
 Signature formula_sem: formula -> Prop
+Decreasing formula_sem [0]
 Definition formula_sem (f: formula) :=
    match f with
       | f_forall {A} f := (x: A) -> formula_sem (f x)
@@ -271,6 +272,7 @@ Definition leibniz {A: Type} (x y: A) (H: (P: A -> Prop) -> P x -> P y) :=
   H (eq {A} x) (eq_refl _)
 
 Signature nat_ind (P: Nat -> Prop) (n: Nat) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)): P n
+Decreasing nat_ind [1]
 Definition nat_ind (P: Nat -> Prop) (n: Nat) (H0: P O) (H1: (n: Nat) -> P n -> P (S n)) :=
   match n with
      | O := H0
@@ -283,7 +285,7 @@ Definition eqS (x y: Nat) (Hxy: eq x y) : eq (S x) (S y) :=
   end
 
 Signature plusxO: (n: Nat) -> eq (plus n O) n
-Definition plusx0 (n: Nat) :=
+Definition plusxO (n: Nat) :=
   nat_ind (\ x -> eq (plus x O) x) n
           (eq_refl O)
           (\ n (Pn: eq (plus n O) n) -> eqS _ _ Pn)
