@@ -39,6 +39,15 @@ type nexpr =
     | Nmult of nexpr * nexpr
 ;;
 
+let rec nexpr2string e =
+  match e with
+    | Nvar s -> s
+    | Ncons i -> string_of_int i
+    | Nplus (e1, e2) -> String.concat "" ["("; nexpr2string e1; " + "; nexpr2string e2; ")"]
+    | Nminus (e1, e2) -> String.concat "" ["("; nexpr2string e1; " - "; nexpr2string e2; ")"]
+    | Nmult (e1, e2) -> String.concat "" ["("; nexpr2string e1; " * "; nexpr2string e2; ")"]
+;;
+
 let rec rewrite_nexpr e x y =
   match e with
     | Nvar v ->	if (v = x) then y else e
@@ -47,8 +56,6 @@ let rec rewrite_nexpr e x y =
     | Nminus (e1, e2) -> Nminus (rewrite_nexpr e1 x y, rewrite_nexpr e2 x y)
     | Nmult (e1, e2) -> Nmult (rewrite_nexpr e1 x y, rewrite_nexpr e2 x y)
 ;;
-
-
 
 type bexpr =
     | BTrue
@@ -74,6 +81,21 @@ let rec rewrite_bexpr b x y =
     | Band (e1, e2) -> Band (rewrite_bexpr e1 x y, rewrite_bexpr e2 x y)
     | Bor (e1, e2) -> Bor (rewrite_bexpr e1 x y, rewrite_bexpr e2 x y)
     | _ -> b
+;;
+
+let rec bexpr2string b =
+  match b with
+    | BTrue -> "True"
+    | BFalse -> "False"
+    | Beq (e1, e2) -> String.concat "" ["("; nexpr2string e1; " = "; nexpr2string e2; ")"]
+    | Blt (e1, e2) -> String.concat "" ["("; nexpr2string e1; " < "; nexpr2string e2; ")"]
+    | Ble (e1, e2) -> String.concat "" ["("; nexpr2string e1; " <= "; nexpr2string e2; ")"]
+    | Bgt (e1, e2) -> String.concat "" ["("; nexpr2string e1; " > "; nexpr2string e2; ")"]
+    | Bge (e1, e2) -> String.concat "" ["("; nexpr2string e1; " >= "; nexpr2string e2; ")"]
+    | Band (b1, b2) -> String.concat "" ["("; bexpr2string b1; " /\\ "; bexpr2string b2; ")"]
+    | Bor (b1, b2) -> String.concat "" ["("; bexpr2string b1; " \\/ "; bexpr2string b2; ")"]
+    | Bneg b -> String.concat "" ["~("; bexpr2string b; ")"]
+
 ;;
 
 let bimpl b1 b2 = Bor (Bneg b1, b2);;

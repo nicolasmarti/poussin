@@ -6,6 +6,7 @@ open Parser
 open Pprinter
 open Def
 open Calculus_kernel
+open Fm
 
 (* the global parserbuffer *)
 let global_parserbuffer : parserbuffer ref = ref (build_parserbuffer (Stream.of_list []))
@@ -112,10 +113,16 @@ let totality_check () : unit =
   ) !unmatched_pattern 
 
 (* terminaison *)
+let rec term_to_nexpr defs (te: term) : nexpr =
+  match te.ast with
+    | Cste c when is_irreducible defs te -> Ncons 1
+    | App (_, args) when (is_irreducible defs (app_head te)) ->
+      List.fold_right (fun (hd, n) acc ->
+	Nplus (term_to_nexpr defs hd, acc)
+      ) args (Ncons 1)
+    | Var i -> Nvar (String.concat "" ["@"; string_of_int i])
+
 let terminaison_check n env : unit =
-  List.iter (fun (ctxt, n, args) ->
-    printf "need to check: %s\n" (term2string (ref ctxt) (app_ (cste_ n) args))
-  ) !registered_calls;
   (* first we filter the registered_calls *)
   let lst = List.filter (fun (_, n', _) ->
     match Hashtbl.find env.defs n' with
@@ -125,7 +132,6 @@ let terminaison_check n env : unit =
 	  (*raise (PoussinException (FreeError "No recursive calls to undefined term yet supported"))*)
       | _ -> false
   ) !registered_calls in
-  if List.length lst != 0 then (
   (* then we grab the decreasing arguments of decreasing in n *)
   let dec = 
     try 
@@ -135,9 +141,33 @@ let terminaison_check n env : unit =
 	printf "warning: No decreasing arguments"; []
 	  (*raise (PoussinException (FreeError "No decreasing arguments"))*)
   in
-  List.iter (fun (ctxt, n, args) ->
-    printf "need to check:\n%s|-\n%s\n\n" (ctxt2string (ref ctxt)) (term2string (ref ctxt) (app_ (cste_ n) args))
-  ) lst)
+  if List.length lst != 0 && List.length dec != 0 then (
+    List.iter (fun (ctxt, n, args) ->
+      printf "checking:\n%s|-\n%s\n\n" (ctxt2string (ref ctxt)) (term2string (ref ctxt) (app_ (cste_ n) args));
+      (* first build hypothesis from conversion hyps *)
+      let hyps = List.fold_right (fun (te1, te2) acc -> 
+	try
+	  Band (acc, Beq (term_to_nexpr env.defs te1, term_to_nexpr env.defs te2)) 
+	with
+	  | _ -> acc
+      ) ctxt.conversion_hyps BTrue in
+      (* we build the needed condition *)
+      let ccl = Blt (
+	(* the sum of rec. call args *)
+	List.fold_right (fun hd acc -> Nplus (acc, term_to_nexpr env.defs hd)) (List.map (fun i -> fst (List.nth args i)) dec) (Ncons 0),
+	(* the sum of the vars *)
+	List.fold_right (fun hd acc -> Nplus (acc, Nvar (String.concat "" ["@"; string_of_int hd]))) (List.map (fun i -> List.length ctxt.bvs - i - 1) dec) (Ncons 0)	  
+      ) in
+      
+      (* final formula *)
+      let f = bimpl hyps ccl in
+      printf "formula := %s\n" (bexpr2string f);
+      if fm_dp f then
+	printf "terminaison checked!\n\n"
+      else
+	printf "terminaison checking failed!\n\n"
+    ) lst
+  )
 
 (* processing definitions *)
 
