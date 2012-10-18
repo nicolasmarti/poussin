@@ -451,6 +451,7 @@ let parse_process_term str =
   Lazy.force (parse_term env.defs leftmost pb);;
 
 let parse_process_definition str =
+  Hashtbl.clear term_hash;
   let lines = stream_of_string str in
   process_stream lines
 ;;
