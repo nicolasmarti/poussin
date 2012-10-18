@@ -217,7 +217,7 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 	]
        )
 
-    | _ -> raise (Failure "term2token: NYI")
+    | _ -> raise (failwith "term2token: NYI")
 
 and patterns2token (vars: name list) (patterns: pattern list) (p: place) : token =
   Box (intercalates [Space 1; Verbatim "|"; Space 1] (List.map (fun p ->

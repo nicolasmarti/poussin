@@ -1,4 +1,4 @@
-apps/interp.native
-apps/interp.p.native
-apps/interp.byte
-apps/interp.d.byte
+apps/main.native
+apps/main.p.native
+apps/main.byte
+apps/main.d.byte

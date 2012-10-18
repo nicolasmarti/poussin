@@ -327,6 +327,24 @@ let process_definition env n te : term =
   Hashtbl.replace env.defs n (Definition te);
   te
 
+let process_term env te : term =
+  (* initialization of a few globals *)
+  unmatched_pattern := [];
+  registered_calls := [];
+  let ctxt = ref empty_context in
+  (* typecheck the term *)
+  let te = typeinfer env.defs ctxt te in
+  let [te] = flush_fvars env.defs ctxt [te] in 
+
+  (* some extra check *)
+  assert (List.length !ctxt.bvs = 0);
+
+  (* well-formness *)
+  totality_check ();
+  
+  let te = { te with annot = Typed (reduction_term env.defs ctxt type_simplification_strat (get_type te))} in
+  te
+
 let process_definition (def: definition) : unit =
   if !mk_trace then trace := [];
   let time_start = Sys.time () in
@@ -437,12 +455,17 @@ let parse_process_definition str =
   process_stream lines
 ;;
 
-let main = 
-  if Array.length Sys.argv < 2 then
-    process_stdin ()
-  else 
-    process_file Sys.argv.(1);;
-
-init_interactive;;
-
-main;;
+let parse_term str =
+  let lines = stream_of_string str in
+  let pb = build_parserbuffer lines in
+  Hashtbl.clear term_hash;
+  try 
+    let t = Lazy.force (parse_term env.defs (-1, -1) pb) in
+    process_term env t    
+  with
+    | NoMatch -> 
+      let str = String.concat "" ["parsing error: "; (errors2string pb)] in
+      raise (failwith str)
+    | PoussinException err ->
+      let str = String.concat "" ["poussin error: "; (poussin_error2string err)] in      
+      raise (failwith str)

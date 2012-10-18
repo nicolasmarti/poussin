@@ -1,0 +1,49 @@
+#directory "_build/src/lib/";;
+#directory "_build/src/kernel/";;
+#directory "_build/apps/";;
+
+#use "topfind";;
+#require "str";;
+#require "poussin";;
+
+#load "extlist.cmo";;
+#load "libparser.cmo";;
+#load "libpprinter.cmo";;
+#load "fm.cmo";;
+
+#load "parser.cmo";;
+#load "pprinter.cmo";;
+#load "interp.cmo";;
+
+open Calculus_kernel;;
+open Pprinter;;
+open Parser;;
+open Printf;;
+open Interp;;
+open Format;;
+
+let term_printer = fun f t -> 
+  pp_open_box f 0; pp_print_string f "<<";
+  pp_open_box f 0; 
+  pp_print_string f (term2string (ref empty_context) t);
+  pp_close_box f ();
+  pp_print_string f " : ";
+  pp_open_box f 0; 
+  pp_print_string f (term2string (ref empty_context) (get_type t));
+  pp_close_box f ();
+  pp_print_string f ">>"; pp_close_box f ();;
+
+#install_printer term_printer;;
+
+
+if let v = String.sub Sys.ocaml_version 0 4 in v >= "3.10"
+then (Topdirs.dir_directory "+camlp5";
+      Topdirs.dir_load Format.std_formatter "camlp5o.cma")
+else (Topdirs.dir_load Format.std_formatter "camlp4o.cma");;
+
+
+let quotexpander s =
+    "parse_term \""^(String.escaped s)^"\"";;
+
+Quotation.add "" (Quotation.ExStr (fun x -> quotexpander));;
+
