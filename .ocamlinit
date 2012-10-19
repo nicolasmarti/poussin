@@ -49,5 +49,16 @@ let quotexpander s =
   else
     "parse_term \""^(String.escaped s)^"\"";;
 
-Quotation.add "" (Quotation.ExStr (fun x -> quotexpander));;
+Quotation.add "" (Quotation.ExStr (fun x -> 
+  if x then
+    quotexpander
+  else (
+    fun s ->
+    printf "no pattern yet ...: %s" s;
+    "{ ast = _; _}"
+  )
+)
+);;
 
+#directory "tests/";;
+#use "examples.ml";;
