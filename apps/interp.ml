@@ -456,7 +456,7 @@ let parse_process_definition str =
   process_stream lines
 ;;
 
-let parse_term str =
+let parse_type_term str =
   let lines = stream_of_string str in
   let pb = build_parserbuffer lines in
   Hashtbl.clear term_hash;
@@ -470,3 +470,75 @@ let parse_term str =
     | PoussinException err ->
       let str = String.concat "" ["poussin error: "; (poussin_error2string err)] in      
       raise (failwith str)
+;;
+
+(* from term to pattern *)
+let fresh_names : (name, int) Hashtbl.t = Hashtbl.create 100;;
+
+let rec get_fresh_name n : string =
+  try 
+    let i = Hashtbl.find fresh_names n in
+    Hashtbl.replace fresh_names n (i+1);
+    String.concat "" [n; string_of_int i]
+  with
+    | _ ->
+      Hashtbl.add fresh_names n 0;
+      n
+
+let equality_conditions: (name * name) list ref = ref [];;
+
+let rec in_list (l: 'a list) (x: 'a) : int option =
+  match l with
+    | [] -> None
+    | hd::tl ->
+      match in_list tl x with
+	| None -> None
+	| Some i -> Some (i+1)
+;;
+
+let rec term2pattern_loop (defs: defs) (vars: name list) (te: term) : string =
+  match te.ast with
+    | Universe (Type, _) -> "{ ast = Universe (Type, _); _ }"
+    | Universe (Set, _) -> "{ ast = Universe (Set, _); _ }"
+    | Universe (Prop, _) -> "{ ast = Universe (Prop, _); _ }"
+
+    | AVar -> "{ ast = AVar; _ }"
+
+    (* case when it is a quantified var *)
+    | TName n -> (
+      match in_list vars n with
+	| Some i ->
+	  String.concat "" ["{ ast = Var "; string_of_int i; "; _}"]
+	| None -> 
+	  if Hashtbl.mem defs n then
+	    String.concat "" ["{ ast = Cste \""; n; "\"; _}"]
+	  else (
+	    let n' = get_fresh_name n in
+	    equality_conditions := (n, n')::!equality_conditions;
+	    String.concat "" ["{ ast = TName \""; n'; "\"; _}"]
+	  )
+    )
+
+    | _ -> raise (failwith (term2string (ref empty_context) te))
+;;
+
+let term2pattern str =
+  (*printf "str :=: %s\n" str; flush stdout;*)
+  let lines = stream_of_string str in
+  let pb = build_parserbuffer lines in
+  Hashtbl.clear term_hash;
+  try 
+    let te = Lazy.force (parse_term env.defs (-1, -1) pb) in
+    Hashtbl.clear fresh_names;
+    equality_conditions := [];
+    let res = term2pattern_loop env.defs [] te in
+    (*printf "pattern: %s\n" res; flush stdout;*)
+    res
+  with
+    | NoMatch -> 
+      let str = String.concat "" ["parsing error: "; (errors2string pb)] in
+      raise (failwith str)
+    | PoussinException err ->
+      let str = String.concat "" ["poussin error: "; (poussin_error2string err)] in      
+      raise (failwith str)
+;;

@@ -1,6 +1,7 @@
 #directory "_build/src/lib/";;
 #directory "_build/src/kernel/";;
 #directory "_build/apps/";;
+#directory "apps/";;
 
 #use "topfind";;
 #require "str";;
@@ -41,24 +42,8 @@ then (Topdirs.dir_directory "+camlp5";
       Topdirs.dir_load Format.std_formatter "camlp5o.cma")
 else (Topdirs.dir_load Format.std_formatter "camlp4o.cma");;
 
-
-let quotexpander s =
-  if String.sub s 0 1 = "|" & String.sub s (String.length s - 1) 1 = "|" then
-    "parse_process_definition \""^
-    (String.escaped (String.sub s 1 (String.length s - 2)))^"\""
-  else
-    "parse_term \""^(String.escaped s)^"\"";;
-
-Quotation.add "" (Quotation.ExStr (fun x -> 
-  if x then
-    quotexpander
-  else (
-    fun s ->
-    printf "no pattern yet ...: %s" s;
-    "{ ast = _; _}"
-  )
-)
-);;
+#use "quoteexpander.ml";;
 
 #directory "tests/";;
 #use "examples.ml";;
+#use "examples2.ml";;
