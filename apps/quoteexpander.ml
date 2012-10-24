@@ -5,8 +5,6 @@ let quotexpander s =
   else
     "parse_type_term \""^(String.escaped s)^"\"";;
 
-
-
 Quotation.add "" (Quotation.ExStr (fun x -> 
   if x then
     quotexpander
@@ -14,3 +12,4 @@ Quotation.add "" (Quotation.ExStr (fun x ->
     term2pattern
 ))
 ;;
+

@@ -497,7 +497,7 @@ let rec in_list (l: 'a list) (x: 'a) : int option =
 ;;
 
 let rec term2pattern_loop (defs: defs) (vars: name list) (te: term) : string =
-  match te.ast with
+  let res = match te.ast with
     | Universe (Type, _) -> "{ ast = Universe (Type, _); _ }"
     | Universe (Set, _) -> "{ ast = Universe (Set, _); _ }"
     | Universe (Prop, _) -> "{ ast = Universe (Prop, _); _ }"
@@ -513,13 +513,38 @@ let rec term2pattern_loop (defs: defs) (vars: name list) (te: term) : string =
 	  if Hashtbl.mem defs n then
 	    String.concat "" ["{ ast = Cste \""; n; "\"; _}"]
 	  else (
+	    (*
 	    let n' = get_fresh_name n in
-	    equality_conditions := (n, n')::!equality_conditions;
-	    String.concat "" ["{ ast = TName \""; n'; "\"; _}"]
+	    equality_conditions := (n, n')::!equality_conditions;*)
+	    String.concat "" ["{ ast = TName "; n; "; _}"]
 	  )
     )
 
+    | Cste c ->
+      String.concat "" ["{ ast = Cste \""; c; "\"; _}"]
+
+    | Var i when i >= 0 ->
+      String.concat "" ["{ ast = Var "; string_of_int i; "; _}"]
+
+    | Var i when i < 0 ->
+      String.concat "" ["{ ast = _; _}"]
+    
+    | Lambda ((name, ty, nature), body) ->
+      (*
+      let name' = get_fresh_name name in
+      *)
+      let nature' = nature2string nature in
+      let body' = term2pattern_loop defs (name::vars) body in
+      String.concat "" ["{ ast = Lambda (("; name; ", _,"; nature'; "), "; body';"); _}"]
+
     | _ -> raise (failwith (term2string (ref empty_context) te))
+  in
+  res
+and nature2string (n: nature) : string =
+  match n with
+    | Explicit -> "Explicit"
+    | Implicit -> "Implicit"
+    | NJoker -> "_"
 ;;
 
 let term2pattern str =
@@ -528,12 +553,26 @@ let term2pattern str =
   let pb = build_parserbuffer lines in
   Hashtbl.clear term_hash;
   try 
+    let ctxt = ref empty_context in
+    (* parse *)
     let te = Lazy.force (parse_term env.defs (-1, -1) pb) in
+    (* type *)
+    let te = typeinfer env.defs ctxt te in
+    (* rewrite free vars as much as possible *)
+    let s = context2subst ctxt in
+    let te = term_substitution s te in
     Hashtbl.clear fresh_names;
+    (*
     equality_conditions := [];
-    let res = term2pattern_loop env.defs [] te in
+    *)
+    let res = term2pattern_loop env.defs [] te in    
+    (*
+    let res = if false && List.length !equality_conditions > 0 then
+	String.concat "" ([res; " when "; String.concat " && " (List.map (fun (n1, n2) -> String.concat "" ["String.compare "; n1; " "; n2; " = 0"]) !equality_conditions)]) else res in
+    *)
     (*printf "pattern: %s\n" res; flush stdout;*)
     res
+
   with
     | NoMatch -> 
       let str = String.concat "" ["parsing error: "; (errors2string pb)] in
