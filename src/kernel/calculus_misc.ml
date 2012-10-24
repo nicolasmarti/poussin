@@ -582,22 +582,26 @@ let var_lookup (ctxt: context ref) (n: name) : index option =
     | Left _ -> None
     | Right level -> Some level
 
-let get_fvar (ctxt: context ref) (i: index) : (term * term option) =
-  let lookup = fold_stop (fun () (index, ty, value) -> 
-    if index = i then Right (ty, value) else Left ()
+let get_fvar (ctxt: context ref) (i: index) : (term * term option * name option) =
+  let lookup = fold_stop (fun () (index, ty, value, name) -> 
+    if index = i then Right (ty, value, name) else Left ()
   ) () !ctxt.fvs in
   match lookup with
     | Left _ -> raise (PoussinException (UnknownFVar (!ctxt, i)))
     | Right res -> res
 
 let fvar_subst (ctxt: context ref) (i: index) : term option =
-  let (_, te) = get_fvar ctxt i in
+  let (_, te, _) = get_fvar ctxt i in
   te
 
 (* grab the type of a free var *)
 let fvar_type (ctxt: context ref) (i: index) : term =
-  let (ty, _) = get_fvar ctxt i in
+  let (ty, _, _) = get_fvar ctxt i in
   ty
+
+let fvar_name (ctxt: context ref) (i: index) : name option =
+  let (_, _, n) = get_fvar ctxt i in
+  n
 
 (* grab the type of a bound var *)
 let bvar_type (ctxt: context ref) (i: index) : term =
@@ -619,7 +623,7 @@ let bvar_name (ctxt: context ref) (i: index) : name =
     | Invalid_argument "List.nth" -> raise (PoussinException (NegativeIndexBVar i))
 
 (* we add a free variable *)
-let rec add_fvar ?(pos: position = NoPosition) ?(te: term option = None) ?(ty: term option = None) (ctxt: context ref) : term =
+let rec add_fvar ?(pos: position = NoPosition) ?(te: term option = None) ?(ty: term option = None) ?(name: name option = None) (ctxt: context ref) : term =
   let ty = match ty with
     | None -> add_fvar ~ty:(Some (type_ (UName""))) ctxt
     | Some ty -> ty 
@@ -627,10 +631,10 @@ let rec add_fvar ?(pos: position = NoPosition) ?(te: term option = None) ?(ty: t
   let next_fvar_index = 
       match !ctxt.fvs with
 	| [] -> (-1)
-	| (i, _, _)::_ -> (i - 1)
+	| (i, _, _, _)::_ -> (i - 1)
   in
   ctxt := { !ctxt with 
-    fvs = ((next_fvar_index, ty, te)::!ctxt.fvs)
+    fvs = ((next_fvar_index, ty, te, name)::!ctxt.fvs)
   };
   var_ ~annot:(Typed ty) ~pos:pos next_fvar_index
 

@@ -47,7 +47,7 @@ let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
   let s, ty, n = q in
   ctxt := { !ctxt with
     bvs = {name = s; ty = shift_term ty 1; nature = n}::!ctxt.bvs;
-    fvs = List.map (fun (i, ty, te) -> (i, shift_term ty 1, (match te with | None -> None | Some te -> Some (shift_term te 1)))) !ctxt.fvs;
+    fvs = List.map (fun (i, ty, te, n) -> (i, shift_term ty 1, (match te with | None -> None | Some te -> Some (shift_term te 1)), n)) !ctxt.fvs;
     conversion_hyps = List.map (fun (hd1, hd2) -> (shift_term hd1 1, shift_term hd2 1)) !ctxt.conversion_hyps
   }
 
@@ -56,16 +56,16 @@ let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substituti
   let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.bvs) in
   let bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss in
   let fvs = 
-      List.map (fun (i, ty, te) -> 
+      List.map (fun (i, ty, te, n) -> 
 	if IndexMap.mem i s then (
 	match te with
-	  | None -> (i, term_substitution s ty, Some (IndexMap.find i s))
+	  | None -> (i, term_substitution s ty, Some (IndexMap.find i s), n)
 	  | Some te -> 
-	    (i, term_substitution s ty, Some (unification defs ctxt te (IndexMap.find i s)))
+	    (i, term_substitution s ty, Some (unification defs ctxt te (IndexMap.find i s)), n)
 	) else (
 	match te with
-	  | None -> (i, term_substitution s ty, None)
-	  | Some te -> (i, term_substitution s ty, Some (term_substitution s te))
+	  | None -> (i, term_substitution s ty, None, n)
+	  | Some te -> (i, term_substitution s ty, Some (term_substitution s te), n)
 	)
       ) !ctxt.fvs in
   ctxt := { !ctxt with fvs = fvs; bvs = bvs };
@@ -106,13 +106,14 @@ and context_add_conversion (defs: defs) (ctxt: context ref) (te1: term) (te2: te
 and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
   (* we rewrite the conversion hypothesis in increasing order in the free vars *)
   let s, _ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
-  let fvs = List.map (fun (i, ty, te) ->
+  let fvs = List.map (fun (i, ty, te, n) ->
     (i,
      term_substitution s ty,
-     (match te with | None -> None | Some te -> Some (term_substitution s te)))
+     (match te with | None -> None | Some te -> Some (term_substitution s te)),
+    n)
   ) !ctxt.fvs in  
   (* we rewrite all the terms *)
-  let tes = List.fold_left (fun acc (i, ty, te) ->
+  let tes = List.fold_left (fun acc (i, ty, te, n) ->
     match te with
       | None -> acc
       | Some te -> List.map (fun te' -> term_substitution (IndexMap.singleton i te) te') acc
@@ -124,7 +125,7 @@ and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
     IndexSet.union acc (fv_term te)
   ) IndexSet.empty tes in  
   (* we sort the free variables *)
-  let throw, keep = List.fold_right (fun ((i, ty, te) as var) (throw, keep) ->
+  let throw, keep = List.fold_right (fun ((i, ty, te, n) as var) (throw, keep) ->
     (* is the var to be considered (var 0 is in ty free var or we are at the root level) ? *)
     if IndexSet.mem 0 (bv_term ty) || List.length !ctxt.bvs = 0 then (
       (* yes, this variable is in the the terms free vars ? *)
@@ -167,12 +168,12 @@ and pop_quantification (defs: defs) (ctxt: context ref) (tes: term list) : (name
     (* remove a frame *)
     bvs = List.tl !ctxt.bvs;
     (* shift free vars *)
-    fvs = List.fold_right (fun (i, ty, te) acc ->
+    fvs = List.fold_right (fun (i, ty, te, n) acc ->
       try
 	(i, shift_term ty (-1), 
 	 (match te with
 	   | None -> None
-	   | Some te -> Some (shift_term te (-1))))::acc
+	   | Some te -> Some (shift_term te (-1))), n)::acc
       with
 	| _ -> acc
     ) !ctxt.fvs []; 
@@ -364,11 +365,15 @@ and typeinfer
 	      | Some i -> 
 		{ te with ast = Var i; annot = Typed (bvar_type ctxt i) }
 	      | None -> 
-		match get_cste defs n with
-		  | Inductive (_, ty) | Axiom ty | Constructor (_, ty) -> 
-		    { te with ast = Cste n; annot = Typed ty }
-		  | Definition te -> 
-		    { te with ast = Cste n; annot = Typed (get_type te) }
+		try 
+		  match get_cste defs n with
+		    | Inductive (_, ty) | Axiom ty | Constructor (_, ty) -> 
+		      { te with ast = Cste n; annot = Typed ty }
+		    | Definition te -> 
+		      { te with ast = Cste n; annot = Typed (get_type te) }
+		with
+		  | PoussinException (UnknownCste _) ->
+		    add_fvar ~name:(Some n) ctxt
 	    in
 	    (* we register the call is needed *)
 	    if (not in_app) && is_reducible_def defs res then (

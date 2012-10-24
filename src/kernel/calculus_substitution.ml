@@ -61,7 +61,7 @@ let substitution_vars (s: substitution) =
   IndexMap.fold (fun k _ acc -> IndexSet.add k acc) s IndexSet.empty
 
 let context2subst (ctxt: context ref) : substitution =
-  List.fold_left (fun acc (i, _, te) ->
+  List.fold_left (fun acc (i, _, te, _) ->
     match te with | None -> acc | Some te -> IndexMap.add i te acc
   ) IndexMap.empty !ctxt.fvs
 

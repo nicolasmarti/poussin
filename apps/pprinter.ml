@@ -369,8 +369,8 @@ let ctxt2token (ctxt: context ref) : token =
        )(List.length !ctxt.bvs))
       ) @ 
       [Verbatim "------------------------------------"; Newline] @
-      (List.concat (List.map (fun (i, ty, te) -> 
-	[ Verbatim (string_of_int i); Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone; Space 1; Verbatim ":="; Space 1; 
+      (List.concat (List.map (fun (i, ty, te, n) -> 
+	[ Verbatim (string_of_int i); (match n with | None -> Space 0; | Some n -> verbatims [" "; n] ); Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone; Space 1; Verbatim ":="; Space 1; 
 	  (match te with | None -> Verbatim "??" | Some te -> term2token (context2namelist ctxt) te Alone); 
 	  Newline]
        ) !ctxt.fvs)

@@ -47,8 +47,8 @@ let init_interactive =
     printf "------------------------------------------\n";
     let fvs = fv_term ty in
     let fvs = List.map (fun i -> 
-      let (ty, te) = get_fvar ctxt' i in
-      String.concat "" [string_of_int i; " : "; term2string ctxt' ty; " := "; match te with | None -> "??" | Some te -> term2string ctxt' te]
+      let (ty, te, n) = get_fvar ctxt' i in
+      String.concat "" [string_of_int i; (match n with | None -> ""; | Some n -> String.concat "" [" "; n]); " : "; term2string ctxt' ty; " := "; match te with | None -> "??" | Some te -> term2string ctxt' te]
     ) (IndexSet.elements fvs) in
     printf "%s\n" (String.concat "\n" fvs);
     printf "------------------------------------------\n";
@@ -496,7 +496,7 @@ let rec in_list (l: 'a list) (x: 'a) : int option =
 	| Some i -> Some (i+1)
 ;;
 
-let rec term2pattern_loop (defs: defs) (vars: name list) (te: term) : string =
+let rec term2pattern_loop (defs: defs) (ctxt: context ref) (vars: name list) (te: term) : string =
   let res = match te.ast with
     | Universe (Type, _) -> "{ ast = Universe (Type, _); _ }"
     | Universe (Set, _) -> "{ ast = Universe (Set, _); _ }"
@@ -526,18 +526,22 @@ let rec term2pattern_loop (defs: defs) (vars: name list) (te: term) : string =
     | Var i when i >= 0 ->
       String.concat "" ["{ ast = Var "; string_of_int i; "; _}"]
 
-    | Var i when i < 0 ->
-      String.concat "" ["{ ast = _; _}"]
-    
+    | Var i when i < 0 -> (
+      match fvar_name ctxt i with
+	| None ->
+	  String.concat "" ["{ ast = _; _}"]
+	| Some n ->
+	  n
+    )
     | Lambda ((name, ty, nature), body) ->
       (*
       let name' = get_fresh_name name in
       *)
       let nature' = nature2string nature in
-      let body' = term2pattern_loop defs (name::vars) body in
+      let body' = term2pattern_loop defs ctxt (name::vars) body in
       String.concat "" ["{ ast = Lambda (("; name; ", _,"; nature'; "), "; body';"); _}"]
 
-    | _ -> raise (failwith (term2string (ref empty_context) te))
+    | _ -> raise (failwith (term2string ctxt te))
   in
   res
 and nature2string (n: nature) : string =
@@ -565,12 +569,12 @@ let term2pattern str =
     (*
     equality_conditions := [];
     *)
-    let res = term2pattern_loop env.defs [] te in    
+    let res = term2pattern_loop env.defs ctxt [] te in    
     (*
     let res = if false && List.length !equality_conditions > 0 then
 	String.concat "" ([res; " when "; String.concat " && " (List.map (fun (n1, n2) -> String.concat "" ["String.compare "; n1; " "; n2; " = 0"]) !equality_conditions)]) else res in
     *)
-    (*printf "pattern: %s\n" res; flush stdout;*)
+    printf "pattern: %s\n" res; flush stdout;
     res
 
   with
