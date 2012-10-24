@@ -93,6 +93,29 @@ let rec parse_term (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : ter
   (* parsing a forall *)
   tryrule (fun pb ->
     let _ = whitespaces pb in
+    let te = parse_term' defs leftmost pb in
+    let _ = whitespaces pb in
+    let ty = mayberule (fun pb ->
+      let _ = whitespaces pb in
+      let _ = at_start_pos leftmost (word ":") pb in
+      let _ = whitespaces pb in
+      let ty = parse_term defs leftmost pb in
+      ty
+    ) pb in
+    Lazy.lazy_from_fun (fun () ->
+      let te = Lazy.force te in
+      let ty = Lazy.force ty in
+      match ty with
+	| None -> te
+	| Some ty -> set_term_annotation te ty
+    )
+  )
+end pb
+
+and parse_term' (defs: defs) (leftmost: (int * int)) (pb: parserbuffer) : term Lazy.t = memo_term begin
+  (* parsing a forall *)
+  tryrule (fun pb ->
+    let _ = whitespaces pb in
     let startpos = cur_pos pb in
     let q = parse_impl_lhs defs leftmost pb in
     let _ = whitespaces pb in

@@ -574,7 +574,7 @@ let term2pattern str =
     let res = if false && List.length !equality_conditions > 0 then
 	String.concat "" ([res; " when "; String.concat " && " (List.map (fun (n1, n2) -> String.concat "" ["String.compare "; n1; " "; n2; " = 0"]) !equality_conditions)]) else res in
     *)
-    printf "pattern: %s\n" res; flush stdout;
+    (*printf "pattern: %s\n" res; flush stdout;*)
     res
 
   with
