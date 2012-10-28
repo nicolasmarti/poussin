@@ -541,6 +541,14 @@ let rec term2pattern_loop (defs: defs) (ctxt: context ref) (vars: name list) (te
       let body' = term2pattern_loop defs ctxt (name::vars) body in
       String.concat "" ["{ ast = Lambda (("; name; ", _,"; nature'; "), "; body';"); _}"]
 
+    | Forall ((name, ty, nature), body) ->
+      (*
+      let name' = get_fresh_name name in
+      *)
+      let nature' = nature2string nature in
+      let body' = term2pattern_loop defs ctxt (name::vars) body in
+      String.concat "" ["{ ast = Forall (("; name; ", _,"; nature'; "), "; body';"); _}"]
+
     | _ -> raise (failwith (term2string ctxt te))
   in
   res
