@@ -1,4 +1,4 @@
 <src/lib>: include
 <src/kernel>: include
 <apps>: include
-<apps/main.{native,p.native,byte,d.byte}>: pkg_str
+<apps/batch.{native,p.native,byte,d.byte}>: pkg_str

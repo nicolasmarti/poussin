@@ -1,4 +1,4 @@
-apps/main.native
-apps/main.p.native
-apps/main.byte
-apps/main.d.byte
+apps/batch.native
+apps/batch.p.native
+apps/batch.byte
+apps/batch.d.byte
