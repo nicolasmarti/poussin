@@ -1,15 +1,23 @@
-let quotexpander s =
-  if String.sub s 0 1 = "|" & String.sub s (String.length s - 1) 1 = "|" then
-    "parse_process_definition \""^
-    (String.escaped (String.sub s 1 (String.length s - 2)))^"\""
-  else
-    "parse_type_term \""^(String.escaped s)^"\"";;
+let quotexpander_def s =
+  "parse_process_definition \""^(String.escaped s)^"\""
 
-Quotation.add "" (Quotation.ExStr (fun x -> 
+let quotexpander_term s =
+  "parse_type_term \""^(String.escaped s)^"\"";;
+
+Quotation.add "term" (Quotation.ExStr (fun x -> 
   if x then
-    quotexpander
+    quotexpander_term
   else 
     term2pattern
 ))
 ;;
+
+Quotation.add "def" (Quotation.ExStr (fun x -> 
+  if x then
+    quotexpander_def
+  else 
+    raise (failwith "no pattern mode for defs")
+))
+;;
+
 
