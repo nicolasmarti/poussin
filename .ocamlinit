@@ -15,7 +15,6 @@
 #load "parser.cmo";;
 #load "pprinter.cmo";;
 #load "interp.cmo";;
-#use "proof.ml";;
 
 open Calculus_kernel;;
 open Pprinter;;
@@ -47,6 +46,4 @@ else (Topdirs.dir_load Format.std_formatter "camlp4o.cma");;
 
 #directory "stdlib/";;
 #use "eq.ml";;
-
-#use "example1.ml";;
 
