@@ -130,7 +130,8 @@ type poussin_error = FreeError of string
 		    | NotInductiveDestruction of context * term
 		    | InteractiveFailure
 		    | CannotTypeCheck of context * term * term * poussin_error
-		    (*| ConstructorCclHeadNotInductive of term*)
+		    | MissingMatchCase of (context * pattern * term * term)
+		    | NoDecreasingArguments of (context * name * (term * nature) list)
 
 exception PoussinException of poussin_error
 

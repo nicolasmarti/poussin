@@ -27,6 +27,7 @@ type pp_option = {
   mutable show_position : bool;
   mutable show_univ : bool;
   mutable show_type: bool;
+  mutable show_prop: bool;
 }
 
 let pp_option = {show_implicit = false; 
@@ -34,13 +35,20 @@ let pp_option = {show_implicit = false;
 		 show_position = false; 
 		 show_univ = false;
 		 show_type = false;
+		 show_prop = false;
 		}
 
 let verbatims (l: name list) = Verbatim (String.concat "" l)
 
 (* transform a term into a box *)
 let rec term2token (vars: name list) (te: term) (p: place): token =
-  match get_term_typeannotation te with 
+  let ty = get_term_typeannotation te in
+  match ty with 
+    | Typed ({ ast = _; annot = Typed { ast = Universe (Prop, _); _}; _ } as ty) when not pp_option.show_prop ->
+      Box [Verbatim "(_: "; 
+	   term2token vars ty Alone;
+	   Verbatim ")"
+	  ]
     | Typed ty when pp_option.show_type ->
       Box [Verbatim "(";
 	   term2token vars (set_term_noannotation te) Alone; Space 1;
@@ -67,7 +75,6 @@ let rec term2token (vars: name list) (te: term) (p: place): token =
 
     | _ ->
   match te.ast with
-
     | Universe (Type, _) -> Verbatim "Type"
     | Universe (Set, _) -> Verbatim "Set"
     | Universe (Prop, _) -> Verbatim "Prop"
