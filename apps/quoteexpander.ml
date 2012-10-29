@@ -94,6 +94,20 @@ let rec term2pattern_loop (defs: defs) (ctxt: context ref) (vars: name list) (te
       let body' = term2pattern_loop defs ctxt (name::vars) body in
       String.concat "" ["{ ast = Forall (("; name; ", _,"; nature'; "), "; body';"); _}"]
 
+    | App (f, args) ->
+      String.concat "" 
+	["{ ast = App (";
+	 term2pattern_loop defs ctxt vars f;
+	 ", [";
+	 String.concat "; " (List.map (fun (arg, n) -> String.concat "" ["("; 
+									 term2pattern_loop defs ctxt vars arg;
+									 ", ";
+									 nature2string n;
+									 ")"
+									]) args);
+	 "]); _ }"
+	] 
+
     | _ -> raise (failwith (term2string ctxt te))
   in
   res
