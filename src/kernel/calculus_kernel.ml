@@ -17,7 +17,7 @@ module type KernelTerm =
     val define_recursive: name -> term -> term -> int list -> unit
 
     val type_of: t -> t
-    val reduce: reduction_strategy -> t -> t
+    val reduce: ?strat: reduction_strategy -> t -> t
       
     val get_defs: unit -> defs
 
@@ -32,7 +32,7 @@ module Term : KernelTerm =
 
     let decreasing: (name, int list) Hashtbl.t = Hashtbl.create 100;;    
 
-    let type_simplification_strat = {
+    let simplification_strat = {
       beta = Some BetaStrong;
       delta = Some DeltaWeak;
       iota = true;
@@ -262,7 +262,7 @@ module Term : KernelTerm =
       totality_check ();
       terminaison_check n;
       
-      let te = { te with annot = Typed (reduction_term defs ctxt type_simplification_strat (get_type te))} in
+      let te = { te with annot = Typed (reduction_term defs ctxt simplification_strat (get_type te))} in
       Hashtbl.replace defs n (Definition te);
       te
 
@@ -286,7 +286,7 @@ module Term : KernelTerm =
 
       (* well-formness *)
       totality_check ();
-      let te = { te with annot = Typed (reduction_term defs ctxt type_simplification_strat (get_type te))} in
+      let te = { te with annot = Typed (reduction_term defs ctxt simplification_strat (get_type te))} in
       te;;
 
     let to_ground_term (te: t) : term = te;;
@@ -310,7 +310,7 @@ module Term : KernelTerm =
 
     let get_defs () = Hashtbl.copy defs;;
 
-    let reduce strat te = 
+    let reduce ?(strat: reduction_strategy = simplification_strat) te = 
       let ctxt = ref empty_context in
       reduction_term defs ctxt strat te
 

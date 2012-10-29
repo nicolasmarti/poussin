@@ -342,6 +342,14 @@ Quotation.add "term" (Quotation.ExStr (fun x ->
   if x then
     quotexpander_term
   else 
+    failwith ":term only for typed term"
+))
+;;
+
+Quotation.add "pat" (Quotation.ExStr (fun x -> 
+  if x then
+    failwith ":pat only for typed term"
+  else 
     term2pattern
 ))
 ;;
