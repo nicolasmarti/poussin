@@ -10,6 +10,8 @@ module type KernelTerm =
     type t = private term
 
     val from_ground_term: term -> t
+    val to_ground_term: t -> term
+
     val define_inductive: name -> term -> (name * term) list -> unit
     val define_definition: name -> term -> unit
     val define_recursive: name -> term -> term -> int list -> unit
@@ -286,6 +288,8 @@ module Term : KernelTerm =
       totality_check ();
       let te = { te with annot = Typed (reduction_term defs ctxt type_simplification_strat (get_type te))} in
       te;;
+
+    let to_ground_term (te: t) : term = te;;
 
     let define_inductive n ty cstors = ignore (process_inductive n ty cstors);;
     let define_definition n te = ignore (process_definition n te);;
