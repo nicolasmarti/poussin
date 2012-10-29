@@ -14,6 +14,8 @@ module type KernelTerm =
     val define_definition: name -> term -> unit
     val define_recursive: name -> term -> term -> int list -> unit
 
+    val type_of: t -> t
+
   end;;
 
 
@@ -297,6 +299,7 @@ module Term : KernelTerm =
 	  raise err
     ;;
 
+    let type_of t = get_type t;;
 
 
   end;;
