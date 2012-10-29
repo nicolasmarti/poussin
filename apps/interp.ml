@@ -7,7 +7,6 @@ open Pprinter
 open Def
 open Calculus_kernel
 open Fm
-open Proof
 
 (* the global parserbuffer *)
 let global_parserbuffer : parserbuffer ref = ref (build_parserbuffer (Stream.of_list []))
