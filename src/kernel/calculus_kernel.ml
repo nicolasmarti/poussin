@@ -15,6 +15,9 @@ module type KernelTerm =
     val define_recursive: name -> term -> term -> int list -> unit
 
     val type_of: t -> t
+    val reduce: reduction_strategy -> t -> t
+      
+    val get_defs: unit -> defs
 
   end;;
 
@@ -301,6 +304,11 @@ module Term : KernelTerm =
 
     let type_of t = get_type t;;
 
+    let get_defs () = Hashtbl.copy defs;;
+
+    let reduce strat te = 
+      let ctxt = ref empty_context in
+      reduction_term defs ctxt strat te
 
   end;;
 
