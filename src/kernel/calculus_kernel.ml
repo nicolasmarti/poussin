@@ -5,28 +5,37 @@ include Calculus_engine
 include Fm
 open Printf
 
-module type KernelTerm =
+module type Kernel =
   sig 
-    type t = private term
 
-    val from_ground_term: term -> t
-    val to_ground_term: t -> term
+    (* basic term definition *)
+
+    type te = private term
+
+    val from_ground_term: term -> te
+    val to_ground_term: te -> term
 
     val define_inductive: name -> term -> (name * term) list -> unit
     val define_definition: name -> term -> unit
     val define_recursive: name -> term -> term -> int list -> unit
 
-    val type_of: t -> t
-    val reduce: ?strat: reduction_strategy -> t -> t
+    val type_of: te -> te
+    val reduce: ?strat: reduction_strategy -> te -> te
       
     val get_defs: unit -> defs
+
+    (* proof related definition *)
+
+    type formula = private (context * term)
+
+    val formula_from_term: term -> formula
 
   end;;
 
 
-module Term : KernelTerm =
+module Kernel : Kernel =
   struct
-    type t = term ;;
+    type te = term ;;
 	
     let defs : defs = Hashtbl.create 100 ;;
 
@@ -268,7 +277,7 @@ module Term : KernelTerm =
 
     (* *)
 
-    let from_ground_term (te: term) : t =
+    let from_ground_term (te: term) : te =
       (* initialization of a few globals *)
       unmatched_pattern := [];
       registered_calls := [];
@@ -289,7 +298,7 @@ module Term : KernelTerm =
       let te = { te with annot = Typed (reduction_term defs ctxt simplification_strat (get_type te))} in
       te;;
 
-    let to_ground_term (te: t) : term = te;;
+    let to_ground_term (te: te) : term = te;;
 
     let define_inductive n ty cstors = ignore (process_inductive n ty cstors);;
     let define_definition n te = ignore (process_definition n te);;
@@ -314,6 +323,69 @@ module Term : KernelTerm =
       let ctxt = ref empty_context in
       reduction_term defs ctxt strat te
 
+    type formula = (context * term)
+
+    let formula_from_term (te: term): formula =
+      (* initialization of a few globals *)
+      unmatched_pattern := [];
+      registered_calls := [];
+
+      (* initialize a new context *)
+      let ctxt = ref empty_context in
+      (* untype the term *)
+      let te = untype_term te in
+      (* type checking *)
+      let te = typecheck defs ctxt te (prop_ (UName "")) in
+
+      (* some extra check *)
+      assert (List.length !ctxt.bvs = 0);
+
+      (* well-formness *)
+      totality_check ();
+
+      (* then we need to look for the free variables *)
+
+      (* we rewrite the conversion hypothesis in increasing order in the free vars *)
+      let s, _ = conversion_hyps2subst ~dec_order:true !ctxt.conversion_hyps in
+      let fvs = List.map (fun (i, ty, te, n) ->
+	(i,
+	 term_substitution s ty,
+	 (match te with | None -> None | Some te -> Some (term_substitution s te)),
+	 n)
+      ) !ctxt.fvs in  
+      (* we rewrite all the terms *)
+      let te = List.fold_left (fun acc (i, ty, te', n) ->
+	match te' with
+	  | None -> acc
+	  | Some te' -> term_substitution (IndexMap.singleton i te') te
+      ) te fvs in
+      (* update the context *)
+      ctxt := {!ctxt with fvs = fvs};
+      (* we compute the fvars of the terms *)
+      let lfvs = fv_term te in  
+      (* we need to compute an order of free variables: based on their occurences in each other types *)
+      let ordered_lfvs = (* not yet done !! *) IndexSet.elements lfvs in      
+      (* then we make the processing list *)
+      let lst = List.map (fun i -> i, get_fvar ctxt i) ordered_lfvs in
+      (* and rebuild the bvs parts of the context with this list *)
+      let (bvs, te, _) = fold_cont (fun (bvs, te, names) ((i, (ty, None, name))::tl) ->
+	let name = (fresh_name_list ~basename:(match name with | None -> "X" | Some n -> n) names) in
+	(* we shift and rewrite *)
+	let te = term_substitution (IndexMap.singleton i (var_ ~annot:(Typed ty) 0)) (shift_term te 1) in
+	(* we rewrite the var i in remaining free vars *)
+	let tl, _ = mapacc (fun (ind, ty') (i, (ty, None, name)) -> 
+	  (i, ((term_substitution (IndexMap.singleton i (var_ ~annot:(Typed ty') ind)) ty), None, name)), 
+	  (ind + 1, ty')
+	) (0, ty) tl in
+	tl, (bvs @ [{name = name; ty = ty; nature = Explicit}], te, names @ [name])
+      ) ([], te, []) lst in
+      
+      let ctxt = { empty_context with bvs = bvs } in
+      let te = { te with annot = Typed (reduction_term defs (ref ctxt) simplification_strat (get_type te))} in
+      (ctxt , te);;
+
+
+
   end;;
 
-include Term;;
+include Kernel;;
