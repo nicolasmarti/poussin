@@ -29,6 +29,14 @@ module type Kernel =
     type formula = private (context * term)
 
     val formula_from_term: term -> formula
+    val formula_context: formula -> context
+    val formula_prop: formula -> term      
+
+    type theorem = private (context * term)
+
+    val theorem_context: theorem -> context
+    val theorem_prop: theorem -> term      
+
 
   end;;
 
@@ -323,7 +331,7 @@ module Kernel : Kernel =
       let ctxt = ref empty_context in
       reduction_term defs ctxt strat te
 
-    type formula = (context * term)
+    type formula = (context * term);;
 
     let formula_from_term (te: term): formula =
       (* initialization of a few globals *)
@@ -384,7 +392,15 @@ module Kernel : Kernel =
       let te = { te with annot = Typed (reduction_term defs (ref ctxt) simplification_strat (get_type te))} in
       (ctxt , te);;
 
+    let formula_context = fst;;
 
+    let formula_prop = snd;;
+
+    type theorem = (context * term);;
+
+    let theorem_context = fst;;
+
+    let theorem_prop = snd;;
 
   end;;
 
