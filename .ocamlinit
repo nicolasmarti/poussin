@@ -36,6 +36,18 @@ let term_printer = fun f t ->
 
 #install_printer term_printer;;
 
+let formula_printer = fun f (c, t) -> 
+  pp_open_box f 0; pp_print_string f "<<";
+  pp_open_box f 0; 
+  pp_print_string f (term2string (ref c) t);
+  pp_close_box f ();
+  pp_print_string f " : ";
+  pp_open_box f 0; 
+  pp_print_string f (term2string (ref c) (get_type t));
+  pp_close_box f ();
+  pp_print_string f ">>"; pp_close_box f ();;
+
+#install_printer formula_printer;;
 
 if let v = String.sub Sys.ocaml_version 0 4 in v >= "3.10"
 then (Topdirs.dir_directory "+camlp5";
