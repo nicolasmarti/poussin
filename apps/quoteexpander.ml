@@ -17,6 +17,23 @@ let parse_type_term str =
       raise (failwith str)
 ;;
 
+let parse_formula str =
+  let lines = stream_of_string str in
+  let pb = build_parserbuffer lines in
+  Hashtbl.clear term_hash;
+  try 
+    let t = Lazy.force (parse_term (get_defs ()) (-1, -1) pb) in
+    formula_from_term t    
+  with
+    | NoMatch -> 
+      let str = String.concat "" ["parsing error: "; (errors2string pb)] in
+      raise (failwith str)
+    | PoussinException err ->
+      let str = String.concat "" ["poussin error: "; (poussin_error2string err)] in      
+      raise (failwith str)
+;;
+
+
 (* from term to pattern *)
 let fresh_names : (name, int) Hashtbl.t = Hashtbl.create 100;;
 
@@ -338,6 +355,9 @@ let quotexpander_def s =
 let quotexpander_term s =
   "parse_type_term \""^(String.escaped s)^"\"";;
 
+let quotexpander_formula s =
+  "parse_formula \""^(String.escaped s)^"\"";;
+
 Quotation.add "term" (Quotation.ExStr (fun x -> 
   if x then
     quotexpander_term
@@ -359,6 +379,14 @@ Quotation.add "def" (Quotation.ExStr (fun x ->
     quotexpander_def
   else 
     raise (failwith "no pattern mode for defs")
+))
+;;
+
+Quotation.add "formula" (Quotation.ExStr (fun x -> 
+  if x then
+    quotexpander_formula
+  else 
+    raise (failwith "no pattern mode for formula")
 ))
 ;;
 
