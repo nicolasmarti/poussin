@@ -343,7 +343,8 @@ module Kernel : Kernel =
       (* untype the term *)
       let te = untype_term te in
       (* type checking *)
-      let te = typecheck defs ctxt te (prop_ (UName "")) in
+      let ty = typeinfer defs ctxt (prop_ (UName "")) in
+      let te = typecheck defs ctxt te ty in
 
       (* some extra check *)
       assert (List.length !ctxt.bvs = 0);

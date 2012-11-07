@@ -11,10 +11,12 @@ let parse_type_term str =
   with
     | NoMatch -> 
       let str = String.concat "" ["parsing error: "; (errors2string pb)] in
-      raise (failwith str)
+      printf "%s\n" str;
+      raise (failwith "")
     | PoussinException err ->
       let str = String.concat "" ["poussin error: "; (poussin_error2string err)] in      
-      raise (failwith str)
+      printf "%s\n" str;
+      raise (failwith "")
 ;;
 
 let parse_formula str =
@@ -27,10 +29,12 @@ let parse_formula str =
   with
     | NoMatch -> 
       let str = String.concat "" ["parsing error: "; (errors2string pb)] in
-      raise (failwith str)
+      printf "%s\n" str;
+      raise (failwith "")
     | PoussinException err ->
       let str = String.concat "" ["poussin error: "; (poussin_error2string err)] in      
-      raise (failwith str)
+      printf "%s\n" str;
+      raise (failwith "")
 ;;
 
 
@@ -164,10 +168,12 @@ let term2pattern str =
   with
     | NoMatch -> 
       let str = String.concat "" ["parsing error: "; (errors2string pb)] in
-      raise (failwith str)
+      printf "%s\n" str;
+      raise (failwith "")
     | PoussinException err ->
       let str = String.concat "" ["poussin error: "; (poussin_error2string err)] in      
-      raise (failwith str)
+      printf "%s\n" str;
+      raise (failwith "")
 ;;
 
 open Calculus_kernel;;

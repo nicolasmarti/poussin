@@ -37,6 +37,10 @@ let term_printer = fun f t ->
 let formula_printer = fun f (fm: Kernel.formula) -> 
   pp_open_box f 0; 
   pp_print_string f (term2string (ref (formula_context fm)) (formula_prop fm));
+  (*
+  pp_print_string f " : ";
+  pp_print_string f (term2string (ref (formula_context fm)) (get_type (formula_prop fm)));
+  *)
   pp_close_box f ();;
 
 #install_printer formula_printer;;
@@ -44,13 +48,17 @@ let formula_printer = fun f (fm: Kernel.formula) ->
 
 let theorem_printer = fun f (t: Kernel.theorem) -> 
   pp_open_box f 0; 
-  pp_open_box f 0; 
-  (* here we should have the hypothesis *)
-  pp_close_box f ();
-  pp_print_string f "|-";
-  pp_open_box f 0; 
-  pp_print_string f (term2string (ref (theorem_context t)) (theorem_prop t));
-  pp_close_box f ();
+    pp_open_box f 0; 
+    (* here we should have the hypothesis *)
+    pp_close_box f ();
+    pp_print_string f "|-";
+    pp_open_box f 0; 
+      pp_print_string f (term2string (ref (theorem_context t)) (theorem_prop t));
+      (*
+      pp_print_string f " : ";
+      pp_print_string f (term2string (ref (theorem_context t)) (get_type (theorem_prop t)));
+      *)
+    pp_close_box f ();
   pp_close_box f ();;
 
 #install_printer theorem_printer;;

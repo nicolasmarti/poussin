@@ -260,8 +260,8 @@ try (
 	te
   in
   try 
-    ignore(unification defs ctxt ~polarity:polarity (get_type te) ty);
-    te
+    let ty = unification defs ctxt ~polarity:polarity (get_type te) ty in
+    { te with annot = Typed ty }
   with
     (* only coercion on ground types *)
     | PoussinException err when coercion && IndexSet.is_empty (IndexSet.union (fv_term (get_type te)) (fv_term ty)) ->
