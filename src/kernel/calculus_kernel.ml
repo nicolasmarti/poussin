@@ -30,12 +30,13 @@ module type Kernel =
 
     val formula_from_term: term -> formula
     val formula_context: formula -> context
-    val formula_prop: formula -> term      
+    val formula_concl: formula -> term      
 
     type theorem = private (context * term)
 
     val theorem_context: theorem -> context
-    val theorem_prop: theorem -> term      
+    val theorem_concl: theorem -> term      
+    val theorem_proof: theorem -> term      
 
 
   end;;
@@ -333,6 +334,9 @@ module Kernel : Kernel =
 
     type formula = (context * term);;
 
+    let formula_context = fst;;
+    let formula_concl = snd;;
+
     let formula_from_term (te: term): formula =
       (* initialization of a few globals *)
       unmatched_pattern := [];
@@ -393,15 +397,11 @@ module Kernel : Kernel =
       let te = { te with annot = Typed (reduction_term defs (ref ctxt) simplification_strat (get_type te))} in
       (ctxt , te);;
 
-    let formula_context = fst;;
-
-    let formula_prop = snd;;
-
     type theorem = (context * term);;
 
     let theorem_context = fst;;
-
-    let theorem_prop = snd;;
+    let theorem_concl (c, t) = get_type t;;
+    let theorem_proof (c, t) = t;;
 
   end;;
 
