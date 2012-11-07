@@ -368,19 +368,19 @@ module Kernel : Kernel =
       (* then we make the processing list *)
       let lst = List.map (fun i -> i, get_fvar ctxt i) ordered_lfvs in
       (* and rebuild the bvs parts of the context with this list *)
-      let (bvs, te, _) = fold_cont (fun (bvs, te, names) ((i, (ty, None, name))::tl) ->
+      let (bvs, te, _) = fold_cont (fun (bvs, te, names) ((i, (ty, _ (* None *), name))::tl) ->
 	let name = (fresh_name_list ~basename:(match name with | None -> "X" | Some n -> n) names) in
 	(* we shift and rewrite *)
 	let te = term_substitution (IndexMap.singleton i (var_ ~annot:(Typed ty) 0)) (shift_term te 1) in
 	(* we rewrite the var i in remaining free vars *)
-	let tl, _ = mapacc (fun (ind, ty') (i, (ty, None, name)) -> 
+	let tl, _ = mapacc (fun (ind, ty') (i, (ty, _ (* None *), name)) -> 
 	  (i, ((term_substitution (IndexMap.singleton i (var_ ~annot:(Typed ty') ind)) ty), None, name)), 
 	  (ind + 1, ty')
 	) (0, ty) tl in
 	tl, (bvs @ [{name = name; ty = ty; nature = Explicit}], te, names @ [name])
       ) ([], te, []) lst in
       
-      let ctxt = { empty_context with bvs = bvs } in
+      let ctxt = { empty_context with bvs = List.rev bvs } in
       let te = { te with annot = Typed (reduction_term defs (ref ctxt) simplification_strat (get_type te))} in
       (ctxt , te);;
 
