@@ -545,14 +545,22 @@ let context_add_lvl_contraint (ctxt: context ref) (c: uLevel_constraints) : unit
   ctxt := { !ctxt with lvl_cste = c::!ctxt.lvl_cste }
 
 
-(* retrieve the debruijn index of a bound var through its symbol *)
+(* retrieve the debruijn index of a bound or free var through its symbol *)
 let var_lookup (ctxt: context ref) (n: name) : index option =
   let res = fold_stop (fun level frame ->
     if frame.name = n then Right level else Left (level+1)
   ) 0 !ctxt.bvs in
   match res with
-    | Left _ -> None
     | Right level -> Some level
+    | Left _ -> 
+      let res = fold_stop (fun () (index, ty, value, name) -> 
+	match name with
+	  | Some n' when String.compare n n' = 0 -> Right index
+	  | _ -> Left ()
+      ) () !ctxt.fvs in
+      match res with
+	| Left _ -> None
+	| Right i -> Some i
 
 let get_fvar (ctxt: context ref) (i: index) : (term * term option * name option) =
   let lookup = fold_stop (fun () (index, ty, value, name) -> 

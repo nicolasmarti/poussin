@@ -362,8 +362,10 @@ and typeinfer
 	    let res = 
 	    (* we first look for a variable *)
 	    match var_lookup ctxt n with
-	      | Some i -> 
+	      | Some i when i >= 0 -> 
 		{ te with ast = Var i; annot = Typed (bvar_type ctxt i) }
+	      | Some i when i < 0 -> 
+		{ te with ast = Var i; annot = Typed (fvar_type ctxt i) }
 	      | None -> 
 		try 
 		  match get_cste defs n with
