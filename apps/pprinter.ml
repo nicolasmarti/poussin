@@ -272,7 +272,7 @@ let rec definition2token (def: definition) (ctxt: context ref): token =
     | DefSignature (n, ty) ->
       Box [Verbatim "Signature"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone]
     | DefDefinition (n, te) ->
-      Box [Verbatim "Definition"; Space 1; Verbatim n; Space 1; Verbatim ":="; Space 1; term2token (context2namelist ctxt) te Alone]
+      Box [Verbatim "Definition"; Space 1; Verbatim n; Space 1; Verbatim ":="; Space 1; term2token (context2namelist ctxt) te Alone; Newline; Space 3; Verbatim ":"; Space 1; term2token (context2namelist ctxt) (get_type te) Alone]
     | DefInductive (n, ty, cstors) ->
       Box [Verbatim "Inductive"; Space 1; Verbatim n; Space 1; Verbatim ":"; Space 1; term2token (context2namelist ctxt) ty Alone; Space 1; Verbatim ":="; Newline;
 	   Box (intercalate Newline (
@@ -456,7 +456,7 @@ let rec poussin_error2token (err: poussin_error) : token =
 	   (*position2token (get_term_pos ty);*) Verbatim "    "; term2token (context2namelist (ref ctxt)) ty Alone; Newline; 
 	    Verbatim "under following conversion_hyps:"; Newline;
 	    Space 2; conversion_hyps2token (ref ctxt) ctxt.conversion_hyps;
-	    Verbatim "reason: "; Newline;
+	    Newline; Verbatim "reason: "; Newline;
 	    poussin_error2token err
 	  ]
       
