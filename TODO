@@ -1,6 +1,4 @@
 - adding well-formness
   + Universe stratification
-  + Positivity
-  + Terminaison (harvesting of name ref done)
-  + Totality (catching unmatch and only possible patterns done)
+  + Type stratification (* alternatives to positivity *)
   + Proof Irrelevance
