@@ -1,4 +1,4 @@
 - adding well-formness
   + Universe stratification
   + Type stratification (* alternatives to positivity *)
-  + Proof Irrelevance
+  + Proof Irrelevance (should extend the unification algorithm)
