@@ -74,14 +74,20 @@ Definition plus (n m: Nat) : Nat :=
      | S n := S (plus n m) 
   end
 
-Signature append {A} {n1 n2} (v1: Vector A n1) (v2: Vector A n2): Vector A (plus n1 n2)
-Decreasing append [3]
+Signature append {A} {n1} (v1: Vector A n1) {n2} (v2: Vector A n2): Vector A (plus n1 n2)
+Decreasing append [2]
 
-Definition append {A} {n1 n2} (v1: Vector A n1) (v2: Vector A n2): Vector A (plus n1 n2) :=
+Definition append {A} {n1} (v1: Vector A n1) {n2} (v2: Vector A n2): Vector A (plus n1 n2) :=
   match v1 with
      | nil {A} := v2
      | cons {A} {n1} hd tl := cons hd (append tl v2)
-end
+  end
+
+Compute cons O nil
+
+Compute append
+
+Compute append {_} {_} (cons O nil)
 
 Inductive bool: Set :=
 | true: bool
