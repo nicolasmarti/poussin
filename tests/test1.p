@@ -87,7 +87,9 @@ Compute cons O nil
 
 Compute append
 
-Compute append {_} {_} (cons O nil)
+Compute append (cons O nil)
+
+Compute append (cons O nil) (cons (S O) (cons O nil))
 
 Inductive bool: Set :=
 | true: bool
