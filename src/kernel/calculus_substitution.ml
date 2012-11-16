@@ -73,6 +73,8 @@ let append_substitution (s1: substitution) (s2: substitution): substitution =
       | _, Some v2 -> if term_equal v2 (var_ k) then None else Some v2
   ) s1 s2
 
+let substitution_substitution (s1: substitution) (s2: substitution) =
+  IndexMap.map (term_substitution s1) s2
 
 (* transform a conversion_hyps list into a substitution *)
 let rec conversion_hyps2subst ?(dec_order: bool = false) (cv: (term * term) list) : (substitution * (term * term) list) =

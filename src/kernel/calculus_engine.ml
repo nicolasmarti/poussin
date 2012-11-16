@@ -52,6 +52,8 @@ let push_quantification (q: (name * term * nature)) (ctxt: context ref) : unit =
   }
 
 let rec context_add_substitution (defs: defs) (ctxt: context ref) (s: substitution) : unit =
+  let s' = context2subst ctxt in
+  let s = substitution_substitution s' s in
   (* computes the needed shited substitution *)
   let ss = fst (mapacc (fun acc hd -> (acc, shift_substitution acc (-1))) s !ctxt.bvs) in
   let bvs = List.map2 (fun hd1 hd2 -> {hd1 with ty = term_substitution hd2 hd1.ty} ) !ctxt.bvs ss in
@@ -134,7 +136,10 @@ and flush_fvars (defs: defs) (ctxt: context ref) (tes: term list) : term list =
 	match oracles_call defs ctxt ~var:(Some i) ty with
 	  | None -> (* nothing there, we just raise an error *)
 	    raise (PoussinException (FreeError (
-	      String.concat "" ["the oracles failed to infer a free variable"]
+	      String.concat "" ["the oracles failed to infer a free variable in [";
+				(*String.concat ", " (List.map (term2string ctxt) tes);*)
+				"]"
+			       ]
 	    )
 	    ))
 	  | Some _ as te -> (* we just return the answer of the oracles as the free variable value *)
