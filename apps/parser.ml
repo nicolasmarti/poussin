@@ -36,7 +36,7 @@ let int_parser : int parsingrule = applylexingrule_regexp ("[0-9]+",
 							       Lazy.lazy_from_val (int_of_string s)
 )
 
-let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Signature"; "Compute"; "let"; "in"; "exact"; "Decreasing"
+let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Signature"; "Compute"; "let"; "in"; "exact"; "Decreasing"; "Recursive"
 ]
 
 let parse_reserved : unit parsingrule =
@@ -634,3 +634,152 @@ let rec parse_definition (defs: defs) (leftmost: int * int) : definition parsing
     )
   )
       
+
+let rec parse_definition2 (defs: defs) (leftmost: int * int) : unit parsingrule =
+  (* an inductive *)
+  tryrule (fun pb ->
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word "Inductive") pb in
+    let _ = whitespaces pb in
+    let s = at_start_pos leftmost name_parser pb in
+    let _ = whitespaces pb in
+    let qs = many (parse_lambda_lhs defs leftmost) pb in
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word ":") pb in
+    let startpos = cur_pos pb in
+    let _ = whitespaces pb in
+    let ty = parse_term defs leftmost pb in
+    let endpos = cur_pos pb in
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word ":=") pb in
+
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (mayberule (word "|")) pb in
+
+    let cstors = separatedBy (fun pb ->
+      let _ = whitespaces pb in
+      let s = at_start_pos leftmost name_parser pb in
+      let _ = whitespaces pb in
+      let qs = many (parse_lambda_lhs defs leftmost) pb in
+      let _ = whitespaces pb in
+      let _ = at_start_pos leftmost (word ":") pb in
+      let startpos = cur_pos pb in
+      let _ = whitespaces pb in
+      let ty = parse_term defs leftmost pb in
+      let endpos = cur_pos pb in
+      Lazy.lazy_from_fun (fun () ->   
+	(Lazy.force s), set_term_pos (build_impls (Lazy.force qs) (Lazy.force ty)) (pos_to_position (startpos, endpos))
+      )
+    )
+      (fun pb -> 
+	let _ = whitespaces pb in
+	let _ = at_start_pos leftmost (word "|") pb in
+	let _ = whitespaces pb in
+	Lazy.lazy_from_val ()
+      ) pb in
+    
+    
+    Lazy.lazy_from_fun (fun () ->   
+      let s = Lazy.force s in
+      let ty = set_term_pos (build_impls (Lazy.force qs) (Lazy.force ty)) (pos_to_position (startpos, endpos)) in
+      let cstors = Lazy.force cstors in
+      define_inductive s ty cstors
+    )
+  )
+  (* a definition *)
+  <|> tryrule (fun pb ->
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word "Definition") pb in
+    let _ = whitespaces pb in
+    let s = at_start_pos leftmost name_parser pb in
+    let _ = whitespaces pb in
+    let qs = many (parse_lambda_lhs defs leftmost) pb in
+    let _ = whitespaces pb in
+    let ty = mayberule (fun pb ->
+      let _ = at_start_pos leftmost (word ":") pb in
+      let startpos = cur_pos pb in
+      let _ = whitespaces pb in
+      let ty = parse_term defs leftmost pb in
+      let endpos = cur_pos pb in
+      Lazy.lazy_from_fun (fun () ->   
+	(set_term_pos (Lazy.force ty) (pos_to_position (startpos, endpos)))
+      )
+    ) pb in
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word ":=") pb in
+    let startpos2 = cur_pos pb in
+    let _ = whitespaces pb in
+    let te = parse_term defs leftmost pb in
+    let endpos2 = cur_pos pb in
+    Lazy.lazy_from_fun (fun () ->   
+      let te = Lazy.force te in
+      let qs = Lazy.force qs in
+      let s = Lazy.force s in
+      let te = match (Lazy.force ty) with
+	| None -> 
+	  (set_term_pos 
+	     (build_lambdas qs te) 
+	     (pos_to_position (startpos2, endpos2))
+	  )
+	| Some ty -> 
+	  (set_term_annotation 
+	     (set_term_pos 
+		(build_lambdas qs (set_term_annotation te ty)) 
+		(pos_to_position (startpos2, endpos2))
+	     )
+	     (build_impls qs ty)
+	  ) in
+      
+      define_definition s te
+    )
+  )
+  (* a recursive definition *)
+  <|> tryrule (fun pb ->
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word "Recursive") pb in
+    let _ = whitespaces pb in
+    let s = at_start_pos leftmost name_parser pb in
+    let _ = whitespaces pb in
+    let qs = many (parse_lambda_lhs defs leftmost) pb in
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word "[") pb in
+    let _ = whitespaces pb in
+    let lst = separatedBy int_parser
+      (fun pb -> 
+	let _ = whitespaces pb in
+	let _ = at_start_pos leftmost (word ",") pb in
+	let _ = whitespaces pb in
+	Lazy.lazy_from_val ()
+      ) pb in
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word "]") pb in
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word ":") pb in
+    let _ = whitespaces pb in
+    let ty = parse_term defs leftmost pb in
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word ":=") pb in
+    let startpos2 = cur_pos pb in
+    let _ = whitespaces pb in
+    let te = parse_term defs leftmost pb in
+    let endpos2 = cur_pos pb in
+    let _ = whitespaces pb in
+    Lazy.lazy_from_fun (fun () ->   
+      let te = Lazy.force te in
+      let ty = Lazy.force ty in
+      let lst = Lazy.force lst in
+      let qs = Lazy.force qs in
+      let s = Lazy.force s in
+      let te = 
+	  (set_term_annotation 
+	     (set_term_pos 
+		(build_lambdas qs (set_term_annotation te ty)) 
+		(pos_to_position (startpos2, endpos2))
+	     )
+	     (build_impls qs ty)
+	  ) in
+      let ty = (build_impls qs ty) in
+      define_recursive s ty te lst
+    )
+  )
+;;      
