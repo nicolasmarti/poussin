@@ -442,3 +442,58 @@ let process_file (filename: string) : unit  =
 let process_stdin () : unit =
   let lines = line_stream_of_channel stdin in
   process_stream lines;;
+
+(**)
+
+
+let process_stream2 (str: string Stream.t) : unit  =
+  let pb = build_parserbuffer str in
+  global_parserbuffer := pb;
+  let leftmost = cur_pos pb in
+  try 
+    ignore (
+      let _ = many (fun pb ->
+	let time_start = Sys.time () in
+	let def = parse_definition2 (get_defs ()) leftmost pb in
+	(*let () = 
+	  match def with
+	  | DefSignature (n, ty) -> printf "Inductive %s: %s\n\n" n (term2string (ref empty_context) ty)
+	  | DefInductive (n, ty) -> printf "Inductive %s: %s\n\n" n (term2string (ref empty_context) ty)
+	  | DefConstructor (n, ty) -> printf "Constructor %s: %s\n\n" n (term2string (ref empty_context) ty)
+	  | DefDefinition (n, te) -> printf "Definition %s:= %s \n\n" n (term2string (ref empty_context) te)
+	  in*)
+	let time_end = Sys.time () in
+	printf "parsed in %g sec.\n\n" (time_end -. time_start); flush stdout;
+	ignore(Lazy.force def);
+	Lazy.lazy_from_val ()
+      ) pb in
+      let _ = eos pb in
+      printf "total processing time in %g sec.\n\n" !processing_time; flush stdout;
+      ()
+    )
+  with
+    | NoMatch -> 
+      printf "parsing error: '%s'\n%s\n" (Buffer.contents pb.bufferstr) (errors2string pb); flush Pervasives.stdout;
+      raise Pervasives.Exit
+    | Failure s -> 
+      printf "error:\n%s\n" s;
+      raise Pervasives.Exit
+    | PoussinException err ->
+      (*pp_option := {!pp_option with show_type = true};*)
+      printf "poussin_error:\n%s\n%s\n" (trace2string !trace) (poussin_error2string err);
+      raise Pervasives.Exit
+;;
+
+
+let process_string2 (str: string) : unit  =
+  let lines = stream_of_string str in
+  process_stream2 lines;;
+
+let process_file2 (filename: string) : unit  =
+  let chan = open_in filename in
+  let lines = line_stream_of_channel chan in
+  process_stream2 lines;;
+
+let process_stdin2 () : unit =
+  let lines = line_stream_of_channel stdin in
+  process_stream2 lines;;
