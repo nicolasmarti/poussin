@@ -53,13 +53,13 @@ Inductive Nat: Set :=
 | S: Nat -> Nat
 
 Inductive Vector (A: Set): Nat -> Set :=
-| nil {A: Set}: Vector A O
-| cons {A: Set} {n}: A -> Vector A n -> Vector A (S n)
+| vnil {A: Set}: Vector A O
+| vcons {A: Set} {n}: A -> Vector A n -> Vector A (S n)
 
-Recursive map {A B: Set} {n} (f: A -> B) (v: Vector A n) [4] : Vector B n :=
+Recursive vmap {A B: Set} {n} (f: A -> B) (v: Vector A n) [4] : Vector B n :=
   match v with
-     | nil {A} := nil
-     | cons {A} {n} hd tl := cons (f hd) (map f tl)
+     | vnil {A} := vnil
+     | vcons {A} {n} hd tl := vcons (f hd) (vmap f tl)
 end
 
 Recursive plus (n m: Nat) [0]: Nat :=
@@ -68,8 +68,19 @@ Recursive plus (n m: Nat) [0]: Nat :=
      | S n := S (plus n m) 
   end
 
-Recursive append {A} {n} (v1: Vector A n) {m} (v2: Vector A m) [2]: Vector A (plus n m) :=
+Recursive vappend {A} {n} (v1: Vector A n) {m} (v2: Vector A m) [2]: Vector A (plus n m) :=
   match v1 with
-     | nil {A} := v2
-     | cons {A} {n1} hd tl := cons hd (append tl v2)
+     | vnil {A} := v2
+     | vcons {A} {n1} hd tl := vcons hd (vappend tl v2)
   end
+
+Inductive list: Type -> Type :=
+| lnil: {A: Type} -> list A
+| lcons: {A: Type} -> A -> list A -> list A
+
+Inductive tuple: list Type -> Type :=
+| tnil: tuple lnil
+| tcons: {hd: Type} -> hd -> {tl: list Type} -> tuple tl -> tuple (lcons hd tl)
+
+Definition caca := tcons O (tcons (S O) tnil)
+
