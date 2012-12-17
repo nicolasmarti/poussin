@@ -36,7 +36,7 @@ let int_parser : int parsingrule = applylexingrule_regexp ("[0-9]+",
 							       Lazy.lazy_from_val (int_of_string s)
 )
 
-let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Signature"; "Compute"; "let"; "in"; "exact"; "Decreasing"; "Recursive"
+let keywords = ["Type"; "Set"; "Prop"; ":"; ":="; "->"; "match"; "with"; "end"; "Definition"; "Inductive"; "Constructor"; "Signature"; "Compute"; "let"; "in"; "exact"; "Decreasing"; "Recursive"; "Compute"
 ]
 
 let parse_reserved : unit parsingrule =
@@ -780,6 +780,21 @@ let rec parse_definition2 (defs: defs) (leftmost: int * int) : unit parsingrule 
 	  ) in
       let ty = (build_impls qs ty) in
       define_recursive s ty te lst
+    )
+  )
+  (* a computation definition *)
+  <|> tryrule (fun pb ->
+    let _ = whitespaces pb in
+    let _ = at_start_pos leftmost (word "Compute") pb in
+    let _ = whitespaces pb in
+    let te = parse_term defs leftmost pb in
+    let _ = whitespaces pb in
+    Lazy.lazy_from_fun (fun () ->
+      let te = Lazy.force te in
+      let te2 = from_ground_term te in
+      let te3 = reduce te2 in
+      printf "Computation done\n"; flush stdout;
+      printf "Compute %s\n := \n%s\n" (term2string (ref empty_context) te)  (term2string (ref empty_context) (to_ground_term te3))
     )
   )
 ;;      

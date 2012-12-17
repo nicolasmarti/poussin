@@ -84,3 +84,22 @@ Inductive tuple: list Type -> Type :=
 
 Definition caca := tcons O (tcons (S O) tnil)
 
+
+Recursive mult (n m: Nat) [0] : Nat :=
+  match n with
+     | O := O
+     | S n := plus m (mult n m)
+  end
+
+Recursive exp (n m: Nat) [0] : Nat :=
+  match n with
+     | O := S O
+     | S n := mult m (exp n m)
+  end
+
+Definition two : Nat := S (S O)
+Definition three : Nat := S two
+Definition four := plus two two
+Definition five := plus two three
+
+Compute (exp two (exp two three))

@@ -56,10 +56,7 @@ Inductive Vector (A: Set): Nat -> Set :=
 | nil {A: Set}: Vector A O
 | cons {A: Set} {n}: A -> Vector A n -> Vector A (S n)
 
-Signature map {A B: Set} {n}: (f: A -> B) -> Vector A n -> Vector B n
-Decreasing map [4]
-
-Definition map {A B: Set} {n} (f: A -> B) (v: Vector A n) : Vector B n :=
+Recursive map {A B: Set} {n} (f: A -> B) (v: Vector A n) [4] : Vector B n :=
   match v with
      | nil {A} := nil
      | cons {A} {n} hd tl := cons (f hd) (map f tl)
