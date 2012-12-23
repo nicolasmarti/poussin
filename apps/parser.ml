@@ -793,8 +793,9 @@ let rec parse_definition2 (defs: defs) (leftmost: int * int) : unit parsingrule 
       let te = Lazy.force te in
       let te2 = from_ground_term te in
       let te3 = reduce te2 in
-      printf "Computation done\n"; flush stdout;
+      printf "Computation done\n"; flush stdout(*;
       printf "Compute %s\n := \n%s\n" (term2string (ref empty_context) te)  (term2string (ref empty_context) (to_ground_term te3))
+					       *)
     )
   )
 ;;      
