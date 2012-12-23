@@ -12,8 +12,8 @@
 #load "libpprinter.cmo";;
 #load "fm.cmo";;
 
-#load "parser.cmo";;
 #load "pprinter.cmo";;
+#load "parser.cmo";;
 #load "interp.cmo";;
 
 open Calculus_kernel;;
