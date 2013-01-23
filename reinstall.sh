@@ -1,4 +1,4 @@
-sudo ./uninstall
+./uninstall
 ./build.sh clean kernel
-sudo ./install
+./install
 ./build.sh clean all
