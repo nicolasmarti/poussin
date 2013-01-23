@@ -148,8 +148,9 @@ exact type
 exact type
 exact type
 
-Compute eq_op {nat_eqType} O O
-Compute eq_op {nat_eqType} O (S O)
+Compute eq_op O O
+exact nat_eqType
 
-
+Compute eq_op (S O) O
+exact nat_eqType
 
