@@ -102,4 +102,54 @@ Definition three : Nat := S two
 Definition four := plus two two
 Definition five := plus two three
 
-Compute (exp two (exp two three))
+Compute (exp two three)
+
+Inductive Bool : Set :=
+| true: Bool
+| false: Bool
+
+
+Definition Bool2Prop (b: Bool) : Prop :=
+  match b with
+    | true := True
+    | false := False
+  end
+
+Definition C : Prop := true
+exact Bool2Prop
+
+Inductive Addeable: Set -> Set -> Set -> Set :=
+| addeable: {A B C: Set} -> (A -> B -> C) -> Addeable A B C
+
+Definition add {A B C: Set} {H: Addeable A B C} (a: A) (b: B) : C :=
+  match H with
+    | addeable {_} {_} {_} f := f a b
+  end
+
+Definition NatNatNatAddeable :=
+  addeable {Nat} {Nat} {Nat} plus
+
+Inductive eqType: Type :=
+| isEqType: (A: Type) -> (f: A -> A -> Bool) -> eqType
+
+Recursive nat_eq (x y: Nat) [0] : Bool :=
+  match x with
+    | O := match y with | O := true | S _ := false end
+    | S x := match y with | O := false | S y := nat_eq x y end
+  end
+
+Definition nat_eqType : eqType := isEqType nat nat_eq
+
+Definition type (A: eqType) := match A with | isEqType A op := A end
+
+Definition eq_op {A: eqType} : A -> A -> Bool := match A with | isEqType A op := op end
+exact type
+exact type
+exact type
+exact type
+
+Compute eq_op {nat_eqType} O O
+Compute eq_op {nat_eqType} O (S O)
+
+
+
