@@ -1,3 +1,4 @@
+- should be a good idea to add the fact that a constante is reducible or not, or even its nature
 - adding well-formness
   + Universe stratification
   + Type stratification (* alternatives to positivity *)
