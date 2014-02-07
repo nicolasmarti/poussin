@@ -1,20 +1,29 @@
-#directory "_build/src/lib/";;
-#directory "_build/src/kernel/";;
-#directory "_build/apps/";;
+
+if let v = String.sub Sys.ocaml_version 0 4 in v >= "3.10"
+then (Topdirs.dir_directory "+camlp5";
+      Topdirs.dir_load Format.std_formatter "camlp5o.cma")
+else (Topdirs.dir_load Format.std_formatter "camlp4o.cma");;
+
+#directory "src/lib/";;
+#load_rec "str.cma";;
+#mod_use "extlist.ml";;
+#mod_use "libpprinter.ml";;
+#mod_use "libparser.ml";;
+#mod_use "fm.ml";;
+
+#directory "src/kernel/";;
+#mod_use "calculus_def.ml";;
+#mod_use "calculus_misc.ml";;
+#mod_use "calculus_substitution.ml";;
+#mod_use "calculus_engine.ml";;
+#mod_use "calculus_pprinter.ml";;
+#mod_use "calculus_kernel.ml";;
+
 #directory "apps/";;
-
-#use "topfind";;
-#require "str";;
-#require "poussin";;
-
-#load "extlist.cmo";;
-#load "libparser.cmo";;
-#load "libpprinter.cmo";;
-#load "fm.cmo";;
-
-#load "pprinter.cmo";;
-#load "parser.cmo";;
-#load "interp.cmo";;
+#mod_use "de.ml";;
+#mod_use "pprinter.ml";;
+#mod_use "parser.ml";;
+#mod_use "interp.ml";;
 
 open Calculus_kernel;;
 open Pprinter;;
@@ -62,11 +71,6 @@ let theorem_printer = fun f (t: Kernel.theorem) ->
   pp_close_box f ();;
 
 #install_printer theorem_printer;;
-
-if let v = String.sub Sys.ocaml_version 0 4 in v >= "3.10"
-then (Topdirs.dir_directory "+camlp5";
-      Topdirs.dir_load Format.std_formatter "camlp5o.cma")
-else (Topdirs.dir_load Format.std_formatter "camlp4o.cma");;
 
 #use "quoteexpander.ml";;
 
