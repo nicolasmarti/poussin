@@ -20,7 +20,7 @@ else (Topdirs.dir_load Format.std_formatter "camlp4o.cma");;
 #mod_use "calculus_kernel.ml";;
 
 #directory "apps/";;
-#mod_use "de.ml";;
+#mod_use "def.ml";;
 #mod_use "pprinter.ml";;
 #mod_use "parser.ml";;
 #mod_use "interp.ml";;
