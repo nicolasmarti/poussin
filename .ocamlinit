@@ -1,3 +1,5 @@
+#use "topfind";;
+#require "camlp5.quotations";;
 
 if let v = String.sub Sys.ocaml_version 0 4 in v >= "3.10"
 then (Topdirs.dir_directory "+camlp5";
