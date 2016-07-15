@@ -1,5 +1,5 @@
 #package poussin
-requires = ""
+requires = "str"
 description = "poussin"
 version = "0.1"
 archive(byte) = "calculus_kernel.cma"
