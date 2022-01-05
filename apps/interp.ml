@@ -382,13 +382,12 @@ let process_definition (def: definition) : unit =
       let ctxt = ref empty_context in
       let te = typeinfer env.defs ctxt te in
       let [te] = flush_fvars env.defs ctxt [te] in 
-      printf "Computation %s : %s := " (term2string ctxt te) (term2string ctxt (get_type te)); flush stdout;
       let te' = reduction_term env.defs ctxt
 	{ beta = Some BetaWeak; delta = Some DeltaWeak; iota = true; zeta = true; eta = true }
 	te in
       let time_end = Sys.time () in
       processing_time := !processing_time +. (time_end -. time_start);
-      printf "%s\n" (term2string ctxt te'); flush stdout;
+      printf "Computation %s : %s := %s\n" (term2string ctxt te) (term2string ctxt (get_type te)) (term2string ctxt te'); flush stdout;
       printf "processed in %g sec.\n\n" (time_end -. time_start); flush stdout
   )
 
@@ -409,7 +408,7 @@ let process_stream (str: string Stream.t) : unit  =
 	  | DefDefinition (n, te) -> printf "Definition %s:= %s \n\n" n (term2string (ref empty_context) te)
 	  in*)
 	let time_end = Sys.time () in
-	printf "parsed in %g sec.\n\n" (time_end -. time_start); flush stdout;
+	(*printf "parsed in %g sec.\n\n" (time_end -. time_start); flush stdout;*)
 	process_definition (Lazy.force def);
 	Lazy.lazy_from_val ()
       ) pb in
@@ -463,7 +462,7 @@ let process_stream2 (str: string Stream.t) : unit  =
 	  | DefDefinition (n, te) -> printf "Definition %s:= %s \n\n" n (term2string (ref empty_context) te)
 	  in*)
 	let time_end = Sys.time () in
-	printf "parsed in %g sec.\n\n" (time_end -. time_start); flush stdout;
+	(*printf "parsed in %g sec.\n\n" (time_end -. time_start); flush stdout;*)
 	ignore(Lazy.force def);
 	Lazy.lazy_from_val ()
       ) pb in

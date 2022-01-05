@@ -82,8 +82,7 @@ Inductive tuple: list Type -> Type :=
 | tnil: tuple lnil
 | tcons: {hd: Type} -> hd -> {tl: list Type} -> tuple tl -> tuple (lcons hd tl)
 
-Definition caca := tcons O (tcons (S O) tnil)
-
+Check tcons O (tcons (S O) tnil)
 
 Recursive mult (n m: Nat) [0] : Nat :=
   match n with
@@ -91,10 +90,10 @@ Recursive mult (n m: Nat) [0] : Nat :=
      | S n := plus m (mult n m)
   end
 
-Recursive exp (n m: Nat) [0] : Nat :=
-  match n with
+Recursive exp (n m: Nat) [1] : Nat :=
+  match m with
      | O := S O
-     | S n := mult m (exp n m)
+     | S m := mult n (exp n m)
   end
 
 Definition two : Nat := S (S O)
@@ -102,56 +101,6 @@ Definition three : Nat := S two
 Definition four := plus two two
 Definition five := plus two three
 
-Compute (exp two three)
+Check exp two three
+Compute exp two three
 
-Inductive Bool : Set :=
-| true: Bool
-| false: Bool
-
-
-Definition Bool2Prop (b: Bool) : Prop :=
-  match b with
-    | true := True
-    | false := False
-  end
-
-Definition C : Prop := true
-exact Bool2Prop
-
-Inductive Addeable: Set -> Set -> Set -> Set :=
-| addeable: {A B C: Set} -> (A -> B -> C) -> Addeable A B C
-
-Definition add {A B C: Set} {H: Addeable A B C} (a: A) (b: B) : C :=
-  match H with
-    | addeable {_} {_} {_} f := f a b
-  end
-
-Definition NatNatNatAddeable :=
-  addeable {Nat} {Nat} {Nat} plus
-
-Inductive eqType: Type :=
-| isEqType: (A: Type) -> (f: A -> A -> Bool) -> eqType
-
-Recursive nat_eq (x y: Nat) [0] : Bool :=
-  match x with
-    | O := match y with | O := true | S _ := false end
-    | S x := match y with | O := false | S y := nat_eq x y end
-  end
-
-Definition nat_eqType : eqType := isEqType nat nat_eq
-
-Definition type (A: eqType) := match A with | isEqType A op := A end
-
-Definition eq_op {A: eqType} : A -> A -> Bool := match A with | isEqType A op := op end
-exact type
-exact type
-exact type
-exact type
-
-Compute eq_op O O
-exact nat_eqType
-
-Compute eq_op (S O) O
-exact nat_eqType
-
-Definition test := S I

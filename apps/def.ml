@@ -4,5 +4,6 @@ type definition = DefSignature of name * term
 		  | DefDefinition of name * term
 		  | DefInductive of name * term * (name * term) list
 		  | DefCompute of term
+		  (*| DefCheck of term*)
 		  | DefDecreasing of name * (int list)
 
