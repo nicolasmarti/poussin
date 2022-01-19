@@ -29,7 +29,6 @@ Definition eq_trans {A} (x y z: A) (Hxy: eq x y) (Hyz: eq y z) : eq x z :=
           end      
    end
 
-
 Definition Relation (A: Set) : Type := A -> A -> Prop
 
 Inductive ReflexiveRel : Set :=
@@ -82,7 +81,7 @@ Inductive tuple: list Type -> Type :=
 | tnil: tuple lnil
 | tcons: {hd: Type} -> hd -> {tl: list Type} -> tuple tl -> tuple (lcons hd tl)
 
-Check tcons O (tcons (S O) tnil)
+Check tcons True (tcons I (tcons (S O) tnil))
 
 Recursive mult (n m: Nat) [0] : Nat :=
   match n with
@@ -100,7 +99,27 @@ Definition two : Nat := S (S O)
 Definition three : Nat := S two
 Definition four := plus two two
 Definition five := plus two three
+Definition eight := exp two three
 
 Check exp two three
 Compute exp two three
 
+Recursive test (n: Nat) [0] : Vector Nat n :=
+match n with
+| O := vnil
+| S m := vcons n (test m)
+end
+
+Compute test (exp two three)
+
+Inductive nTree (A: Set) (n: Nat): Set :=
+| leaf {A: Set} {n: Nat}: A -> nTree A n
+| node {A: Set} {n: Nat}: A -> Vector (nTree A n) n -> nTree A n
+
+Recursive repeat_vector {A: Set} (a: A) (n: Nat) [2]: Vector A n :=
+match n with
+| O := vnil
+| S m := vcons a (repeat_vector a m)
+end
+
+Compute node O (repeat_vector (leaf O) eight)
