@@ -15,3 +15,5 @@ Definition doudou2 : I :=
 	   C (\ (x: I) -> doudou x x)
 
 Definition doudou3 : False := doudou doudou2 doudou2
+
+Compute doudou3

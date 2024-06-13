@@ -1,4 +1,2 @@
 apps/batch.native
-apps/batch.p.native
 apps/batch.byte
-apps/batch.d.byte
