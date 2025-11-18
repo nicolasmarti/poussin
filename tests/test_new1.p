@@ -18,7 +18,7 @@ Inductive eq {A: Type} (a: A): A -> Prop :=
 
 Definition eq_symm {A} (x y: A) (Hxy: eq x y) : eq y x :=
    match Hxy with
-      | eq_refl {A} x := eq_refl x
+      | eq_refl {A} z := eq_refl z
    end
 
 Definition eq_trans {A} (x y z: A) (Hxy: eq x y) (Hyz: eq y z) : eq x z :=
@@ -28,7 +28,6 @@ Definition eq_trans {A} (x y z: A) (Hxy: eq x y) (Hyz: eq y z) : eq x z :=
            | eq_refl {A} yz := eq_refl _
           end      
    end
-
 
 Definition Relation (A: Set) : Type := A -> A -> Prop
 

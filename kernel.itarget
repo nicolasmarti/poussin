@@ -1,2 +1,5 @@
+src/kernel/calculus_def.cmxa
+src/kernel/calculus_def.cma
 src/kernel/calculus_kernel.cmxa
 src/kernel/calculus_kernel.cma
+src/kernel/calculus_kernel.cmxs
